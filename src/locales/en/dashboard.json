@@ -1,0 +1,15 @@
+{
+  "welcomeLabel": "Clean slate",
+  "title": "Welcome to Kitchen Pilot, {{hotel}}",
+  "intro": "This dashboard keeps the layout, authentication, role checks and multi-property hotel selector so you can rebuild the product without legacy features getting in the way.",
+  "activeHotel": "Active property",
+  "rolesTitle": "Roles",
+  "rolesBody": "Role assignments continue to control access as you add new capabilities.",
+  "noRoles": "No roles assigned yet.",
+  "nextStepsTitle": "Next steps",
+  "nextSteps": {
+    "clean": "Replace legacy flows with the new functionality you have planned.",
+    "login": "Keep testing the login experience so users can sign in immediately.",
+    "properties": "Use the hotel selector to verify multi-property support while building new modules."
+  }
+}

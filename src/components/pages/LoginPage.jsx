@@ -17,9 +17,9 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const { hotelUid, hotelLoading } = useHotelContext();
+  const { hotelUid, loading } = useHotelContext();
 
-  
+
 
   useEffect(() => {
     const savedEmail = localStorage.getItem("rememberEmail");
@@ -47,12 +47,12 @@ export default function LoginPage() {
       console.error(err);
     }
   };
-  
+
 useEffect(() => {
-  if (auth.currentUser && hotelUid && !hotelLoading) {
+  if (auth.currentUser && hotelUid && !loading) {
     navigate("/dashboard");
   }
-}, [hotelUid, hotelLoading]);
+}, [hotelUid, loading, navigate]);
 
 
 

@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { auth, db, doc, getDoc } from "../firebaseConfig";
 import i18n from "../i18n";
-import { useLocation } from "react-router-dom";
 import {
   getSelectedHotelUid,
   setSelectedHotelUid as persistSelectedHotelUid,
@@ -22,7 +21,6 @@ export function HotelProvider({ children }) {
   const [lightspeedShiftRolloverHour, setLightspeedShiftRolloverHour] = useState(4);
   const [posProvider, setPosProvider] = useState("lightspeed");
   const [orderMode, setOrderMode] = useState("ingredient");
-  const location = useLocation();
 
   useEffect(() => {
     if (language) {
