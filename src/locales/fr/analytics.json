@@ -1,0 +1,21 @@
+{
+  "title": "Reporting & Analytics",
+  "outlet": "Outlet",
+  "allOutlets": "All outlets",
+  "type": "Type",
+  "foodAndBeverage": "Food & Beverage",
+  "food": "Food",
+  "beverage": "Beverage",
+  "from": "From",
+  "to": "To",
+  "trend": "Trend",
+  "overview": "Overview",
+  "date": "Date",
+  "totalPurchased": "Total Purchased",
+  "totalRevenue": "Total Revenue",
+  "refresh": "Refresh",
+  "loading": "Loading…",
+  "purchased": "Purchased",
+  "revenue": "Revenue"
+}
+

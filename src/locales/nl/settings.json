@@ -1,0 +1,91 @@
+{
+  "title": "Instellingen",
+  "subtitle": "Beheer categorieën, leveranciers en andere opties.",
+  "language": "Taalkeuze",
+  "languageSaved": "Deze voorkeur wordt per gebruiker opgeslagen.",
+  "general": "Algemeen",
+  "suppliers": "Leveranciers",
+  "categories": "Categorieën",
+  "users": "Gebruikers",
+  "manageSuppliers": "Leveranciers beheren",
+  "newSupplier": "Nieuwe leverancier",
+  "manageCategories": "Categorieën beheren",
+  "visibleLabel": "Zichtbare naam (bv. Saus)",
+  "vat": "BTW",
+  "add": "Toevoegen",
+  "food": "Voeding",
+  "beverage": "Drank",
+  "other": "Overig",
+  "rolesTitle": "Rollen & toegangsbeheer (binnenkort)",
+  "rolesSubtitle": "Hier kan je gebruikersrollen en rechten beheren.",
+  "tabs": {
+    "general": "Algemeen",
+    "reporting": "Reporting",
+    "ordering": "Ordering",
+    "people": "People",
+    "stamgegevens": "Stamgegevens",
+    "synchronisatie": "Synchronisatie",
+    "mappings": "Mappings",
+    "dataUpload": "Data Upload Settings",
+    "transfer": "Transfer Data",
+    "userManagement": "Gebruikersbeheer"
+  },
+  "dataUpload": {
+    "title": "Data Upload Settings",
+    "description": "Kies welk kassasysteem wordt gebruikt voor de gegevensimport.",
+    "posLabel": "POS-systeem",
+    "posOptions": {
+      "lightspeed": "Lightspeed",
+      "micros": "Micros Symphony"
+    },
+    "saveButton": "Opslaan",
+    "saving": "Opslaan..."
+  },
+  "ordering": {
+    "title": "Ordering",
+    "description": "Kies of nieuwe bestellingen vertrekken vanuit ingrediënten of rechtstreeks vanuit artikelen.",
+    "options": {
+      "ingredient": "Order by ingredient",
+      "article": "Order by article"
+    }
+  },
+  "navigation": {
+    "ariaLabel": "Instellingentabs"
+  },
+  "bulkEdit": {
+    "entities": {
+      "ingredients": "Ingrediënten",
+      "inventory": "Inventaris",
+      "products": "Producten"
+    },
+    "selectEntity": "Selecteer entiteit",
+    "selectField": "Selecteer veld",
+    "clearButton": "Maak alle waarden leeg",
+    "confirm": "Weet je zeker dat je alle waarden wilt leegmaken?"
+  },
+  "userManagement": {
+    "title": "Gebruikersbeheer",
+    "description": "Beheer de rollen en toegang per gebruiker voor dit hotel.",
+    "searchLabel": "Zoek gebruiker",
+    "searchPlaceholder": "Zoek op naam",
+    "reset": "Reset",
+    "refresh": "Vernieuw lijst",
+    "loadError": "Kon de gebruikerslijst niet laden. Probeer het later opnieuw.",
+    "loading": "Gebruikers laden...",
+    "selectHotel": "Selecteer eerst een hotel om gebruikersrollen te beheren.",
+    "empty": "Er zijn nog geen gebruikers gekoppeld aan dit hotel.",
+    "emptyFiltered": "Geen gebruikers gevonden voor deze zoekopdracht.",
+    "noEmail": "Geen e-mail",
+    "unknownUser": "Onbekende gebruiker",
+    "noRolesAssigned": "Geen rollen toegewezen",
+    "removeRole": "Verwijder rol {{role}}",
+    "allRolesAssigned": "Alle rollen zijn toegewezen.",
+    "addRoleLabel": "Voeg rol toe",
+    "addRolePlaceholder": "Selecteer rol…",
+    "roleAdded": "Rol '{{role}}' toegevoegd voor {{user}}.",
+    "roleRemoved": "Rol '{{role}}' verwijderd voor {{user}}.",
+    "roleAddError": "Rol kon niet toegevoegd worden. Probeer het opnieuw.",
+    "roleRemoveError": "Rol kon niet verwijderd worden. Probeer het opnieuw.",
+    "roleHotelMissing": "Selecteer eerst een hotel om rollen te beheren."
+  }
+}

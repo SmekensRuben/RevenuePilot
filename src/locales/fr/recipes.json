@@ -1,0 +1,47 @@
+{
+  "title": "Recettes",
+  "searchPlaceholder": "Rechercher une recette",
+  "createButton": "+ Nouvelle recette",
+  "form": {
+    "editTitle": "Modifier la recette",
+    "createTitle": "Nouvelle recette",
+    "namePlaceholder": "Nom",
+    "contentPlaceholder": "Quantité",
+    "unitPlaceholder": "Unité",
+    "parentCategoryLabel": "Catégorie principale",
+    "parentCategoryPlaceholder": "Sélectionnez une catégorie principale",
+    "categoryLabel": "Sous-catégorie",
+    "categoryPlaceholder": "Sélectionnez une sous-catégorie",
+    "compositionLabel": "Composition des ingrédients",
+    "ingredientPlaceholder": "Tapez ou sélectionnez un ingrédient",
+    "quantityPlaceholder": "Quantité",
+    "addIngredient": "+ Ajouter un ingrédient",
+    "save": "Enregistrer",
+    "add": "Ajouter",
+    "cancel": "Annuler",
+    "missingFields": "Veuillez remplir tous les champs obligatoires."
+  },
+  "table": {
+    "name": "Nom",
+    "content": "Contenu",
+    "cost": "Coût",
+    "empty": "Aucune recette trouvée."
+  },
+  "card": {
+    "cost": "Coût"
+  },
+  "details": {
+    "content": "Contenu",
+    "category": "Catégorie",
+    "composition": "Composition",
+    "empty": "-",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "close": "Fermer",
+    "unknownIngredient": "Ingrédient inconnu (ID : {{id}})"
+  },
+  "confirmDelete": "Êtes-vous sûr de vouloir supprimer la recette « {{name}} » ?",
+  "errors": {
+    "save": "Impossible d'enregistrer la recette."
+  }
+}

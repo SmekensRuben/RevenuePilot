@@ -1,0 +1,91 @@
+{
+  "title": "Paramètres",
+  "subtitle": "Gérer les catégories, fournisseurs et autres options.",
+  "language": "Langue",
+  "languageSaved": "Cette préférence est enregistrée par utilisateur.",
+  "general": "Général",
+  "suppliers": "Fournisseurs",
+  "categories": "Catégories",
+  "users": "Utilisateurs",
+  "manageSuppliers": "Gérer les fournisseurs",
+  "newSupplier": "Nouveau fournisseur",
+  "manageCategories": "Gérer les catégories",
+  "visibleLabel": "Nom visible (ex. Sauce)",
+  "vat": "TVA",
+  "add": "Ajouter",
+  "food": "Nourriture",
+  "beverage": "Boisson",
+  "other": "Autre",
+  "rolesTitle": "Gestion des rôles et des accès (bientôt)",
+  "rolesSubtitle": "Vous pouvez gérer les rôles et permissions ici.",
+  "tabs": {
+    "general": "Général",
+    "reporting": "Rapports",
+    "ordering": "Commande",
+    "people": "Personnel",
+    "stamgegevens": "Données de base",
+    "synchronisatie": "Synchronisation",
+    "mappings": "Correspondances",
+    "dataUpload": "Paramètres d'import",
+    "transfer": "Transfert de données",
+    "userManagement": "Gestion des utilisateurs"
+  },
+  "dataUpload": {
+    "title": "Paramètres d'import de données",
+    "description": "Choisissez le POS utilisé pour importer les données de ventes.",
+    "posLabel": "Système POS",
+    "posOptions": {
+      "lightspeed": "Lightspeed",
+      "micros": "Micros Symphony"
+    },
+    "saveButton": "Enregistrer",
+    "saving": "Enregistrement..."
+  },
+  "ordering": {
+    "title": "Commande",
+    "description": "Choisissez si les nouvelles commandes commencent par les ingrédients ou directement par les articles.",
+    "options": {
+      "ingredient": "Commander par ingrédient",
+      "article": "Commander par article"
+    }
+  },
+  "navigation": {
+    "ariaLabel": "Onglets des paramètres"
+  },
+  "bulkEdit": {
+    "entities": {
+      "ingredients": "Ingrédients",
+      "inventory": "Inventaire",
+      "products": "Produits"
+    },
+    "selectEntity": "Sélectionner une entité",
+    "selectField": "Sélectionner un champ",
+    "clearButton": "Effacer toutes les valeurs",
+    "confirm": "Voulez-vous vraiment effacer toutes les valeurs ?"
+  },
+  "userManagement": {
+    "title": "Gestion des utilisateurs",
+    "description": "Gérez les rôles et les accès par utilisateur pour cet hôtel.",
+    "searchLabel": "Rechercher un utilisateur",
+    "searchPlaceholder": "Rechercher par nom",
+    "reset": "Réinitialiser",
+    "refresh": "Actualiser la liste",
+    "loadError": "Impossible de charger la liste des utilisateurs. Réessayez plus tard.",
+    "loading": "Chargement des utilisateurs...",
+    "selectHotel": "Sélectionnez d'abord un hôtel pour gérer les rôles utilisateur.",
+    "empty": "Aucun utilisateur n'est encore lié à cet hôtel.",
+    "emptyFiltered": "Aucun utilisateur trouvé pour cette recherche.",
+    "noEmail": "Pas d’e-mail",
+    "unknownUser": "Utilisateur inconnu",
+    "noRolesAssigned": "Aucun rôle attribué",
+    "removeRole": "Retirer le rôle {{role}}",
+    "allRolesAssigned": "Tous les rôles ont été attribués.",
+    "addRoleLabel": "Ajouter un rôle",
+    "addRolePlaceholder": "Sélectionner un rôle…",
+    "roleAdded": "Rôle '{{role}}' attribué à {{user}}.",
+    "roleRemoved": "Rôle '{{role}}' retiré pour {{user}}.",
+    "roleAddError": "Impossible d’ajouter le rôle. Veuillez réessayer.",
+    "roleRemoveError": "Impossible de retirer le rôle. Veuillez réessayer.",
+    "roleHotelMissing": "Sélectionnez d'abord un hôtel pour gérer les rôles."
+  }
+}

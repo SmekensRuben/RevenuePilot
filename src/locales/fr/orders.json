@@ -1,0 +1,231 @@
+{
+  "list": {
+    "title": "Commandes",
+    "export": "Exporter",
+    "newOrder": "+ Nouvelle commande",
+    "loading": "Chargement des commandes...",
+    "empty": "Aucune commande trouvée.",
+    "table": {
+      "supplier": "Fournisseur",
+      "orderDate": "Date de commande",
+      "deliveryDate": "Date de livraison",
+      "status": "Statut",
+      "total": "Total"
+    }
+  },
+  "filters": {
+    "status": "Statut",
+    "all": "Tous",
+    "created": "Créée",
+    "ordered": "Commandée",
+    "received": "Reçue",
+    "checked": "Vérifiée",
+    "completed": "Terminée",
+    "cancelled": "Annulée",
+    "orderDateFrom": "Date de commande depuis",
+    "orderDateTo": "Date de commande jusqu'au",
+    "deliveryDateFrom": "Date de livraison depuis",
+    "deliveryDateTo": "Date de livraison jusqu'au",
+    "reset": "Réinitialiser les filtres"
+  },
+  "newOrder": {
+    "title": "Nouvelle commande",
+    "deliveryDate": "Date de livraison",
+    "requester": "Demandeur",
+    "noteOptional": "Note (facultatif)",
+    "addArticle": "Ajouter un article",
+    "allParentCategories": "Toutes les catégories principales",
+    "allChildCategories": "Toutes les sous-catégories",
+    "allSuppliers": "Tous les fournisseurs",
+    "searchPlaceholder": "Tapez pour rechercher un ingrédient...",
+    "nameColumn": "Nom",
+    "supplierColumn": "Fournisseur",
+    "brandColumn": "Marque",
+    "priceColumn": "Prix",
+    "packageColumn": "Conditionnement",
+    "cancel": "Annuler",
+    "newArticleTooltip": "Nouvel article",
+    "missingFieldsTitle": "Veuillez compléter tous les champs",
+    "missingFieldsIntro": "Veuillez d'abord compléter les champs suivants :",
+    "missingFieldDeliveryDate": "Date de livraison",
+    "missingFieldRequester": "Demandeur",
+    "errorMissingFields": "Complétez tous les champs et ajoutez au moins un article à la commande.",
+    "duplicateWarningIntro": "Attention !",
+    "duplicateWarningLine": "• {{quantity}}× {{name}}{{brandText}} figure déjà dans une commande pour le {{date}} auprès de {{supplier}}",
+    "duplicateWarningConfirm": "Êtes-vous sûr de vouloir ajouter ces produits à la commande existante ?"
+  },
+  "productsModal": {
+    "title": "Articles ajoutés",
+    "empty": "Aucun article pour le moment.",
+    "selectOutlet": "Sélectionner un point de vente",
+    "close": "Fermer",
+    "remove": "Supprimer",
+    "saving": "Enregistrement...",
+    "save": "Enregistrer la/les commande(s)"
+  },
+  "productCard": {
+    "quantity": "Quantité",
+    "price": "Prix",
+    "outlet": "Point de vente",
+    "total": "Total",
+    "remove": "Supprimer",
+    "changeArticle": "choisir un autre"
+  },
+  "labels": {
+    "newBadge": "NOUVEAU",
+    "articleNumber": "Réf. :"
+  },
+  "addProduct": {
+    "chooseAnother": "choisir un autre",
+    "pricePerUnit": "€{{price}} par {{unit}}",
+    "unitsPerPurchase": "{{count}} {{unit}} par {{purchaseUnit}}",
+    "contentPerStock": "{{content}} {{recipeUnit}}/{{stockUnit}}",
+    "cancel": "Annuler",
+    "add": "Ajouter"
+  },
+  "createArticle": {
+    "title": "Ajouter un nouvel article",
+    "name": "Nom",
+    "brandOptional": "Marque (facultatif)",
+    "supplier": "Fournisseur",
+    "selectSupplier": "Sélectionnez un fournisseur",
+    "quantity": "Quantité",
+    "articleNumber": "Numéro d'article",
+    "price": "Prix",
+    "cancel": "Annuler",
+    "addToCart": "Ajouter au panier",
+    "errors": {
+      "nameRequired": "Le nom est obligatoire",
+      "supplierRequired": "Le fournisseur est obligatoire",
+      "priceRequired": "Saisissez un prix valide",
+      "quantityRequired": "Saisissez une quantité valide"
+    }
+  },
+  "details": {
+    "title": "Détails de la commande",
+    "back": "Retour",
+    "loading": "Chargement...",
+    "notFound": "Commande introuvable.",
+    "pdf": {
+      "create": "Créer un PDF",
+      "creating": "Création...",
+      "documentTitle": "Commande {{id}}",
+      "fileName": "commande-{{id}}.pdf",
+      "hotel": "Hôtel",
+      "supplier": "Fournisseur",
+      "orderedOn": "Commandé le",
+      "delivery": "Livraison",
+      "notes": "Remarques",
+      "brand": "Marque : {{brand}}",
+      "articleNumber": "Réf. : {{number}}",
+      "outlet": "Point de vente : {{outlet}}",
+      "unitsPer": "{{count}} {{stockUnit}} par {{purchaseUnit}}",
+      "unitsPerNoPurchase": "{{count}} {{stockUnit}}",
+      "footer": "Généré le {{date}}",
+      "total": "Total de la commande : €{{total}}",
+      "table": {
+        "index": "#",
+        "article": "Article",
+        "ordered": "Commandé",
+        "received": "Reçu"
+      }
+    },
+    "header": {
+      "orderDate": "Date de commande",
+      "deliveryDate": "Livraison",
+      "notes": "Remarques"
+    },
+    "table": {
+      "article": "Article",
+      "brand": "Marque",
+      "outlet": "Point de vente",
+      "quantity": "Qté",
+      "price": "Prix",
+      "received": "Reçu",
+      "total": "Total"
+    },
+    "mobile": {
+      "quantity": "Quantité :",
+      "price": "Prix :",
+      "total": "Total :",
+      "received": "Reçu :"
+    },
+    "actions": {
+      "edit": "Modifier",
+      "confirm": "Confirmer",
+      "receive": "Réception",
+      "cancel": "Annuler",
+      "backToCreated": "Retour à Créée",
+      "finalCheck": "Vérification finale",
+      "backToOrdered": "Retour à Commandée",
+      "backToReceived": "Retour à Reçue",
+      "markCompleted": "Marquer comme terminée"
+    },
+    "hints": {
+      "created": "Vous pouvez modifier, confirmer ou annuler tant que la commande est au statut \"Created\".",
+      "ordered": "Annulez ou réceptionnez les marchandises tant que la commande est \"Ordered\".",
+      "received": "Vérifiez la livraison et effectuez la vérification finale ou revenez en arrière.",
+      "checked": "Ajustez les prix si nécessaire avant de clôturer la commande."
+    },
+    "completedMessage": "Cette commande est terminée.",
+    "totals": {
+      "order": "Total de la commande : €{{total}}"
+    },
+    "confirmCancel": {
+      "title": "Annuler la commande",
+      "message": "Êtes-vous sûr de vouloir annuler cette commande ?"
+    },
+    "confirmOrder": {
+      "title": "Confirmer la commande",
+      "message": "Êtes-vous sûr que cette commande a été passée ?"
+    },
+    "confirmBackToCreated": {
+      "title": "Revenir à Créée",
+      "message": "Êtes-vous sûr de vouloir repasser cette commande en statut Créée ?"
+    },
+    "priceEdit": {
+      "title": "Modifier le prix",
+      "invoicedTitle": "Modifier le prix facturé"
+    }
+  },
+  "receive": {
+    "title": "Réception des marchandises",
+    "loading": "Chargement...",
+    "notFound": "Commande introuvable.",
+    "alreadyHandled": "Cette commande a déjà été traitée.",
+    "orderFrom": "Commande de {{supplier}}",
+    "deliveredOn": "Livré le : {{date}}",
+    "sections": {
+      "regular": "Articles non pesés",
+      "weighed": "Articles pesés"
+    },
+    "table": {
+      "article": "Article",
+      "brand": "Marque",
+      "outlet": "Point de vente",
+      "ordered": "Commandé",
+      "orderedWeight": "Kg commandés",
+      "received": "Reçu",
+      "shortage": "Manque"
+    },
+    "actions": {
+      "cancel": "Annuler",
+      "confirm": "Confirmer",
+      "saving": "En cours..."
+    },
+    "search": {
+      "title": "Rechercher un article",
+      "placeholder": "Rechercher un article..."
+    },
+    "card": {
+      "ordered": "Commandé :",
+      "orderedWeight": "Kg commandés :",
+      "received": "Reçu :",
+      "weightPlaceholder": "total (kg)",
+      "shortage": "Manque :"
+    }
+  },
+  "errors": {
+    "missingOutlets": "Sélectionnez un point de vente pour chaque article."
+  }
+}

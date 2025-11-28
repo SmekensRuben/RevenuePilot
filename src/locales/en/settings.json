@@ -1,0 +1,91 @@
+{
+  "title": "Settings",
+  "subtitle": "Manage categories, suppliers and other options.",
+  "language": "Language",
+  "languageSaved": "This preference is saved per user.",
+  "general": "General",
+  "suppliers": "Suppliers",
+  "categories": "Categories",
+  "users": "Users",
+  "manageSuppliers": "Manage suppliers",
+  "newSupplier": "New supplier",
+  "manageCategories": "Manage categories",
+  "visibleLabel": "Visible label (e.g. Sauce)",
+  "vat": "VAT",
+  "add": "Add",
+  "food": "Food",
+  "beverage": "Beverage",
+  "other": "Other",
+  "rolesTitle": "Role & access management (coming soon)",
+  "rolesSubtitle": "You can manage user roles and permissions here.",
+  "tabs": {
+    "general": "General",
+    "reporting": "Reporting",
+    "ordering": "Ordering",
+    "people": "People",
+    "stamgegevens": "Master data",
+    "synchronisatie": "Synchronization",
+    "mappings": "Mappings",
+    "dataUpload": "Data Upload Settings",
+    "transfer": "Transfer Data",
+    "userManagement": "User Management"
+  },
+  "dataUpload": {
+    "title": "Data Upload Settings",
+    "description": "Choose which POS is used for importing sales data.",
+    "posLabel": "POS system",
+    "posOptions": {
+      "lightspeed": "Lightspeed",
+      "micros": "Micros Symphony"
+    },
+    "saveButton": "Save",
+    "saving": "Saving..."
+  },
+  "ordering": {
+    "title": "Ordering",
+    "description": "Choose whether new orders start from ingredients or directly from articles.",
+    "options": {
+      "ingredient": "Order by ingredient",
+      "article": "Order by article"
+    }
+  },
+  "navigation": {
+    "ariaLabel": "Settings tabs"
+  },
+  "bulkEdit": {
+    "entities": {
+      "ingredients": "Ingredients",
+      "inventory": "Inventory",
+      "products": "Products"
+    },
+    "selectEntity": "Select entity",
+    "selectField": "Select field",
+    "clearButton": "Clear all values",
+    "confirm": "Are you sure you want to clear all values?"
+  },
+  "userManagement": {
+    "title": "User Management",
+    "description": "Manage the roles and permissions per user for this hotel.",
+    "searchLabel": "Search user",
+    "searchPlaceholder": "Search by name",
+    "reset": "Reset",
+    "refresh": "Refresh list",
+    "loadError": "Could not load the user list. Please try again later.",
+    "loading": "Loading users...",
+    "selectHotel": "Select a hotel first to manage user roles.",
+    "empty": "No users are linked to this hotel yet.",
+    "emptyFiltered": "No users found for this search.",
+    "noEmail": "No email",
+    "unknownUser": "Unknown user",
+    "noRolesAssigned": "No roles assigned",
+    "removeRole": "Remove role {{role}}",
+    "allRolesAssigned": "All roles have been assigned.",
+    "addRoleLabel": "Add role",
+    "addRolePlaceholder": "Select role…",
+    "roleAdded": "Role '{{role}}' assigned to {{user}}.",
+    "roleRemoved": "Role '{{role}}' removed for {{user}}.",
+    "roleAddError": "Could not add the role. Please try again.",
+    "roleRemoveError": "Could not remove the role. Please try again.",
+    "roleHotelMissing": "Select a hotel first to manage roles."
+  }
+}

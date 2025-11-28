@@ -1,0 +1,13 @@
+{
+  "title": "Revenue Center",
+  "date": "Date",
+  "outlet": "Point de vente",
+  "subOutlet": "Sous-outlet",
+  "allOutlets": "Tous les outlets",
+  "allSubOutlets": "Tous les sous-outlets",
+  "food": "Nourriture",
+  "beverage": "Boisson",
+  "save": "Enregistrer",
+  "amount": "Montant",
+  "import": "Importer"
+}

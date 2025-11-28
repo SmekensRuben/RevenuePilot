@@ -1,0 +1,47 @@
+{
+  "title": "Recipes",
+  "searchPlaceholder": "Search recipe",
+  "createButton": "+ New recipe",
+  "form": {
+    "editTitle": "Edit recipe",
+    "createTitle": "New recipe",
+    "namePlaceholder": "Name",
+    "contentPlaceholder": "Content",
+    "unitPlaceholder": "Unit",
+    "parentCategoryLabel": "Main category",
+    "parentCategoryPlaceholder": "Select main category",
+    "categoryLabel": "Subcategory",
+    "categoryPlaceholder": "Select subcategory",
+    "compositionLabel": "Ingredient composition",
+    "ingredientPlaceholder": "Type or select ingredient",
+    "quantityPlaceholder": "Quantity",
+    "addIngredient": "+ Add ingredient",
+    "save": "Save",
+    "add": "Add",
+    "cancel": "Cancel",
+    "missingFields": "Please fill in all required fields."
+  },
+  "table": {
+    "name": "Name",
+    "content": "Content",
+    "cost": "Cost",
+    "empty": "No recipes found."
+  },
+  "card": {
+    "cost": "Cost"
+  },
+  "details": {
+    "content": "Content",
+    "category": "Category",
+    "composition": "Composition",
+    "empty": "-",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "unknownIngredient": "Unknown ingredient (ID: {{id}})"
+  },
+  "confirmDelete": "Are you sure you want to delete the recipe '{{name}}'?",
+  "errors": {
+    "save": "Unable to save recipe."
+  }
+}

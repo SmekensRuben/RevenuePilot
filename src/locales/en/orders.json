@@ -1,0 +1,231 @@
+{
+  "list": {
+    "title": "Orders",
+    "export": "Export",
+    "newOrder": "+ New Order",
+    "loading": "Loading orders...",
+    "empty": "No orders found.",
+    "table": {
+      "supplier": "Supplier",
+      "orderDate": "Order Date",
+      "deliveryDate": "Delivery Date",
+      "status": "Status",
+      "total": "Total"
+    }
+  },
+  "filters": {
+    "status": "Status",
+    "all": "All",
+    "created": "Created",
+    "ordered": "Ordered",
+    "received": "Received",
+    "checked": "Checked",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "orderDateFrom": "Order date from",
+    "orderDateTo": "Order date to",
+    "deliveryDateFrom": "Delivery date from",
+    "deliveryDateTo": "Delivery date to",
+    "reset": "Reset filters"
+  },
+  "newOrder": {
+    "title": "New Order",
+    "deliveryDate": "Delivery Date",
+    "requester": "Requester",
+    "noteOptional": "Note (optional)",
+    "addArticle": "Add Article",
+    "allParentCategories": "All parent categories",
+    "allChildCategories": "All subcategories",
+    "allSuppliers": "All suppliers",
+    "searchPlaceholder": "Type to search for an ingredient...",
+    "nameColumn": "Name",
+    "supplierColumn": "Supplier",
+    "brandColumn": "Brand",
+    "priceColumn": "Price",
+    "packageColumn": "Pack size",
+    "cancel": "Cancel",
+    "newArticleTooltip": "New article",
+    "missingFieldsTitle": "Please fill in all fields",
+    "missingFieldsIntro": "Please fill in the following fields first:",
+    "missingFieldDeliveryDate": "Delivery date",
+    "missingFieldRequester": "Requester",
+    "errorMissingFields": "Fill in all fields and add at least one article to the order.",
+    "duplicateWarningIntro": "Attention!",
+    "duplicateWarningLine": "• {{quantity}}× {{name}}{{brandText}} is already part of an order for {{date}} with {{supplier}}",
+    "duplicateWarningConfirm": "Are you sure you want to add these products to the existing order?"
+  },
+  "productsModal": {
+    "title": "Added articles",
+    "empty": "No articles yet.",
+    "selectOutlet": "Select outlet",
+    "close": "Close",
+    "remove": "Remove",
+    "saving": "Saving...",
+    "save": "Save order(s)"
+  },
+  "productCard": {
+    "quantity": "Quantity",
+    "price": "Price",
+    "outlet": "Outlet",
+    "total": "Total",
+    "remove": "Remove",
+    "changeArticle": "choose another"
+  },
+  "labels": {
+    "newBadge": "NEW",
+    "articleNumber": "Art.no:"
+  },
+  "addProduct": {
+    "chooseAnother": "choose another",
+    "pricePerUnit": "€{{price}} per {{unit}}",
+    "unitsPerPurchase": "{{count}} {{unit}} per {{purchaseUnit}}",
+    "contentPerStock": "{{content}} {{recipeUnit}}/{{stockUnit}}",
+    "cancel": "Cancel",
+    "add": "Add"
+  },
+  "createArticle": {
+    "title": "Add new article",
+    "name": "Name",
+    "brandOptional": "Brand (optional)",
+    "supplier": "Supplier",
+    "selectSupplier": "Select supplier",
+    "quantity": "Quantity",
+    "articleNumber": "Article number",
+    "price": "Price",
+    "cancel": "Cancel",
+    "addToCart": "Add to cart",
+    "errors": {
+      "nameRequired": "Name is required",
+      "supplierRequired": "Supplier is required",
+      "priceRequired": "Enter a valid price",
+      "quantityRequired": "Enter a valid quantity"
+    }
+  },
+  "details": {
+    "title": "Order details",
+    "back": "Back",
+    "loading": "Loading...",
+    "notFound": "Order not found.",
+    "pdf": {
+      "create": "Create PDF",
+      "creating": "Creating...",
+      "documentTitle": "Order {{id}}",
+      "fileName": "order-{{id}}.pdf",
+      "hotel": "Hotel",
+      "supplier": "Supplier",
+      "orderedOn": "Ordered on",
+      "delivery": "Delivery",
+      "notes": "Notes",
+      "brand": "Brand: {{brand}}",
+      "articleNumber": "Article no.: {{number}}",
+      "outlet": "Outlet: {{outlet}}",
+      "unitsPer": "{{count}} {{stockUnit}} per {{purchaseUnit}}",
+      "unitsPerNoPurchase": "{{count}} {{stockUnit}}",
+      "footer": "Generated on {{date}}",
+      "total": "Order total: €{{total}}",
+      "table": {
+        "index": "#",
+        "article": "Article",
+        "ordered": "Ordered",
+        "received": "Received"
+      }
+    },
+    "header": {
+      "orderDate": "Order date",
+      "deliveryDate": "Delivery",
+      "notes": "Notes"
+    },
+    "table": {
+      "article": "Article",
+      "brand": "Brand",
+      "outlet": "Outlet",
+      "quantity": "Qty",
+      "price": "Price",
+      "received": "Received",
+      "total": "Total"
+    },
+    "mobile": {
+      "quantity": "Quantity:",
+      "price": "Price:",
+      "total": "Total:",
+      "received": "Received:"
+    },
+    "actions": {
+      "edit": "Edit",
+      "confirm": "Confirm",
+      "receive": "Receive",
+      "cancel": "Cancel",
+      "backToCreated": "Back to Created",
+      "finalCheck": "Final check",
+      "backToOrdered": "Back to Ordered",
+      "backToReceived": "Back to Received",
+      "markCompleted": "Mark as completed"
+    },
+    "hints": {
+      "created": "You can edit, confirm, or cancel as long as the order is in \"Created\" status.",
+      "ordered": "Cancel or receive goods while the order is \"Ordered\".",
+      "received": "Review the delivery and either complete the final check or return.",
+      "checked": "Adjust prices if needed before closing the order."
+    },
+    "completedMessage": "This order has been completed.",
+    "totals": {
+      "order": "Order total: €{{total}}"
+    },
+    "confirmCancel": {
+      "title": "Cancel order",
+      "message": "Are you sure you want to cancel this order?"
+    },
+    "confirmOrder": {
+      "title": "Confirm order",
+      "message": "Are you sure this order has been placed?"
+    },
+    "confirmBackToCreated": {
+      "title": "Move back to Created",
+      "message": "Are you sure you want to move this order back to Created?"
+    },
+    "priceEdit": {
+      "title": "Adjust price",
+      "invoicedTitle": "Adjust invoiced price"
+    }
+  },
+  "receive": {
+    "title": "Receive goods",
+    "loading": "Loading...",
+    "notFound": "Order not found.",
+    "alreadyHandled": "This order has already been processed.",
+    "orderFrom": "Order from {{supplier}}",
+    "deliveredOn": "Delivered on: {{date}}",
+    "sections": {
+      "regular": "Non-weighed items",
+      "weighed": "Weighed items"
+    },
+    "table": {
+      "article": "Article",
+      "brand": "Brand",
+      "outlet": "Outlet",
+      "ordered": "Ordered",
+      "orderedWeight": "Ordered kg",
+      "received": "Received",
+      "shortage": "Shortage"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "saving": "Saving..."
+    },
+    "search": {
+      "title": "Search article",
+      "placeholder": "Search article..."
+    },
+    "card": {
+      "ordered": "Ordered:",
+      "orderedWeight": "Ordered kg:",
+      "received": "Received:",
+      "weightPlaceholder": "total (kg)",
+      "shortage": "Shortage:"
+    }
+  },
+  "errors": {
+    "missingOutlets": "Select an outlet for each article."
+  }
+}

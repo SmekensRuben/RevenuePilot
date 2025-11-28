@@ -1,0 +1,13 @@
+{
+  "title": "Revenue Center",
+  "date": "Datum",
+  "outlet": "Outlet",
+  "subOutlet": "Suboutlet",
+  "allOutlets": "Alle outlets",
+  "allSubOutlets": "Alle suboutlets",
+  "food": "Food",
+  "beverage": "Beverage",
+  "save": "Opslaan",
+  "amount": "Bedrag",
+  "import": "Importeren"
+}

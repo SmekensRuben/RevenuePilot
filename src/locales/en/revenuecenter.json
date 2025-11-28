@@ -1,0 +1,13 @@
+{
+  "title": "Revenue Center",
+  "date": "Date",
+  "outlet": "Outlet",
+  "subOutlet": "Suboutlet",
+  "allOutlets": "All outlets",
+  "allSubOutlets": "All suboutlets",
+  "food": "Food",
+  "beverage": "Beverage",
+  "save": "Save",
+  "amount": "Amount",
+  "import": "Import"
+}
