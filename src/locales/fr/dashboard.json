@@ -1,6 +1,6 @@
 {
   "welcomeLabel": "Nouveau départ",
-  "title": "Bienvenue sur Kitchen Pilot, {{hotel}}",
+  "title": "Bienvenue sur Revenue Pilot, {{hotel}}",
   "intro": "Ce tableau de bord garde la mise en page, la connexion, les rôles et le sélecteur d'hôtel afin que vous puissiez reconstruire le produit sans l'ancien héritage.",
   "activeHotel": "Propriété active",
   "rolesTitle": "Rôles",

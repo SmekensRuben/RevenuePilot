@@ -67,7 +67,7 @@ useEffect(() => {
               alt="Breakfast Pilot Logo"
               className="h-10"
             />
-            <h1 className="text-2xl font-bold tracking-wide">Kitchen Pilot</h1>
+            <h1 className="text-2xl font-bold tracking-wide">Revenue Pilot</h1>
           </div>
           <button
             onClick={() => navigate("/")}
@@ -134,7 +134,7 @@ useEffect(() => {
           </form>
 
           <p className="text-xs text-center text-gray-400 mt-6">
-            &copy; {new Date().getFullYear()} Kitchen Pilot
+            &copy; {new Date().getFullYear()} Revenue Pilot
           </p>
         </motion.div>
       </div>

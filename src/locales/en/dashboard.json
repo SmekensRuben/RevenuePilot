@@ -1,6 +1,6 @@
 {
   "welcomeLabel": "Clean slate",
-  "title": "Welcome to Kitchen Pilot, {{hotel}}",
+  "title": "Welcome to Revenue Pilot, {{hotel}}",
   "intro": "This dashboard keeps the layout, authentication, role checks and multi-property hotel selector so you can rebuild the product without legacy features getting in the way.",
   "activeHotel": "Active property",
   "rolesTitle": "Roles",
