@@ -2,6 +2,16 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
 import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Legend,
+  Tooltip,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+import {
   db,
   doc,
   getDoc,
@@ -19,6 +29,16 @@ import { FileInput } from "lucide-react";
 function formatDateInput(date = new Date()) {
   return date.toISOString().split("T")[0];
 }
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Legend, Tooltip);
+
+const DATE_PRESETS = {
+  yesterday: "Yesterday",
+  thisWeek: "This Week",
+  thisMonth: "This Month",
+  lastMonth: "Last Month",
+  custom: "Custom",
+};
 
 const VISIBLE_COLUMNS = [
   { key: "fullName", label: "Guest" },
@@ -45,18 +65,57 @@ function parseDateFromInput(value) {
   return date;
 }
 
+function getDateRangeForPreset(preset) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (preset === "yesterday") {
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    return { start: formatDateInput(yesterday), end: formatDateInput(yesterday) };
+  }
+
+  if (preset === "thisWeek") {
+    const startOfWeek = new Date(today);
+    const day = startOfWeek.getDay();
+    const diff = (day + 6) % 7; // Monday as start of week
+    startOfWeek.setDate(startOfWeek.getDate() - diff);
+    return { start: formatDateInput(startOfWeek), end: formatDateInput(today) };
+  }
+
+  if (preset === "thisMonth") {
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { start: formatDateInput(startOfMonth), end: formatDateInput(today) };
+  }
+
+  if (preset === "lastMonth") {
+    const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    return {
+      start: formatDateInput(startOfLastMonth),
+      end: formatDateInput(endOfLastMonth),
+    };
+  }
+
+  return { start: formatDateInput(today), end: formatDateInput(today) };
+}
+
 export default function MadeReservationsPage() {
   const { hotelUid } = useHotelContext();
-  const [dateRange, setDateRange] = useState({
-    start: formatDateInput(),
-    end: formatDateInput(),
-  });
+  const [datePreset, setDatePreset] = useState("yesterday");
+  const [dateRange, setDateRange] = useState(() => getDateRangeForPreset("yesterday"));
   const [importDate, setImportDate] = useState(formatDateInput());
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "arrivalDate", direction: "asc" });
+  const [showGraph, setShowGraph] = useState(false);
   const fileInputRef = useRef(null);
+
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }),
+    []
+  );
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -71,6 +130,12 @@ export default function MadeReservationsPage() {
     sessionStorage.clear();
     window.location.href = "/login";
   };
+
+  useEffect(() => {
+    if (datePreset !== "custom") {
+      setDateRange(getDateRangeForPreset(datePreset));
+    }
+  }, [datePreset]);
 
   useEffect(() => {
     async function fetchReservations() {
@@ -107,15 +172,22 @@ export default function MadeReservationsPage() {
               );
               const snap = await getDoc(docRef);
               const data = snap.exists() ? snap.data() : {};
-              return Array.isArray(data.reservations) ? data.reservations : [];
+              return { date, reservations: Array.isArray(data.reservations) ? data.reservations : [] };
             } catch (error) {
               console.error(`Failed to load reservations for ${date}`, error);
-              return [];
+              return { date, reservations: [] };
             }
           })
         );
 
-        setReservations(results.flat());
+        const reservationsWithDates = results.flatMap((result) =>
+          (result.reservations || []).map((reservation) => ({
+            ...reservation,
+            __sourceDate: result.date,
+          }))
+        );
+
+        setReservations(reservationsWithDates);
       } catch (error) {
         console.error("Failed to load reservations", error);
         toast.error("Kon reservaties niet laden.");
@@ -137,6 +209,7 @@ export default function MadeReservationsPage() {
       ...current,
       [key]: value,
     }));
+    setDatePreset("custom");
   };
 
   const dateRangeLabel = useMemo(() => {
@@ -195,7 +268,8 @@ export default function MadeReservationsPage() {
     }, 0);
 
     const companyCounts = reservations.reduce((acc, reservation) => {
-      const company = reservation?.companyName || "Onbekend";
+      const company = String(reservation?.companyName || "").trim();
+      if (!company) return acc;
       acc[company] = (acc[company] || 0) + 1;
       return acc;
     }, {});
@@ -211,15 +285,116 @@ export default function MadeReservationsPage() {
     );
 
     const formatCurrency = (value) =>
-      new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(value);
+      currencyFormatter.format(value);
 
     return {
       totalReservations,
       totalNights,
       totalRevenue: formatCurrency(totalRevenue),
-      topCompany: topCompany ? topCompany.company : "-",
+      topCompany: topCompany ? `${topCompany.company} (${topCompany.count})` : "-",
     };
+  }, [currencyFormatter, reservations]);
+
+  const dailyMetrics = useMemo(() => {
+    const grouped = reservations.reduce((acc, reservation) => {
+      const dateKey = reservation.__sourceDate || reservation.arrivalDate;
+      if (!dateKey) return acc;
+
+      if (!acc[dateKey]) {
+        acc[dateKey] = { reservations: 0, nights: 0, revenue: 0 };
+      }
+
+      const nights = Number(reservation?.nights) || 0;
+      const shareAmount = Number(reservation?.shareAmount) || 0;
+
+      acc[dateKey].reservations += 1;
+      acc[dateKey].nights += nights;
+      acc[dateKey].revenue += nights * shareAmount;
+      return acc;
+    }, {});
+
+    return Object.entries(grouped)
+      .map(([date, metrics]) => ({ date, ...metrics }))
+      .sort((a, b) => a.date.localeCompare(b.date));
   }, [reservations]);
+
+  const chartData = useMemo(() => {
+    const labels = dailyMetrics.map((item) => item.date);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Reservations",
+          data: dailyMetrics.map((item) => item.reservations),
+          borderColor: "#b41f1f",
+          backgroundColor: "rgba(180, 31, 31, 0.2)",
+          tension: 0.25,
+        },
+        {
+          label: "Nights",
+          data: dailyMetrics.map((item) => item.nights),
+          borderColor: "#2563eb",
+          backgroundColor: "rgba(37, 99, 235, 0.2)",
+          tension: 0.25,
+        },
+        {
+          label: "Revenue",
+          data: dailyMetrics.map((item) => item.revenue),
+          borderColor: "#059669",
+          backgroundColor: "rgba(5, 150, 105, 0.2)",
+          yAxisID: "y1",
+          tension: 0.25,
+        },
+      ],
+    };
+  }, [dailyMetrics]);
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top" },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const label = context.dataset.label || "";
+              const value = context.raw;
+
+              if (context.dataset.yAxisID === "y1") {
+                return `${label}: ${currencyFormatter.format(value)}`;
+              }
+
+              return `${label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: "Date",
+          },
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Count" },
+        },
+        y1: {
+          beginAtZero: true,
+          position: "right",
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: "Revenue" },
+          ticks: {
+            callback: (value) => currencyFormatter.format(value),
+          },
+        },
+      },
+    }),
+    [currencyFormatter]
+  );
 
   const handleSort = (columnKey) => {
     setSortConfig((current) => {
@@ -354,26 +529,53 @@ export default function MadeReservationsPage() {
 
         <div className="flex flex-col gap-3 items-start">
           <p className="text-sm font-semibold text-gray-700">Filters</p>
-          <div className="grid gap-4 sm:grid-cols-2 w-full max-w-2xl">
+          <div className={`grid gap-4 w-full ${datePreset === "custom" ? "sm:grid-cols-3" : "sm:grid-cols-2"} max-w-3xl`}>
             <label className="flex flex-col text-sm font-semibold text-gray-700">
-              Startdatum
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => handleDateChange("start", e.target.value)}
+              Datum filter
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value)}
                 className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-              />
+              >
+                {Object.entries(DATE_PRESETS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </label>
-            <label className="flex flex-col text-sm font-semibold text-gray-700">
-              Einddatum
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => handleDateChange("end", e.target.value)}
-                className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-              />
-            </label>
+            {datePreset === "custom" && (
+              <>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Startdatum
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => handleDateChange("start", e.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Einddatum
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => handleDateChange("end", e.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+              </>
+            )}
           </div>
+          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <input
+              type="checkbox"
+              checked={showGraph}
+              onChange={(e) => setShowGraph(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Show graph
+          </label>
         </div>
 
         <Card>
@@ -397,6 +599,27 @@ export default function MadeReservationsPage() {
             </div>
           </div>
         </Card>
+
+        {showGraph && (
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Dagelijkse trends</h2>
+                <p className="text-sm text-gray-600">Aantal reservaties, nachten en omzet per dag</p>
+              </div>
+              {!dailyMetrics.length && (
+                <span className="text-sm text-gray-500">Geen data beschikbaar</span>
+              )}
+            </div>
+            {dailyMetrics.length > 0 && (
+              <div className="w-full overflow-x-auto">
+                <div className="min-w-[400px]">
+                  <Line data={chartData} options={chartOptions} />
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
 
         {isImporting && (
           <Card className="space-y-4">
