@@ -1,0 +1,15 @@
+{
+  "welcomeLabel": "Schone lei",
+  "title": "Welkom bij Kitchen Pilot, {{hotel}}",
+  "intro": "Dit dashboard behoudt de lay-out, login, rollen en hotelkeuze zodat je het product opnieuw kunt opbouwen zonder oude features.",
+  "activeHotel": "Actieve property",
+  "rolesTitle": "Rollen",
+  "rolesBody": "Roltoewijzingen blijven de toegang bepalen terwijl je nieuwe modules bouwt.",
+  "noRoles": "Nog geen rollen gekoppeld.",
+  "nextStepsTitle": "Volgende stappen",
+  "nextSteps": {
+    "clean": "Vervang de oude flows door de nieuwe functionaliteit die je plant.",
+    "login": "Blijf de login-ervaring testen zodat gebruikers meteen kunnen aanmelden.",
+    "properties": "Gebruik de hotelkeuze om de multi-property ondersteuning te valideren tijdens het bouwen."
+  }
+}
