@@ -27,7 +27,11 @@ import { Card } from "../layout/Card";
 import { FileInput } from "lucide-react";
 
 function formatDateInput(date = new Date()) {
-  return date.toISOString().split("T")[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Legend, Tooltip);
