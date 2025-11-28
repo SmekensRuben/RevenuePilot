@@ -190,7 +190,10 @@ export default function MadeReservationsPage() {
       complete: async (results) => {
         try {
           const rows = Array.isArray(results.data) ? results.data : [];
-          const mappedRows = rows.map(mapCsvRow);
+          const validRows = rows.filter(
+            (row) => String(row?.INSERT_USER || "").trim().length > 0
+          );
+          const mappedRows = validRows.map(mapCsvRow);
           const docRef = doc(
             db,
             `hotels/${hotelUid}/reservationsCreatedByDate`,
