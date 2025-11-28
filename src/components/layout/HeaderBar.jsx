@@ -112,7 +112,7 @@ export default function HeaderBar({ today, onLogout }) {
           <div className="relative w-full sm:w-auto">
             <button
               onClick={() => setIsReservationsOpen((prev) => !prev)}
-              className="bg-white text-[#b41f1f] px-4 py-2 rounded font-semibold w-full sm:w-auto hover:bg-gray-100 text-sm flex items-center justify-between shadow-sm border border-red-200"
+              className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto hover:bg-white/10 text-sm flex items-center justify-between shadow-sm border border-white/30"
               style={{ minHeight: 44 }}
             >
               <div className="flex items-center gap-2">
@@ -121,10 +121,10 @@ export default function HeaderBar({ today, onLogout }) {
               <span className="ml-3 text-base">▾</span>
             </button>
             {isReservationsOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-[#8e1616] text-white">
-                <div className="px-4 py-3 border-b border-red-300/50">
+              <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="px-4 py-3 border-b border-gray-200">
                   <p className="text-xs font-semibold uppercase tracking-wide">Menu</p>
-                  <p className="text-sm text-red-50">Kies een reservatie-overzicht</p>
+                  <p className="text-sm text-gray-600">Kies een reservatie-overzicht</p>
                 </div>
                 <div className="py-2">
                   {reservationMenuItems.map((item) => {
@@ -136,15 +136,15 @@ export default function HeaderBar({ today, onLogout }) {
                           item.action();
                           setIsReservationsOpen(false);
                         }}
-                        className="w-full px-4 py-2 flex items-start gap-3 hover:bg-[#761010] transition-colors text-left"
+                        className="w-full px-4 py-2 flex items-start gap-3 hover:bg-gray-100 transition-colors text-left"
                       >
-                        <span className="mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/10">
+                        <span className="mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
                           {Icon && <Icon className="h-4 w-4" />}
                         </span>
                         <span>
                           <div className="text-sm font-semibold">{item.label}</div>
                           {item.description && (
-                            <div className="text-xs text-red-100 leading-snug">{item.description}</div>
+                            <div className="text-xs text-gray-600 leading-snug">{item.description}</div>
                           )}
                         </span>
                       </button>
