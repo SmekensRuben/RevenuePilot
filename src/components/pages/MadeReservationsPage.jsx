@@ -583,23 +583,42 @@ export default function MadeReservationsPage() {
         </div>
 
         <Card>
-          <h2 className="text-lg font-semibold mb-3">Samenvatting</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="text-lg font-semibold">Samenvatting</h2>
+            <span className="text-xs text-gray-500">Compact overzicht</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Aantal reservaties</p>
-              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalReservations}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                Aantal reservaties
+              </p>
+              <p className="text-xl font-semibold text-gray-900 leading-tight">
+                {reservationSummary.totalReservations}
+              </p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Totaal aantal nachten</p>
-              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalNights}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                Totaal aantal nachten
+              </p>
+              <p className="text-xl font-semibold text-gray-900 leading-tight">
+                {reservationSummary.totalNights}
+              </p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Totale omzet</p>
-              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalRevenue}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                Totale omzet
+              </p>
+              <p className="text-xl font-semibold text-gray-900 leading-tight">
+                {reservationSummary.totalRevenue}
+              </p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Top company</p>
-              <p className="text-2xl font-bold text-gray-900 truncate">{reservationSummary.topCompany}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                Top company
+              </p>
+              <p className="text-base font-semibold text-gray-900 leading-tight truncate">
+                {reservationSummary.topCompany}
+              </p>
             </div>
           </div>
         </Card>
