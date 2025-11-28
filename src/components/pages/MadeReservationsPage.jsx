@@ -28,9 +28,22 @@ const VISIBLE_COLUMNS = [
   { key: "roomTypeCode", label: "Room Type" },
   { key: "nights", label: "Nights" },
   { key: "shareAmount", label: "Share Amount" },
-  { key: "insertUser", label: "Insert User" },
   { key: "companyName", label: "Company" },
 ];
+
+function parseDateFromInput(value) {
+  if (!value) return null;
+
+  const [year, month, day] = value.split("-").map((part) => Number(part));
+  if (![year, month, day].every(Number.isFinite)) {
+    return null;
+  }
+
+  const date = new Date();
+  date.setFullYear(year, month - 1, day);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
 
 export default function MadeReservationsPage() {
   const { hotelUid } = useHotelContext();
@@ -43,7 +56,6 @@ export default function MadeReservationsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "arrivalDate", direction: "asc" });
-  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const fileInputRef = useRef(null);
 
   const todayLabel = useMemo(() => {
@@ -67,21 +79,14 @@ export default function MadeReservationsPage() {
         return;
       }
 
-      const startDate = new Date(`${dateRange.start}T00:00:00`);
-      const endDateCandidate = dateRange.end
-        ? new Date(`${dateRange.end}T00:00:00`)
-        : startDate;
-
-      if (Number.isNaN(startDate.getTime())) {
+      const startDate = parseDateFromInput(dateRange.start);
+      if (!startDate) {
         setReservations([]);
         return;
       }
 
-      const normalizedEndDate = Number.isNaN(endDateCandidate.getTime())
-        ? startDate
-        : endDateCandidate < startDate
-          ? startDate
-          : endDateCandidate;
+      const endDateCandidate = parseDateFromInput(dateRange.end) || startDate;
+      const normalizedEndDate = endDateCandidate < startDate ? startDate : endDateCandidate;
 
       const datesToLoad = [];
       const cursor = new Date(startDate);
@@ -134,13 +139,6 @@ export default function MadeReservationsPage() {
     }));
   };
 
-  const handlePriceChange = (key, value) => {
-    setPriceRange((current) => ({
-      ...current,
-      [key]: value,
-    }));
-  };
-
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.start) {
       return "Geen datum gekozen";
@@ -153,35 +151,9 @@ export default function MadeReservationsPage() {
     return `${dateRange.start} – ${dateRange.end}`;
   }, [dateRange]);
 
-  const filteredReservations = useMemo(() => {
-    const min = priceRange.min !== "" ? Number(priceRange.min) : null;
-    const max = priceRange.max !== "" ? Number(priceRange.max) : null;
-
-    if (min === null && max === null) {
-      return reservations;
-    }
-
-    return reservations.filter((reservation) => {
-      const shareAmount = Number(reservation?.shareAmount);
-      if (!Number.isFinite(shareAmount)) {
-        return false;
-      }
-
-      if (min !== null && shareAmount < min) {
-        return false;
-      }
-
-      if (max !== null && shareAmount > max) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [reservations, priceRange]);
-
   const sortedReservations = useMemo(() => {
     if (!sortConfig.key) {
-      return filteredReservations;
+      return reservations;
     }
 
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -194,7 +166,7 @@ export default function MadeReservationsPage() {
       return String(value || "");
     };
 
-    return [...filteredReservations].sort((a, b) => {
+    return [...reservations].sort((a, b) => {
       const aValue = toComparable(a?.[sortConfig.key]);
       const bValue = toComparable(b?.[sortConfig.key]);
 
@@ -207,7 +179,47 @@ export default function MadeReservationsPage() {
         sensitivity: "base",
       }) * directionMultiplier;
     });
-  }, [filteredReservations, sortConfig]);
+  }, [reservations, sortConfig]);
+
+  const reservationSummary = useMemo(() => {
+    const totalReservations = reservations.length;
+    const totalNights = reservations.reduce(
+      (sum, reservation) => sum + (Number(reservation?.nights) || 0),
+      0
+    );
+
+    const totalRevenue = reservations.reduce((sum, reservation) => {
+      const nights = Number(reservation?.nights) || 0;
+      const shareAmount = Number(reservation?.shareAmount) || 0;
+      return sum + nights * shareAmount;
+    }, 0);
+
+    const companyCounts = reservations.reduce((acc, reservation) => {
+      const company = reservation?.companyName || "Onbekend";
+      acc[company] = (acc[company] || 0) + 1;
+      return acc;
+    }, {});
+
+    const topCompany = Object.entries(companyCounts).reduce(
+      (currentTop, [company, count]) => {
+        if (!currentTop || count > currentTop.count) {
+          return { company, count };
+        }
+        return currentTop;
+      },
+      null
+    );
+
+    const formatCurrency = (value) =>
+      new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }).format(value);
+
+    return {
+      totalReservations,
+      totalNights,
+      totalRevenue: formatCurrency(totalRevenue),
+      topCompany: topCompany ? topCompany.company : "-",
+    };
+  }, [reservations]);
 
   const handleSort = (columnKey) => {
     setSortConfig((current) => {
@@ -342,7 +354,7 @@ export default function MadeReservationsPage() {
 
         <div className="flex flex-col gap-3 items-start">
           <p className="text-sm font-semibold text-gray-700">Filters</p>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full max-w-3xl">
+          <div className="grid gap-4 sm:grid-cols-2 w-full max-w-2xl">
             <label className="flex flex-col text-sm font-semibold text-gray-700">
               Startdatum
               <input
@@ -361,32 +373,30 @@ export default function MadeReservationsPage() {
                 className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
               />
             </label>
-            <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-1">
-              <label className="flex flex-col text-sm font-semibold text-gray-700">
-                Min. share amount
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={priceRange.min}
-                  onChange={(e) => handlePriceChange("min", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="0"
-                />
-              </label>
-              <label className="flex flex-col text-sm font-semibold text-gray-700">
-                Max. share amount
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={priceRange.max}
-                  onChange={(e) => handlePriceChange("max", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="1000"
-                />
-              </label>
-            </div>
           </div>
         </div>
+
+        <Card>
+          <h2 className="text-lg font-semibold mb-3">Samenvatting</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Aantal reservaties</p>
+              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalReservations}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Totaal aantal nachten</p>
+              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalNights}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Totale omzet</p>
+              <p className="text-2xl font-bold text-gray-900">{reservationSummary.totalRevenue}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+              <p className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Top company</p>
+              <p className="text-2xl font-bold text-gray-900 truncate">{reservationSummary.topCompany}</p>
+            </div>
+          </div>
+        </Card>
 
         {isImporting && (
           <Card className="space-y-4">
@@ -439,7 +449,7 @@ export default function MadeReservationsPage() {
             </div>
             {isLoading && <span className="text-sm text-gray-500">Laden...</span>}
           </div>
-          {filteredReservations.length === 0 ? (
+          {reservations.length === 0 ? (
             <p className="text-gray-600">Geen reservaties gevonden voor deze selectie.</p>
           ) : (
             <div className="overflow-x-auto">

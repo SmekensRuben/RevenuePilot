@@ -112,7 +112,7 @@ export default function HeaderBar({ today, onLogout }) {
           <div className="relative w-full sm:w-auto">
             <button
               onClick={() => setIsReservationsOpen((prev) => !prev)}
-              className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto hover:bg-white/10 text-sm flex items-center justify-between shadow-sm border border-white/30"
+              className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
               style={{ minHeight: 44 }}
             >
               <div className="flex items-center gap-2">
