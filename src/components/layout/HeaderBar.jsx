@@ -7,7 +7,7 @@ import { ClipboardList } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
   const navigate = useNavigate();
-  const { t } = useTranslation("common");
+  const { t } = useTranslation(["common", "reservations"]);
   const { hotelUid, hotelUids = [], selectHotel } = useHotelContext();
   const [hotels, setHotels] = useState([]);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
@@ -15,8 +15,8 @@ export default function HeaderBar({ today, onLogout }) {
 
   const reservationMenuItems = [
     {
-      label: "Made Reservations",
-      description: "Bekijk de ingevoerde reservaties",
+      label: t("header.madeReservationsLabel", { ns: "reservations" }),
+      description: t("header.madeReservationsDescription", { ns: "reservations" }),
       action: () => navigate("/reservations/made"),
       icon: ClipboardList,
     },
@@ -116,15 +116,21 @@ export default function HeaderBar({ today, onLogout }) {
               style={{ minHeight: 44 }}
             >
               <div className="flex items-center gap-2">
-                <span className="uppercase tracking-wide">Reservations</span>
+                <span className="uppercase tracking-wide">
+                  {t("header.menuButton", { ns: "reservations" })}
+                </span>
               </div>
               <span className="ml-3 text-base">▾</span>
             </button>
             {isReservationsOpen && (
               <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <p className="text-xs font-semibold uppercase tracking-wide">Menu</p>
-                  <p className="text-sm text-gray-600">Kies een reservatie-overzicht</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide">
+                    {t("header.menuTitle", { ns: "reservations" })}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {t("header.menuSubtitle", { ns: "reservations" })}
+                  </p>
                 </div>
                 <div className="py-2">
                   {reservationMenuItems.map((item) => {

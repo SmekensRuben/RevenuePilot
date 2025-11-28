@@ -9,8 +9,10 @@ import {
   LineElement,
   Legend,
   Tooltip,
+  ArcElement,
 } from "chart.js";
-import { Line } from "react-chartjs-2";
+import { Line, Pie } from "react-chartjs-2";
+import { useTranslation } from "react-i18next";
 import {
   db,
   doc,
@@ -34,25 +36,13 @@ function formatDateInput(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Legend, Tooltip);
-
-const DATE_PRESETS = {
-  yesterday: "Yesterday",
-  thisWeek: "This Week",
-  thisMonth: "This Month",
-  lastMonth: "Last Month",
-  custom: "Custom",
-};
-
-const VISIBLE_COLUMNS = [
-  { key: "fullName", label: "Guest" },
-  { key: "arrivalDate", label: "Arrival" },
-  { key: "departureDate", label: "Departure" },
-  { key: "room", label: "Room" },
-  { key: "roomTypeCode", label: "Room Type" },
-  { key: "nights", label: "Nights" },
-  { key: "shareAmount", label: "Share Amount" },
-  { key: "companyName", label: "Company" },
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Legend, Tooltip, ArcElement);
+const DATE_PRESETS = [
+  { key: "yesterday", labelKey: "filters.presets.yesterday" },
+  { key: "thisWeek", labelKey: "filters.presets.thisWeek" },
+  { key: "thisMonth", labelKey: "filters.presets.thisMonth" },
+  { key: "lastMonth", labelKey: "filters.presets.lastMonth" },
+  { key: "custom", labelKey: "filters.presets.custom" },
 ];
 
 function parseDateFromInput(value) {
@@ -105,6 +95,7 @@ function getDateRangeForPreset(preset) {
 }
 
 export default function MadeReservationsPage() {
+  const { t } = useTranslation("reservations");
   const { hotelUid } = useHotelContext();
   const [datePreset, setDatePreset] = useState("yesterday");
   const [dateRange, setDateRange] = useState(() => getDateRangeForPreset("yesterday"));
@@ -114,7 +105,23 @@ export default function MadeReservationsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "arrivalDate", direction: "asc" });
   const [showGraph, setShowGraph] = useState(false);
+  const [roomTypeFilter, setRoomTypeFilter] = useState([]);
+  const [isRoomTypeDropdownOpen, setIsRoomTypeDropdownOpen] = useState(false);
   const fileInputRef = useRef(null);
+
+  const visibleColumns = useMemo(
+    () => [
+      { key: "fullName", label: t("columns.guest") },
+      { key: "arrivalDate", label: t("columns.arrival") },
+      { key: "departureDate", label: t("columns.departure") },
+      { key: "room", label: t("columns.room") },
+      { key: "roomTypeCode", label: t("columns.roomType") },
+      { key: "nights", label: t("columns.nights") },
+      { key: "shareAmount", label: t("columns.shareAmount") },
+      { key: "companyName", label: t("columns.company") },
+    ],
+    [t]
+  );
 
   const currencyFormatter = useMemo(
     () => new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" }),
@@ -128,6 +135,11 @@ export default function MadeReservationsPage() {
       day: "numeric",
     });
   }, []);
+
+  const datePresetOptions = useMemo(
+    () => DATE_PRESETS.map((preset) => ({ ...preset, label: t(preset.labelKey) })),
+    [t]
+  );
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -194,14 +206,14 @@ export default function MadeReservationsPage() {
         setReservations(reservationsWithDates);
       } catch (error) {
         console.error("Failed to load reservations", error);
-        toast.error("Kon reservaties niet laden.");
+        toast.error(t("messages.loadFailed"));
       } finally {
         setIsLoading(false);
       }
     }
 
     fetchReservations();
-  }, [hotelUid, dateRange]);
+  }, [hotelUid, dateRange, t]);
 
   const handleImportClick = () => {
     setIsImporting(true);
@@ -218,7 +230,7 @@ export default function MadeReservationsPage() {
 
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.start) {
-      return "Geen datum gekozen";
+      return t("filters.dateRangeMissing");
     }
 
     if (!dateRange.end || dateRange.end === dateRange.start) {
@@ -226,11 +238,29 @@ export default function MadeReservationsPage() {
     }
 
     return `${dateRange.start} – ${dateRange.end}`;
-  }, [dateRange]);
+  }, [dateRange, t]);
+
+  const roomTypeOptions = useMemo(() => {
+    const types = new Set();
+    reservations.forEach((reservation) => {
+      if (reservation.roomTypeCode) {
+        types.add(String(reservation.roomTypeCode));
+      }
+    });
+    return Array.from(types).sort((a, b) => a.localeCompare(b));
+  }, [reservations]);
+
+  const filteredReservations = useMemo(() => {
+    if (!roomTypeFilter.length) return reservations;
+    const selected = roomTypeFilter.map((type) => String(type).toLowerCase());
+    return reservations.filter((reservation) =>
+      selected.includes(String(reservation.roomTypeCode || "").toLowerCase())
+    );
+  }, [reservations, roomTypeFilter]);
 
   const sortedReservations = useMemo(() => {
     if (!sortConfig.key) {
-      return reservations;
+      return filteredReservations;
     }
 
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -243,7 +273,7 @@ export default function MadeReservationsPage() {
       return String(value || "");
     };
 
-    return [...reservations].sort((a, b) => {
+    return [...filteredReservations].sort((a, b) => {
       const aValue = toComparable(a?.[sortConfig.key]);
       const bValue = toComparable(b?.[sortConfig.key]);
 
@@ -256,22 +286,22 @@ export default function MadeReservationsPage() {
         sensitivity: "base",
       }) * directionMultiplier;
     });
-  }, [reservations, sortConfig]);
+  }, [filteredReservations, sortConfig]);
 
   const reservationSummary = useMemo(() => {
-    const totalReservations = reservations.length;
-    const totalNights = reservations.reduce(
+    const totalReservations = filteredReservations.length;
+    const totalNights = filteredReservations.reduce(
       (sum, reservation) => sum + (Number(reservation?.nights) || 0),
       0
     );
 
-    const totalRevenue = reservations.reduce((sum, reservation) => {
+    const totalRevenue = filteredReservations.reduce((sum, reservation) => {
       const nights = Number(reservation?.nights) || 0;
       const shareAmount = Number(reservation?.shareAmount) || 0;
       return sum + nights * shareAmount;
     }, 0);
 
-    const companyCounts = reservations.reduce((acc, reservation) => {
+    const companyCounts = filteredReservations.reduce((acc, reservation) => {
       const company = String(reservation?.companyName || "").trim();
       if (!company) return acc;
       acc[company] = (acc[company] || 0) + 1;
@@ -288,19 +318,23 @@ export default function MadeReservationsPage() {
       null
     );
 
-    const formatCurrency = (value) =>
-      currencyFormatter.format(value);
+    const roomTypeCounts = filteredReservations.reduce((acc, reservation) => {
+      const roomType = reservation.roomTypeCode || t("page.noData");
+      acc[roomType] = (acc[roomType] || 0) + 1;
+      return acc;
+    }, {});
 
     return {
       totalReservations,
       totalNights,
-      totalRevenue: formatCurrency(totalRevenue),
-      topCompany: topCompany ? `${topCompany.company} (${topCompany.count})` : "-",
+      totalRevenue: currencyFormatter.format(totalRevenue),
+      topCompany,
+      roomTypeCounts,
     };
-  }, [currencyFormatter, reservations]);
+  }, [currencyFormatter, filteredReservations, t]);
 
   const dailyMetrics = useMemo(() => {
-    const grouped = reservations.reduce((acc, reservation) => {
+    const grouped = filteredReservations.reduce((acc, reservation) => {
       const dateKey = reservation.__sourceDate || reservation.arrivalDate;
       if (!dateKey) return acc;
 
@@ -320,7 +354,7 @@ export default function MadeReservationsPage() {
     return Object.entries(grouped)
       .map(([date, metrics]) => ({ date, ...metrics }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [reservations]);
+  }, [filteredReservations]);
 
   const chartData = useMemo(() => {
     const labels = dailyMetrics.map((item) => item.date);
@@ -329,21 +363,21 @@ export default function MadeReservationsPage() {
       labels,
       datasets: [
         {
-          label: "Reservations",
+          label: t("summary.reservations"),
           data: dailyMetrics.map((item) => item.reservations),
           borderColor: "#b41f1f",
           backgroundColor: "rgba(180, 31, 31, 0.2)",
           tension: 0.25,
         },
         {
-          label: "Nights",
+          label: t("summary.nights"),
           data: dailyMetrics.map((item) => item.nights),
           borderColor: "#2563eb",
           backgroundColor: "rgba(37, 99, 235, 0.2)",
           tension: 0.25,
         },
         {
-          label: "Revenue",
+          label: t("summary.revenue"),
           data: dailyMetrics.map((item) => item.revenue),
           borderColor: "#059669",
           backgroundColor: "rgba(5, 150, 105, 0.2)",
@@ -352,7 +386,7 @@ export default function MadeReservationsPage() {
         },
       ],
     };
-  }, [dailyMetrics]);
+  }, [dailyMetrics, t]);
 
   const chartOptions = useMemo(
     () => ({
@@ -379,26 +413,52 @@ export default function MadeReservationsPage() {
         x: {
           title: {
             display: true,
-            text: "Date",
+            text: t("filters.datePreset"),
           },
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: "Count" },
+          title: { display: true, text: t("summary.reservations") },
         },
         y1: {
           beginAtZero: true,
           position: "right",
           grid: { drawOnChartArea: false },
-          title: { display: true, text: "Revenue" },
+          title: { display: true, text: t("summary.revenue") },
           ticks: {
             callback: (value) => currencyFormatter.format(value),
           },
         },
       },
     }),
-    [currencyFormatter]
+    [currencyFormatter, t]
   );
+
+  const roomTypeChartData = useMemo(() => {
+    const entries = Object.entries(reservationSummary.roomTypeCounts || {});
+    if (!entries.length) return null;
+
+    const colors = [
+      "#b41f1f",
+      "#2563eb",
+      "#059669",
+      "#f59e0b",
+      "#7c3aed",
+      "#0ea5e9",
+    ];
+
+    return {
+      labels: entries.map(([label]) => label || t("page.noData")),
+      datasets: [
+        {
+          label: t("summary.roomTypeBreakdown"),
+          data: entries.map(([, count]) => count),
+          backgroundColor: entries.map((_, index) => colors[index % colors.length]),
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [reservationSummary.roomTypeCounts, t]);
 
   const handleSort = (columnKey) => {
     setSortConfig((current) => {
@@ -450,22 +510,22 @@ export default function MadeReservationsPage() {
   const handleCsvUpload = async (event) => {
     event.preventDefault();
     if (!hotelUid) {
-      toast.error("Selecteer eerst een hotel.");
+      toast.error(t("messages.selectHotel"));
       return;
     }
     if (!importDate) {
-      toast.error("Kies een datum voor import.");
+      toast.error(t("messages.chooseDate"));
       return;
     }
 
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      toast.error("Kies een CSV bestand.");
+      toast.error(t("messages.chooseCsv"));
       return;
     }
 
     setIsImporting(false);
-    toast.info("CSV bestand wordt ingelezen...");
+    toast.info(t("messages.parsing"));
 
     Papa.parse(file, {
       header: true,
@@ -486,11 +546,11 @@ export default function MadeReservationsPage() {
             reservations: mappedRows,
             updatedAt: serverTimestamp(),
           });
-          toast.success("Reservaties geïmporteerd.");
+          toast.success(t("messages.imported"));
           setDateRange({ start: importDate, end: importDate });
         } catch (error) {
           console.error("Failed to save reservations", error);
-          toast.error("Opslaan van reservaties mislukt.");
+          toast.error(t("messages.saveFailed"));
         } finally {
           if (fileInputRef.current) {
             fileInputRef.current.value = "";
@@ -499,7 +559,7 @@ export default function MadeReservationsPage() {
       },
       error: (error) => {
         console.error("CSV parse error", error);
-        toast.error("CSV kon niet ingelezen worden.");
+        toast.error(t("messages.csvError"));
       },
     });
   };
@@ -511,39 +571,37 @@ export default function MadeReservationsPage() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">
-              Reservations
+              {t("page.tag")}
             </p>
-            <h1 className="text-2xl sm:text-3xl font-bold">Made Reservations</h1>
-            <p className="text-gray-600 mt-1">
-              Overzicht van ingevoerde reservaties per datum. Kies een datumbereik om de tabel te bekijken of importeer een nieuw CSV bestand.
-            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold">{t("page.title")}</h1>
+            <p className="text-gray-600 mt-1">{t("page.description")}</p>
           </div>
           <div className="flex items-center gap-2 self-start">
             <button
               onClick={handleImportClick}
               className="bg-[#b41f1f] text-white px-3 py-2 rounded-full shadow hover:bg-[#961919] transition-colors"
-              aria-label="Importeer CSV"
-              title="Importeer CSV"
+              aria-label={t("import.import")}
+              title={t("import.import")}
             >
               <FileInput className="h-5 w-5" />
-              <span className="sr-only">Importeer CSV</span>
+              <span className="sr-only">{t("import.import")}</span>
             </button>
           </div>
         </div>
 
         <div className="flex flex-col gap-3 items-start">
-          <p className="text-sm font-semibold text-gray-700">Filters</p>
-          <div className={`grid gap-4 w-full ${datePreset === "custom" ? "sm:grid-cols-3" : "sm:grid-cols-2"} max-w-3xl`}>
+          <p className="text-sm font-semibold text-gray-700">{t("filters.title")}</p>
+          <div className={`grid gap-4 w-full ${datePreset === "custom" ? "sm:grid-cols-3" : "sm:grid-cols-2"} max-w-4xl`}>
             <label className="flex flex-col text-sm font-semibold text-gray-700">
-              Datum filter
+              {t("filters.datePreset")}
               <select
                 value={datePreset}
                 onChange={(e) => setDatePreset(e.target.value)}
                 className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
               >
-                {Object.entries(DATE_PRESETS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
+                {datePresetOptions.map((preset) => (
+                  <option key={preset.key} value={preset.key}>
+                    {preset.label}
                   </option>
                 ))}
               </select>
@@ -551,7 +609,7 @@ export default function MadeReservationsPage() {
             {datePreset === "custom" && (
               <>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  Startdatum
+                  {t("filters.startDate")}
                   <input
                     type="date"
                     value={dateRange.start}
@@ -560,7 +618,7 @@ export default function MadeReservationsPage() {
                   />
                 </label>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  Einddatum
+                  {t("filters.endDate")}
                   <input
                     type="date"
                     value={dateRange.end}
@@ -571,54 +629,131 @@ export default function MadeReservationsPage() {
               </>
             )}
           </div>
-          <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-            <input
-              type="checkbox"
-              checked={showGraph}
-              onChange={(e) => setShowGraph(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300"
-            />
-            Show graph
-          </label>
+          <div className="flex flex-wrap items-center gap-3 w-full">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsRoomTypeDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 bg-white shadow-sm"
+              >
+                <div className="text-left">
+                  <div>{t("filters.roomType")}</div>
+                  <div className="text-xs text-gray-500">
+                    {roomTypeFilter.length
+                      ? t("filters.roomTypeSelected", { count: roomTypeFilter.length })
+                      : t("filters.roomTypeAll")}
+                  </div>
+                </div>
+                <span className="text-gray-500">▾</span>
+              </button>
+              {isRoomTypeDropdownOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                    <p className="text-xs font-semibold uppercase tracking-wide">
+                      {t("filters.roomType")}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setRoomTypeFilter([])}
+                      className="text-xs font-semibold text-[#b41f1f] hover:text-[#961919]"
+                    >
+                      {t("filters.roomTypeAll")}
+                    </button>
+                  </div>
+                  <div className="py-2 max-h-48 overflow-y-auto">
+                    {roomTypeOptions.length === 0 && (
+                      <p className="px-4 py-2 text-sm text-gray-600">{t("summary.noRoomTypes")}</p>
+                    )}
+                    {roomTypeOptions.map((option) => {
+                      const isSelected = roomTypeFilter.includes(option);
+                      return (
+                        <label
+                          key={option}
+                          className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              setRoomTypeFilter((current) =>
+                                isSelected
+                                  ? current.filter((value) => value !== option)
+                                  : [...current, option]
+                              );
+                            }}
+                            className="h-4 w-4 rounded border-gray-300"
+                          />
+                          <span className="text-sm text-gray-800">{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                checked={showGraph}
+                onChange={(e) => setShowGraph(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              {t("filters.showGraph")}
+            </label>
+          </div>
         </div>
 
         <Card>
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="text-lg font-semibold">Samenvatting</h2>
-            <span className="text-xs text-gray-500">Compact overzicht</span>
+            <h2 className="text-lg font-semibold">{t("summary.title")}</h2>
+            <span className="text-xs text-gray-500">{t("page.compactHint")}</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
               <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                Aantal reservaties
+                {t("summary.reservations")}
               </p>
-              <p className="text-xl font-semibold text-gray-900 leading-tight">
-                {reservationSummary.totalReservations}
-              </p>
+              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalReservations}</p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                Totaal aantal nachten
-              </p>
-              <p className="text-xl font-semibold text-gray-900 leading-tight">
-                {reservationSummary.totalNights}
-              </p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.nights")}</p>
+              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalNights}</p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                Totale omzet
-              </p>
-              <p className="text-xl font-semibold text-gray-900 leading-tight">
-                {reservationSummary.totalRevenue}
-              </p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.revenue")}</p>
+              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalRevenue}</p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                Top company
-              </p>
-              <p className="text-base font-semibold text-gray-900 leading-tight truncate">
-                {reservationSummary.topCompany}
-              </p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.topCompany")}</p>
+              {reservationSummary.topCompany ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-gray-900 leading-tight truncate">
+                    {reservationSummary.topCompany.company}
+                  </span>
+                  <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded-full">
+                    {t("summary.topCompanyCount", { count: reservationSummary.topCompany.count })}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">{t("page.noData")}</p>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 grid md:grid-cols-2 gap-4 items-start">
+            <div className="p-3 rounded-lg bg-white border border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                  {t("summary.roomTypeBreakdown")}
+                </p>
+                <span className="text-[11px] text-gray-500">{reservationSummary.totalReservations}</span>
+              </div>
+              {roomTypeChartData ? (
+                <div className="h-52 md:h-60 flex items-center justify-center">
+                  <Pie data={roomTypeChartData} options={{ plugins: { legend: { position: "right" } } }} />
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">{t("summary.noRoomTypes")}</p>
+              )}
             </div>
           </div>
         </Card>
@@ -627,11 +762,11 @@ export default function MadeReservationsPage() {
           <Card>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-lg font-semibold">Dagelijkse trends</h2>
-                <p className="text-sm text-gray-600">Aantal reservaties, nachten en omzet per dag</p>
+                <h2 className="text-lg font-semibold">{t("charts.dailyTitle")}</h2>
+                <p className="text-sm text-gray-600">{t("charts.dailySubtitle")}</p>
               </div>
               {!dailyMetrics.length && (
-                <span className="text-sm text-gray-500">Geen data beschikbaar</span>
+                <span className="text-sm text-gray-500">{t("page.noData")}</span>
               )}
             </div>
             {dailyMetrics.length > 0 && (
@@ -646,10 +781,10 @@ export default function MadeReservationsPage() {
 
         {isImporting && (
           <Card className="space-y-4">
-            <h2 className="text-lg font-semibold">Nieuwe reservaties importeren</h2>
+            <h2 className="text-lg font-semibold">{t("import.title")}</h2>
             <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleCsvUpload}>
               <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-                Datum
+                {t("import.date")}
                 <input
                   type="date"
                   value={importDate}
@@ -659,7 +794,7 @@ export default function MadeReservationsPage() {
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-                CSV bestand
+                {t("import.file")}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -673,14 +808,14 @@ export default function MadeReservationsPage() {
                   type="submit"
                   className="bg-[#b41f1f] text-white px-4 py-2 rounded font-semibold shadow hover:bg-[#961919] transition-colors"
                 >
-                  Importeren
+                  {t("import.import")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsImporting(false)}
                   className="bg-gray-100 text-gray-800 px-4 py-2 rounded font-semibold border border-gray-300 hover:bg-gray-200"
                 >
-                  Annuleren
+                  {t("import.cancel")}
                 </button>
               </div>
             </form>
@@ -690,19 +825,21 @@ export default function MadeReservationsPage() {
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div>
-              <h2 className="text-lg font-semibold">Reservaties</h2>
+              <h2 className="text-lg font-semibold">{t("table.title")}</h2>
               <p className="text-sm text-gray-600">{dateRangeLabel}</p>
             </div>
-            {isLoading && <span className="text-sm text-gray-500">Laden...</span>}
+            {isLoading && <span className="text-sm text-gray-500">{t("table.loading")}</span>}
           </div>
-          {reservations.length === 0 ? (
-            <p className="text-gray-600">Geen reservaties gevonden voor deze selectie.</p>
+          {filteredReservations.length === 0 ? (
+            <p className="text-gray-600">
+              {roomTypeFilter.length ? t("messages.noRoomTypeMatches") : t("table.empty")}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {VISIBLE_COLUMNS.map((column) => {
+                    {visibleColumns.map((column) => {
                       const isActiveSort = sortConfig.key === column.key;
                       const sortIndicator = isActiveSort
                         ? sortConfig.direction === "asc"
@@ -732,7 +869,7 @@ export default function MadeReservationsPage() {
                 <tbody className="bg-white divide-y divide-gray-100">
                   {sortedReservations.map((reservation, index) => (
                     <tr key={`${reservation.resNameId || index}-${index}`}>
-                      {VISIBLE_COLUMNS.map((column) => (
+                      {visibleColumns.map((column) => (
                         <td key={column.key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
                           {reservation[column.key] || "-"}
                         </td>
@@ -744,7 +881,7 @@ export default function MadeReservationsPage() {
             </div>
           )}
           <p className="text-xs text-gray-500 mt-3">
-            Alle geïmporteerde velden worden opgeslagen in Firebase. De tabel toont de belangrijkste kolommen voor snelle controle.
+            {t("table.footer")}
           </p>
         </Card>
       </PageContainer>
