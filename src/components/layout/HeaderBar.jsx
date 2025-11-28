@@ -9,6 +9,7 @@ export default function HeaderBar({ today, onLogout }) {
   const { t } = useTranslation("common");
   const { hotelUid, hotelUids = [], selectHotel } = useHotelContext();
   const [hotels, setHotels] = useState([]);
+  const [isReservationsOpen, setIsReservationsOpen] = useState(false);
 
   useEffect(() => {
     async function fetchHotels() {
@@ -48,12 +49,38 @@ export default function HeaderBar({ today, onLogout }) {
             </h1>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-end sm:items-center w-full sm:w-auto gap-2 sm:gap-3 mt-2 sm:mt-0">
-            <div className="flex flex-row sm:flex-col gap-2 sm:gap-0 sm:mr-4 text-sm sm:text-base text-right w-full sm:w-auto">
-              <select
-                value={hotelUid || ""}
-                onChange={(e) => selectHotel && selectHotel(e.target.value)}
-                className="bg-white text-[#b41f1f] px-2 py-1 rounded font-semibold"
+        <div className="flex flex-col sm:flex-row items-end sm:items-center w-full sm:w-auto gap-2 sm:gap-3 mt-2 sm:mt-0">
+          <div
+            className="relative w-full sm:w-auto"
+            onMouseLeave={() => setIsReservationsOpen(false)}
+          >
+            <button
+              onClick={() => setIsReservationsOpen((prev) => !prev)}
+              className="bg-white text-[#b41f1f] px-3 py-2 rounded font-semibold w-full sm:w-auto hover:bg-gray-100 text-sm flex items-center justify-between"
+              style={{ minHeight: 44 }}
+            >
+              <span>Reservations</span>
+              <span className="ml-2">▾</span>
+            </button>
+            {isReservationsOpen && (
+              <div className="absolute right-0 mt-1 w-52 bg-white text-gray-800 rounded shadow-lg ring-1 ring-black ring-opacity-5 z-30">
+                <button
+                  onClick={() => {
+                    navigate("/reservations/made");
+                    setIsReservationsOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  Made Reservations
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-row sm:flex-col gap-2 sm:gap-0 sm:mr-4 text-sm sm:text-base text-right w-full sm:w-auto">
+            <select
+              value={hotelUid || ""}
+              onChange={(e) => selectHotel && selectHotel(e.target.value)}
+              className="bg-white text-[#b41f1f] px-2 py-1 rounded font-semibold"
               >
                 {hotels.map((hotel) => (
                   <option key={hotel.uid} value={hotel.uid}>
