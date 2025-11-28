@@ -25,6 +25,10 @@ const VISIBLE_COLUMNS = [
   { key: "departureDate", label: "Departure" },
   { key: "room", label: "Room" },
   { key: "roomTypeCode", label: "Room Type" },
+  { key: "nights", label: "Nights" },
+  { key: "shareAmount", label: "Share Amount" },
+  { key: "insertUser", label: "Insert User" },
+  { key: "companyName", label: "Company" },
 ];
 
 export default function MadeReservationsPage() {
@@ -34,6 +38,7 @@ export default function MadeReservationsPage() {
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: "arrivalDate", direction: "asc" });
   const fileInputRef = useRef(null);
 
   const todayLabel = useMemo(() => {
@@ -80,6 +85,48 @@ export default function MadeReservationsPage() {
   const handleImportClick = () => {
     setIsImporting(true);
     setImportDate(selectedDate);
+  };
+
+  const sortedReservations = useMemo(() => {
+    if (!sortConfig.key) {
+      return reservations;
+    }
+
+    const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
+
+    const toComparable = (value) => {
+      const numericValue = Number(value);
+      if (Number.isFinite(numericValue)) {
+        return numericValue;
+      }
+      return String(value || "");
+    };
+
+    return [...reservations].sort((a, b) => {
+      const aValue = toComparable(a?.[sortConfig.key]);
+      const bValue = toComparable(b?.[sortConfig.key]);
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return (aValue - bValue) * directionMultiplier;
+      }
+
+      return String(aValue).localeCompare(String(bValue), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }) * directionMultiplier;
+    });
+  }, [reservations, sortConfig]);
+
+  const handleSort = (columnKey) => {
+    setSortConfig((current) => {
+      if (current.key === columnKey) {
+        return {
+          key: columnKey,
+          direction: current.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key: columnKey, direction: "asc" };
+    });
   };
 
   const parseBoolean = (value) => {
@@ -262,19 +309,35 @@ export default function MadeReservationsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    {VISIBLE_COLUMNS.map((column) => (
-                      <th
-                        key={column.key}
-                        scope="col"
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
-                      >
-                        {column.label}
-                      </th>
-                    ))}
+                    {VISIBLE_COLUMNS.map((column) => {
+                      const isActiveSort = sortConfig.key === column.key;
+                      const sortIndicator = isActiveSort
+                        ? sortConfig.direction === "asc"
+                          ? "▲"
+                          : "▼"
+                        : "⇅";
+
+                      return (
+                        <th
+                          key={column.key}
+                          scope="col"
+                          className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleSort(column.key)}
+                            className="inline-flex items-center gap-2 focus:outline-none"
+                          >
+                            <span>{column.label}</span>
+                            <span className="text-gray-400 text-[10px]">{sortIndicator}</span>
+                          </button>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {reservations.map((reservation, index) => (
+                  {sortedReservations.map((reservation, index) => (
                     <tr key={`${reservation.resNameId || index}-${index}`}>
                       {VISIBLE_COLUMNS.map((column) => (
                         <td key={column.key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
