@@ -17,9 +17,9 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
-  const { hotelUid, hotelLoading } = useHotelContext();
+  const { hotelUid, loading } = useHotelContext();
 
-  
+
 
   useEffect(() => {
     const savedEmail = localStorage.getItem("rememberEmail");
@@ -47,12 +47,12 @@ export default function LoginPage() {
       console.error(err);
     }
   };
-  
+
 useEffect(() => {
-  if (auth.currentUser && hotelUid && !hotelLoading) {
+  if (auth.currentUser && hotelUid && !loading) {
     navigate("/dashboard");
   }
-}, [hotelUid, hotelLoading]);
+}, [hotelUid, loading, navigate]);
 
 
 
@@ -67,7 +67,7 @@ useEffect(() => {
               alt="Breakfast Pilot Logo"
               className="h-10"
             />
-            <h1 className="text-2xl font-bold tracking-wide">Kitchen Pilot</h1>
+            <h1 className="text-2xl font-bold tracking-wide">Revenue Pilot</h1>
           </div>
           <button
             onClick={() => navigate("/")}
@@ -134,7 +134,7 @@ useEffect(() => {
           </form>
 
           <p className="text-xs text-center text-gray-400 mt-6">
-            &copy; {new Date().getFullYear()} Kitchen Pilot
+            &copy; {new Date().getFullYear()} Revenue Pilot
           </p>
         </motion.div>
       </div>

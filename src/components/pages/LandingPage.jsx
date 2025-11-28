@@ -18,10 +18,10 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <img
               src="/assets/breakfast_pilot_logo_black_circle.png"
-              alt="Kitchen Pilot Logo"
+              alt="Revenue Pilot Logo"
               className="h-10"
             />
-            <h1 className="text-2xl font-bold tracking-wide">Kitchen Pilot</h1>
+            <h1 className="text-2xl font-bold tracking-wide">Revenue Pilot</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-1">
@@ -118,7 +118,7 @@ export default function LandingPage() {
 
         <footer className="bg-[#b41f1f] text-white py-6">
           <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center text-sm">
-            <p>&copy; {new Date().getFullYear()} Kitchen Pilot</p>
+            <p>&copy; {new Date().getFullYear()} Revenue Pilot</p>
             <p className="mt-2 sm:mt-0">{t("footerMadeBy")}</p>
           </div>
         </footer>
