@@ -123,7 +123,7 @@ export default function HeaderBar({ today, onLogout }) {
               <span className="ml-3 text-base">▾</span>
             </button>
             {isReservationsOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+              <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                 <div className="px-4 py-3 border-b border-gray-200">
                   <p className="text-xs font-semibold uppercase tracking-wide">
                     {t("header.menuTitle", { ns: "reservations" })}
