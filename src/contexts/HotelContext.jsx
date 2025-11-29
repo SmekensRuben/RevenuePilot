@@ -8,6 +8,26 @@ import {
 
 const HotelContext = createContext();
 
+const normalizeLanguage = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized.startsWith("en") || normalized === "english" || normalized === "engels") {
+    return "en";
+  }
+
+  if (normalized.startsWith("fr") || normalized === "french" || normalized === "frans") {
+    return "fr";
+  }
+
+  if (normalized.startsWith("nl") || normalized === "dutch" || normalized === "nederlands") {
+    return "nl";
+  }
+
+  return null;
+};
+
 export function HotelProvider({ children }) {
   const [hotelName, setHotelName] = useState("Hotel");
   const [language, setLanguage] = useState(localStorage.getItem("lang") || "nl");
@@ -37,7 +57,9 @@ export function HotelProvider({ children }) {
       const settings = settingsSnap.exists() ? settingsSnap.data() : {};
 
       setHotelName(settings.hotelName || "Hotel");
-      setLanguage(settings.language || "nl");
+      const preferredLanguage =
+        normalizeLanguage(data?.language) || normalizeLanguage(settings.language) || "nl";
+      setLanguage(preferredLanguage);
       const rolloverSetting = Number(settings.lightspeedShiftRolloverHour);
       setLightspeedShiftRolloverHour(
         Number.isFinite(rolloverSetting) ? rolloverSetting : 4
