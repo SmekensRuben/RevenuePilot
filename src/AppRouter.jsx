@@ -8,6 +8,7 @@ import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
 import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
 import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
+import LocalEventDetailPage from "./components/pages/LocalEventDetailPage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 
 export default function AppRouter() {
@@ -60,6 +61,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <LocalCalendarPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar/local/:eventId"
+        element={
+          <ProtectedRoute>
+            <LocalEventDetailPage />
           </ProtectedRoute>
         }
       />

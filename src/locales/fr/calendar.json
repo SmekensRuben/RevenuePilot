@@ -9,7 +9,8 @@
     "noEventsMonth": "Aucun évènement prévu ce mois-ci.",
     "noEvents": "Aucun évènement local planifié.",
     "local": "Local",
-    "noLocation": "Pas de lieu"
+    "noLocation": "Pas de lieu",
+    "estimatedVisitors": "Visiteurs estimés : {{count}}"
   },
   "views": {
     "week": "Semaine",
@@ -28,6 +29,7 @@
     "title": "Titre",
     "description": "Description",
     "location": "Lieu",
+    "estimatedVisitors": "Visiteurs estimés",
     "startDate": "Date de début",
     "endDate": "Date de fin",
     "cancel": "Annuler",
@@ -37,6 +39,18 @@
   },
   "toast": {
     "created": "Évènement local ajouté",
+    "updated": "Évènement local mis à jour",
+    "deleted": "Évènement local supprimé",
     "error": "Impossible d'enregistrer l'évènement. Veuillez réessayer."
+  },
+  "detail": {
+    "title": "Détails de l'évènement",
+    "subtitle": "Consultez, modifiez ou supprimez l'évènement local sélectionné.",
+    "back": "Retour",
+    "delete": "Supprimer",
+    "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet évènement ? Cette action est irréversible.",
+    "loading": "Chargement de l'évènement...",
+    "notFound": "Évènement introuvable.",
+    "save": "Mettre à jour l'évènement"
   }
 }

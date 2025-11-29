@@ -9,7 +9,8 @@
     "noEventsMonth": "No events planned this month yet.",
     "noEvents": "No local events scheduled.",
     "local": "Local",
-    "noLocation": "No location"
+    "noLocation": "No location",
+    "estimatedVisitors": "Estimated visitors: {{count}}"
   },
   "views": {
     "week": "Week",
@@ -28,6 +29,7 @@
     "title": "Title",
     "description": "Description",
     "location": "Location",
+    "estimatedVisitors": "Estimated visitors",
     "startDate": "Start date",
     "endDate": "End date",
     "cancel": "Cancel",
@@ -37,6 +39,18 @@
   },
   "toast": {
     "created": "Local event added",
+    "updated": "Local event updated",
+    "deleted": "Local event removed",
     "error": "Unable to save the event. Please try again."
+  },
+  "detail": {
+    "title": "Event details",
+    "subtitle": "Review, edit or delete the selected local event.",
+    "back": "Back",
+    "delete": "Delete",
+    "deleteConfirm": "Are you sure you want to delete this event? This action cannot be undone.",
+    "loading": "Loading event...",
+    "notFound": "Event not found.",
+    "save": "Update event"
   }
 }
