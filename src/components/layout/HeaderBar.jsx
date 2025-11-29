@@ -151,7 +151,7 @@ export default function HeaderBar({ today, onLogout }) {
                 <span className="ml-3 text-base">▾</span>
               </button>
               {isCalendarOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
                     {calendarMenuItems.map((item) => (
                       <button
@@ -190,7 +190,7 @@ export default function HeaderBar({ today, onLogout }) {
                 <span className="ml-3 text-base">▾</span>
               </button>
               {isReservationsOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
                     {reservationMenuItems.map((item) => {
                       const Icon = item.icon;
@@ -233,7 +233,7 @@ export default function HeaderBar({ today, onLogout }) {
                 <span className="ml-3 text-base">▾</span>
               </button>
               {isSettingsOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
                     {settingsMenuItems.map((item) => (
                       <button
