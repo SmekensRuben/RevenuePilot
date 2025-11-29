@@ -63,7 +63,14 @@ export const getSubSegment = async (hotelUid, subSegmentId) => {
 
 export const saveMarketSegment = async (hotelUid, segmentId, data) => {
   if (!hotelUid) throw new Error("Hotel ontbreekt");
-  const payload = { name: data.name || "", updatedAt: serverTimestamp() };
+  const type = ["Transient", "Group"].includes(data.type)
+    ? data.type
+    : "Transient";
+  const payload = {
+    name: data.name || "",
+    type,
+    updatedAt: serverTimestamp(),
+  };
 
   if (segmentId && segmentId !== "new") {
     await updateDoc(doc(db, marketSegmentsPath(hotelUid), segmentId), payload);
