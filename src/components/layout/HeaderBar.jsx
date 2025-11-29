@@ -3,7 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useHotelContext } from "contexts/HotelContext";
 import { db, doc, getDoc } from "../../firebaseConfig";
-import { ClipboardList } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  ClipboardList,
+  Settings2,
+} from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
   const navigate = useNavigate();
@@ -29,6 +34,12 @@ export default function HeaderBar({ today, onLogout }) {
     {
       label: "Segmentation Mapping",
       action: () => navigate("/settings/segmentation-mapping"),
+      icon: Settings2,
+    },
+    {
+      label: "Compset",
+      action: () => navigate("/settings/compset"),
+      icon: Building2,
     },
   ];
 
@@ -36,6 +47,7 @@ export default function HeaderBar({ today, onLogout }) {
     {
       label: t("calendar.local"),
       action: () => navigate("/calendar/local"),
+      icon: CalendarDays,
     },
   ];
 
@@ -153,18 +165,24 @@ export default function HeaderBar({ today, onLogout }) {
               {isCalendarOpen && (
                 <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
-                    {calendarMenuItems.map((item) => (
-                      <button
-                        key={item.label}
-                        onClick={() => {
-                          item.action();
-                          setIsCalendarOpen(false);
-                        }}
-                        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
-                      >
-                        <span className="text-sm font-semibold">{item.label}</span>
-                      </button>
-                    ))}
+                    {calendarMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            item.action();
+                            setIsCalendarOpen(false);
+                          }}
+                          className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
+                        >
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                            {Icon && <Icon className="h-4 w-4" />}
+                          </span>
+                          <span className="text-sm font-semibold">{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -235,18 +253,24 @@ export default function HeaderBar({ today, onLogout }) {
               {isSettingsOpen && (
                 <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
-                    {settingsMenuItems.map((item) => (
-                      <button
-                        key={item.label}
-                        onClick={() => {
-                          item.action();
-                          setIsSettingsOpen(false);
-                        }}
-                        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
-                      >
-                        <span className="text-sm font-semibold">{item.label}</span>
-                      </button>
-                    ))}
+                    {settingsMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            item.action();
+                            setIsSettingsOpen(false);
+                          }}
+                          className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
+                        >
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                            {Icon && <Icon className="h-4 w-4" />}
+                          </span>
+                          <span className="text-sm font-semibold">{item.label}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
