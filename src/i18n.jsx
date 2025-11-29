@@ -17,6 +17,10 @@ import reservationsNL from "./locales/nl/reservations.json";
 import reservationsEN from "./locales/en/reservations.json";
 import reservationsFR from "./locales/fr/reservations.json";
 
+import calendarNL from "./locales/nl/calendar.json";
+import calendarEN from "./locales/en/calendar.json";
+import calendarFR from "./locales/fr/calendar.json";
+
 import commonNL from "./locales/nl/common.json";
 import commonEN from "./locales/en/common.json";
 import commonFR from "./locales/fr/common.json";
@@ -27,6 +31,7 @@ const resources = {
     auth: authNL,
     dashboard: dashboardNL,
     reservations: reservationsNL,
+    calendar: calendarNL,
     common: commonNL,
   },
   en: {
@@ -34,6 +39,7 @@ const resources = {
     auth: authEN,
     dashboard: dashboardEN,
     reservations: reservationsEN,
+    calendar: calendarEN,
     common: commonEN,
   },
   fr: {
@@ -41,6 +47,7 @@ const resources = {
     auth: authFR,
     dashboard: dashboardFR,
     reservations: reservationsFR,
+    calendar: calendarFR,
     common: commonFR,
   },
 };
@@ -51,7 +58,7 @@ i18n
     resources,
     lng: localStorage.getItem("lang") || "nl",
     fallbackLng: "nl",
-    ns: ["common", "auth", "landing", "dashboard", "reservations"],
+    ns: ["common", "auth", "landing", "dashboard", "reservations", "calendar"],
     defaultNS: "common",
     interpolation: {
       escapeValue: false

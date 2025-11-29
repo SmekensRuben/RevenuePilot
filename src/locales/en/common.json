@@ -13,5 +13,9 @@
   "settingsDesc": "Manage your application settings",
   "leavePageTitle": "Leave page?",
   "leavePageMessage": "Your shopping cart will be cleared. Are you sure you want to leave this page?",
-  "logoutConfirm": "Do you want to log out?"
+  "logoutConfirm": "Do you want to log out?",
+  "calendar": {
+    "label": "Calendar",
+    "local": "Local Calendar"
+  }
 }

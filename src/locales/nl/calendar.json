@@ -1,0 +1,42 @@
+{
+  "title": "Lokale kalender",
+  "description": "Plan en bewaak lokale evenementen voor je accommodatie in één overzicht.",
+  "labels": {
+    "titlePrefix": "Lokale planning voor {{hotel}}",
+    "events_one": "{{count}} evenement",
+    "events_other": "{{count}} evenementen",
+    "today": "Vandaag",
+    "noEventsMonth": "Nog geen evenementen deze maand.",
+    "noEvents": "Geen lokale evenementen gepland.",
+    "local": "Lokaal",
+    "noLocation": "Geen locatie"
+  },
+  "views": {
+    "week": "Week",
+    "month": "Maand",
+    "year": "Jaar",
+    "list": "Lijst"
+  },
+  "actions": {
+    "create": "Evenement toevoegen",
+    "today": "Vandaag",
+    "previous": "Vorige",
+    "next": "Volgende"
+  },
+  "form": {
+    "heading": "Nieuw lokaal evenement",
+    "title": "Titel",
+    "description": "Beschrijving",
+    "location": "Locatie",
+    "startDate": "Begindatum",
+    "endDate": "Einddatum",
+    "cancel": "Annuleren",
+    "submit": "Evenement opslaan",
+    "validation": "Vul minstens een titel en begindatum in.",
+    "invalidRange": "De einddatum mag niet vóór de begindatum liggen."
+  },
+  "toast": {
+    "created": "Lokaal evenement toegevoegd",
+    "error": "Het evenement kon niet worden opgeslagen. Probeer opnieuw."
+  }
+}

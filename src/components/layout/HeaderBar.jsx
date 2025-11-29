@@ -12,8 +12,10 @@ export default function HeaderBar({ today, onLogout }) {
   const [hotels, setHotels] = useState([]);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const reservationsMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const calendarMenuRef = useRef(null);
 
   const reservationMenuItems = [
     {
@@ -27,6 +29,13 @@ export default function HeaderBar({ today, onLogout }) {
     {
       label: "Segmentation Mapping",
       action: () => navigate("/settings/segmentation-mapping"),
+    },
+  ];
+
+  const calendarMenuItems = [
+    {
+      label: t("calendar.local"),
+      action: () => navigate("/calendar/local"),
     },
   ];
 
@@ -61,6 +70,10 @@ export default function HeaderBar({ today, onLogout }) {
 
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
         setIsSettingsOpen(false);
+      }
+
+      if (calendarMenuRef.current && !calendarMenuRef.current.contains(event.target)) {
+        setIsCalendarOpen(false);
       }
     };
 
@@ -121,12 +134,50 @@ export default function HeaderBar({ today, onLogout }) {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
+          <div ref={calendarMenuRef} className="flex justify-end w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setIsCalendarOpen((prev) => !prev);
+                  setIsReservationsOpen(false);
+                  setIsSettingsOpen(false);
+                }}
+                className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
+                style={{ minHeight: 44 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-wide">{t("calendar.label")}</span>
+                </div>
+                <span className="ml-3 text-base">▾</span>
+              </button>
+              {isCalendarOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="py-2">
+                    {calendarMenuItems.map((item) => (
+                      <button
+                        key={item.label}
+                        onClick={() => {
+                          item.action();
+                          setIsCalendarOpen(false);
+                        }}
+                        className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
+                      >
+                        <span className="text-sm font-semibold">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div ref={reservationsMenuRef} className="flex justify-end w-full sm:w-auto">
             <div className="relative w-full sm:w-auto">
               <button
                 onClick={() => {
                   setIsReservationsOpen((prev) => !prev);
                   setIsSettingsOpen(false);
+                  setIsCalendarOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -171,6 +222,7 @@ export default function HeaderBar({ today, onLogout }) {
                 onClick={() => {
                   setIsSettingsOpen((prev) => !prev);
                   setIsReservationsOpen(false);
+                  setIsCalendarOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}

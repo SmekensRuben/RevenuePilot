@@ -1,0 +1,42 @@
+{
+  "title": "Calendrier local",
+  "description": "Planifiez et suivez les événements locaux de votre établissement en un coup d'œil.",
+  "labels": {
+    "titlePrefix": "Planification locale pour {{hotel}}",
+    "events_one": "{{count}} évènement",
+    "events_other": "{{count}} évènements",
+    "today": "Aujourd'hui",
+    "noEventsMonth": "Aucun évènement prévu ce mois-ci.",
+    "noEvents": "Aucun évènement local planifié.",
+    "local": "Local",
+    "noLocation": "Pas de lieu"
+  },
+  "views": {
+    "week": "Semaine",
+    "month": "Mois",
+    "year": "Année",
+    "list": "Liste"
+  },
+  "actions": {
+    "create": "Ajouter un évènement",
+    "today": "Aujourd'hui",
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
+  "form": {
+    "heading": "Nouvel évènement local",
+    "title": "Titre",
+    "description": "Description",
+    "location": "Lieu",
+    "startDate": "Date de début",
+    "endDate": "Date de fin",
+    "cancel": "Annuler",
+    "submit": "Enregistrer l'évènement",
+    "validation": "Ajoutez au minimum un titre et une date de début.",
+    "invalidRange": "La date de fin ne peut pas être antérieure à la date de début."
+  },
+  "toast": {
+    "created": "Évènement local ajouté",
+    "error": "Impossible d'enregistrer l'évènement. Veuillez réessayer."
+  }
+}
