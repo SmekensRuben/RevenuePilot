@@ -159,7 +159,7 @@ export default function LocalCalendarPage() {
         {dayEvents.map((event) => (
           <div
             key={event.id}
-            className="rounded bg-[#b41f1f] bg-opacity-10 text-[#b41f1f] px-2 py-1 text-xs font-semibold truncate"
+            className="rounded bg-[#b41f1f] bg-opacity-10 text-[#b41f1f] px-2 py-1 text-xs font-semibold"
             title={`${event.title} (${event.location || t("labels.noLocation")})`}
             onClick={() => navigate(`/calendar/local/${event.id}`)}
             role="button"
@@ -170,7 +170,14 @@ export default function LocalCalendarPage() {
               }
             }}
           >
-            {event.title}
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate">{event.title}</span>
+              {(event.estimatedVisitors || event.estimatedVisitors === 0) && (
+                <span className="rounded bg-white/70 px-2 py-0.5 text-[10px] font-semibold text-[#b41f1f]">
+                  {event.estimatedVisitors}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -301,6 +308,11 @@ export default function LocalCalendarPage() {
                     {event.location && (
                       <p className="text-xs text-gray-500">{event.location}</p>
                     )}
+                    {(event.estimatedVisitors || event.estimatedVisitors === 0) && (
+                      <p className="text-xs text-gray-500">
+                        {t("labels.estimatedVisitors", { count: event.estimatedVisitors })}
+                      </p>
+                    )}
                   </div>
                 ))}
                 {!monthEvents.length && (
@@ -336,15 +348,15 @@ export default function LocalCalendarPage() {
                     ? ` - ${formatDisplayDate(event.endDate)}`
                     : ""}
                 </p>
-                  {event.location && (
-                    <p className="text-sm text-gray-500">{event.location}</p>
-                  )}
-                  {(event.estimatedVisitors || event.estimatedVisitors === 0) && (
-                    <p className="text-sm text-gray-500">{t("labels.estimatedVisitors", { count: event.estimatedVisitors })}</p>
-                  )}
-                  {event.description && (
-                    <p className="text-sm text-gray-500 mt-1">{event.description}</p>
-                  )}
+                {event.location && (
+                  <p className="text-sm text-gray-500">{event.location}</p>
+                )}
+                {(event.estimatedVisitors || event.estimatedVisitors === 0) && (
+                  <p className="text-sm text-gray-500">{t("labels.estimatedVisitors", { count: event.estimatedVisitors })}</p>
+                )}
+                {event.description && (
+                  <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+                )}
               </div>
               <span className="rounded-full bg-[#b41f1f] bg-opacity-10 text-[#b41f1f] px-3 py-1 text-xs font-semibold">
                 {t("labels.local")}

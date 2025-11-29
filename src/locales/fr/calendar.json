@@ -47,10 +47,12 @@
     "title": "Détails de l'évènement",
     "subtitle": "Consultez, modifiez ou supprimez l'évènement local sélectionné.",
     "back": "Retour",
+    "edit": "Modifier l'évènement",
     "delete": "Supprimer",
     "deleteConfirm": "Êtes-vous sûr de vouloir supprimer cet évènement ? Cette action est irréversible.",
     "loading": "Chargement de l'évènement...",
     "notFound": "Évènement introuvable.",
-    "save": "Mettre à jour l'évènement"
+    "save": "Mettre à jour l'évènement",
+    "noEndDate": "Aucune date de fin indiquée"
   }
 }
