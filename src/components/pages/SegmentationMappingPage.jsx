@@ -143,7 +143,16 @@ function SegmentList({ title, items, onAdd, onSelect, emptyMessage }) {
                 onClick={() => onSelect(segment)}
                 className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
               >
-                <div className="text-base font-medium text-gray-900">{segment.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-base font-medium text-gray-900">
+                    {segment.name}
+                  </div>
+                  {segment.type && (
+                    <span className="text-xs font-semibold text-gray-700 bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
+                      {segment.type}
+                    </span>
+                  )}
+                </div>
                 {segment.description && (
                   <p className="text-sm text-gray-600 mt-1">{segment.description}</p>
                 )}

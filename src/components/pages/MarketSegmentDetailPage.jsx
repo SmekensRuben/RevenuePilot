@@ -20,6 +20,7 @@ export default function MarketSegmentDetailPage() {
 
   const [formData, setFormData] = useState({
     name: initialSegment?.name || "",
+    type: initialSegment?.type || "Transient",
   });
   const [subSegments, setSubSegments] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
@@ -48,7 +49,10 @@ export default function MarketSegmentDetailPage() {
       setStatusMessage("Market segment laden...");
       const segment = await getMarketSegment(hotelUid, segmentId);
       if (segment) {
-        setFormData({ name: segment.name || "" });
+        setFormData({
+          name: segment.name || "",
+          type: segment.type || "Transient",
+        });
         setStatusMessage("");
       } else {
         setStatusMessage("Market segment niet gevonden.");
@@ -71,8 +75,8 @@ export default function MarketSegmentDetailPage() {
   }, [hotelUid, isNew, segmentId]);
 
   const handleChange = (event) => {
-    const { value } = event.target;
-    setFormData((prev) => ({ ...prev, name: value }));
+    const { name, value } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (event) => {
@@ -82,18 +86,29 @@ export default function MarketSegmentDetailPage() {
       return;
     }
 
+    if (!formData.type) {
+      setStatusMessage("Type is verplicht.");
+      return;
+    }
+
     try {
       setSaving(true);
       const savedId = await saveMarketSegment(
         hotelUid,
         isNew ? null : segmentId,
-        { name: formData.name.trim() }
+        { name: formData.name.trim(), type: formData.type }
       );
       setStatusMessage("Market segment opgeslagen.");
       if (isNew && savedId) {
         navigate(`/settings/segmentation-mapping/market-segments/${savedId}`, {
           replace: true,
-          state: { segment: { id: savedId, name: formData.name.trim() } },
+          state: {
+            segment: {
+              id: savedId,
+              name: formData.name.trim(),
+              type: formData.type,
+            },
+          },
         });
       }
     } catch (error) {
@@ -135,12 +150,27 @@ export default function MarketSegmentDetailPage() {
             Naam
             <input
               type="text"
+              name="name"
               value={formData.name}
               onChange={handleChange}
               className="border border-gray-300 rounded px-3 py-2 text-gray-900"
               placeholder="bv. Corporate"
               required
             />
+          </label>
+
+          <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+            Type
+            <select
+              name="type"
+              value={formData.type}
+              onChange={handleChange}
+              className="border border-gray-300 rounded px-3 py-2 text-gray-900"
+              required
+            >
+              <option value="Transient">Transient</option>
+              <option value="Group">Group</option>
+            </select>
           </label>
 
           <div className="flex items-center justify-between pt-2">

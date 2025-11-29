@@ -221,6 +221,7 @@ export default function SubSegmentDetailPage() {
                 {marketSegments.map((segment) => (
                   <option key={segment.id} value={segment.id}>
                     {segment.name}
+                    {segment.type ? ` (${segment.type})` : ""}
                   </option>
                 ))}
               </select>
