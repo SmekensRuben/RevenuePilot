@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
+import { useNavigate } from "react-router-dom";
 import { addLocalEvent, subscribeToLocalEvents } from "../../services/firebaseLocalEvents";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { signOut, auth } from "../../firebaseConfig";
@@ -69,6 +70,7 @@ function eventOccursOnDate(event, date) {
 export default function LocalCalendarPage() {
   const { t } = useTranslation("calendar");
   const { hotelName, hotelUid } = useHotelContext();
+  const navigate = useNavigate();
   const [view, setView] = useState("month");
   const [currentDate, setCurrentDate] = useState(() => {
     const today = new Date();
@@ -81,6 +83,7 @@ export default function LocalCalendarPage() {
     title: "",
     description: "",
     location: "",
+    estimatedVisitors: "",
     startDate: "",
     endDate: "",
   });
@@ -106,7 +109,7 @@ export default function LocalCalendarPage() {
   };
 
   const resetForm = () => {
-    setFormData({ title: "", description: "", location: "", startDate: "", endDate: "" });
+    setFormData({ title: "", description: "", location: "", estimatedVisitors: "", startDate: "", endDate: "" });
   };
 
   const handleSubmit = async (e) => {
@@ -121,8 +124,12 @@ export default function LocalCalendarPage() {
       return;
     }
 
+    const estimatedVisitors = formData.estimatedVisitors
+      ? Number(formData.estimatedVisitors)
+      : null;
+
     try {
-      await addLocalEvent(formData);
+      await addLocalEvent({ ...formData, estimatedVisitors });
       toast.success(t("toast.created"));
       resetForm();
       setIsFormOpen(false);
@@ -154,6 +161,14 @@ export default function LocalCalendarPage() {
             key={event.id}
             className="rounded bg-[#b41f1f] bg-opacity-10 text-[#b41f1f] px-2 py-1 text-xs font-semibold truncate"
             title={`${event.title} (${event.location || t("labels.noLocation")})`}
+            onClick={() => navigate(`/calendar/local/${event.id}`)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                navigate(`/calendar/local/${event.id}`);
+              }
+            }}
           >
             {event.title}
           </div>
@@ -307,7 +322,11 @@ export default function LocalCalendarPage() {
     return (
       <div className="space-y-3">
         {events.map((event) => (
-          <Card key={event.id} className="p-4 border border-gray-100 shadow-sm">
+          <Card
+            key={event.id}
+            className="p-4 border border-gray-100 shadow-sm cursor-pointer hover:border-[#b41f1f]/30"
+            onClick={() => navigate(`/calendar/local/${event.id}`)}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-semibold">{event.title}</p>
@@ -317,12 +336,15 @@ export default function LocalCalendarPage() {
                     ? ` - ${formatDisplayDate(event.endDate)}`
                     : ""}
                 </p>
-                {event.location && (
-                  <p className="text-sm text-gray-500">{event.location}</p>
-                )}
-                {event.description && (
-                  <p className="text-sm text-gray-500 mt-1">{event.description}</p>
-                )}
+                  {event.location && (
+                    <p className="text-sm text-gray-500">{event.location}</p>
+                  )}
+                  {(event.estimatedVisitors || event.estimatedVisitors === 0) && (
+                    <p className="text-sm text-gray-500">{t("labels.estimatedVisitors", { count: event.estimatedVisitors })}</p>
+                  )}
+                  {event.description && (
+                    <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+                  )}
               </div>
               <span className="rounded-full bg-[#b41f1f] bg-opacity-10 text-[#b41f1f] px-3 py-1 text-xs font-semibold">
                 {t("labels.local")}
@@ -484,6 +506,22 @@ export default function LocalCalendarPage() {
                   value={formData.location}
                   onChange={(e) => setFormData((prev) => ({ ...prev, location: e.target.value }))}
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#b41f1f] focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700" htmlFor="estimatedVisitors">
+                  {t("form.estimatedVisitors")}
+                </label>
+                <input
+                  id="estimatedVisitors"
+                  type="number"
+                  min="0"
+                  value={formData.estimatedVisitors}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, estimatedVisitors: e.target.value.replace(/[^0-9]/g, "") }))
+                  }
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#b41f1f] focus:outline-none"
+                  placeholder="0"
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

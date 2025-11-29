@@ -9,7 +9,8 @@
     "noEventsMonth": "Nog geen evenementen deze maand.",
     "noEvents": "Geen lokale evenementen gepland.",
     "local": "Lokaal",
-    "noLocation": "Geen locatie"
+    "noLocation": "Geen locatie",
+    "estimatedVisitors": "Geschat aantal bezoekers: {{count}}"
   },
   "views": {
     "week": "Week",
@@ -28,6 +29,7 @@
     "title": "Titel",
     "description": "Beschrijving",
     "location": "Locatie",
+    "estimatedVisitors": "Geschat aantal bezoekers",
     "startDate": "Begindatum",
     "endDate": "Einddatum",
     "cancel": "Annuleren",
@@ -37,6 +39,18 @@
   },
   "toast": {
     "created": "Lokaal evenement toegevoegd",
+    "updated": "Lokaal evenement bijgewerkt",
+    "deleted": "Lokaal evenement verwijderd",
     "error": "Het evenement kon niet worden opgeslagen. Probeer opnieuw."
+  },
+  "detail": {
+    "title": "Evenementdetails",
+    "subtitle": "Bekijk, bewerk of verwijder het gekozen lokale evenement.",
+    "back": "Terug",
+    "delete": "Verwijderen",
+    "deleteConfirm": "Weet je zeker dat je dit evenement wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "loading": "Evenement laden...",
+    "notFound": "Evenement niet gevonden.",
+    "save": "Evenement bijwerken"
   }
 }
