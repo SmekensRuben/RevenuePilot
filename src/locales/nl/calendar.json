@@ -47,10 +47,12 @@
     "title": "Evenementdetails",
     "subtitle": "Bekijk, bewerk of verwijder het gekozen lokale evenement.",
     "back": "Terug",
+    "edit": "Evenement bewerken",
     "delete": "Verwijderen",
     "deleteConfirm": "Weet je zeker dat je dit evenement wilt verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "loading": "Evenement laden...",
     "notFound": "Evenement niet gevonden.",
-    "save": "Evenement bijwerken"
+    "save": "Evenement bijwerken",
+    "noEndDate": "Geen einddatum opgegeven"
   }
 }

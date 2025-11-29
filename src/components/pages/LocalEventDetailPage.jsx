@@ -25,6 +25,8 @@ export default function LocalEventDetailPage() {
   });
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [originalData, setOriginalData] = useState(null);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -60,6 +62,14 @@ export default function LocalEventDetailPage() {
         startDate: event.startDate || "",
         endDate: event.endDate || "",
       });
+      setOriginalData({
+        title: event.title || "",
+        description: event.description || "",
+        location: event.location || "",
+        estimatedVisitors: event.estimatedVisitors ? String(event.estimatedVisitors) : "",
+        startDate: event.startDate || "",
+        endDate: event.endDate || "",
+      });
       setLoading(false);
     };
 
@@ -86,10 +96,19 @@ export default function LocalEventDetailPage() {
     try {
       await updateLocalEvent(eventId, { ...formData, estimatedVisitors });
       toast.success(t("toast.updated"));
+      setOriginalData({ ...formData, estimatedVisitors: formData.estimatedVisitors });
+      setIsEditing(false);
     } catch (error) {
       console.error("Failed to update event", error);
       toast.error(t("toast.error"));
     }
+  };
+
+  const handleCancelEdit = () => {
+    if (originalData) {
+      setFormData(originalData);
+    }
+    setIsEditing(false);
   };
 
   const handleDelete = async () => {
@@ -123,6 +142,15 @@ export default function LocalEventDetailPage() {
             >
               {t("detail.back")}
             </button>
+            {!loading && !statusMessage && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="rounded border border-[#b41f1f] bg-white px-4 py-2 text-sm font-semibold text-[#b41f1f] hover:border-[#9c1c1c]"
+                disabled={isEditing}
+              >
+                {t("detail.edit")}
+              </button>
+            )}
             <button
               onClick={handleDelete}
               className="rounded border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:border-red-300"
@@ -137,7 +165,7 @@ export default function LocalEventDetailPage() {
             <p className="text-gray-600">{t("detail.loading")}</p>
           ) : statusMessage ? (
             <p className="text-red-600 font-semibold">{statusMessage}</p>
-          ) : (
+          ) : isEditing ? (
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700" htmlFor="title">
@@ -224,10 +252,10 @@ export default function LocalEventDetailPage() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => navigate(-1)}
+                  onClick={handleCancelEdit}
                   className="rounded border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:border-gray-300"
                 >
-                  {t("detail.back")}
+                  {t("form.cancel")}
                 </button>
                 <button
                   type="submit"
@@ -237,6 +265,43 @@ export default function LocalEventDetailPage() {
                 </button>
               </div>
             </form>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">{t("form.title")}</p>
+                <p className="text-lg font-bold text-gray-900">{formData.title || "-"}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{t("form.startDate")}</p>
+                  <p className="text-gray-900">{formData.startDate || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{t("form.endDate")}</p>
+                  <p className="text-gray-900">{formData.endDate || t("detail.noEndDate")}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{t("form.location")}</p>
+                  <p className="text-gray-900">{formData.location || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">{t("form.estimatedVisitors")}</p>
+                  <p className="text-gray-900">{formData.estimatedVisitors || "-"}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-700">{t("form.description")}</p>
+                <p className="text-gray-900 whitespace-pre-line">{formData.description || "-"}</p>
+              </div>
+              <div className="pt-2">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white shadow hover:bg-[#9c1c1c]"
+                >
+                  {t("detail.edit")}
+                </button>
+              </div>
+            </div>
           )}
         </Card>
       </PageContainer>
