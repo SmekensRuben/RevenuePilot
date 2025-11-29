@@ -121,7 +121,7 @@ export default function HeaderBar({ today, onLogout }) {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
-          <div ref={reservationsMenuRef} className="flex justify-start">
+          <div ref={reservationsMenuRef} className="flex justify-end w-full sm:w-auto">
             <div className="relative w-full sm:w-auto">
               <button
                 onClick={() => {
@@ -139,7 +139,7 @@ export default function HeaderBar({ today, onLogout }) {
                 <span className="ml-3 text-base">▾</span>
               </button>
               {isReservationsOpen && (
-                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
                     {reservationMenuItems.map((item) => {
                       const Icon = item.icon;
@@ -165,7 +165,7 @@ export default function HeaderBar({ today, onLogout }) {
             </div>
           </div>
 
-          <div ref={settingsMenuRef} className="flex justify-start">
+          <div ref={settingsMenuRef} className="flex justify-end w-full sm:w-auto">
             <div className="relative w-full sm:w-auto">
               <button
                 onClick={() => {
@@ -181,7 +181,7 @@ export default function HeaderBar({ today, onLogout }) {
                 <span className="ml-3 text-base">▾</span>
               </button>
               {isSettingsOpen && (
-                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                <div className="absolute right-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
                   <div className="py-2">
                     {settingsMenuItems.map((item) => (
                       <button

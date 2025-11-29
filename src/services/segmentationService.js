@@ -1,0 +1,104 @@
+import {
+  addDoc,
+  collection,
+  db,
+  doc,
+  getDoc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+} from "../firebaseConfig";
+
+const marketSegmentsPath = (hotelUid) => `hotels/${hotelUid}/marketSegments`;
+const subSegmentsPath = (hotelUid) => `hotels/${hotelUid}/subSegments`;
+
+const withId = (snapshot) => ({ id: snapshot.id, ...snapshot.data() });
+const sortByName = (items) =>
+  [...items].sort((a, b) =>
+    (a?.name || "").localeCompare(b?.name || "", undefined, {
+      sensitivity: "base",
+    })
+  );
+
+export const subscribeMarketSegments = (hotelUid, callback) => {
+  if (!hotelUid) return () => {};
+  const ref = collection(db, marketSegmentsPath(hotelUid));
+  const q = query(ref, orderBy("name"));
+  return onSnapshot(q, (snap) => callback(sortByName(snap.docs.map(withId))));
+};
+
+export const subscribeSubSegments = (
+  hotelUid,
+  callback,
+  { marketSegmentId } = {}
+) => {
+  if (!hotelUid) return () => {};
+  const ref = collection(db, subSegmentsPath(hotelUid));
+  const constraints = [];
+
+  if (marketSegmentId) {
+    constraints.push(where("marketSegmentId", "==", marketSegmentId));
+  } else {
+    constraints.push(orderBy("name"));
+  }
+
+  const q = constraints.length ? query(ref, ...constraints) : ref;
+  return onSnapshot(q, (snap) => callback(sortByName(snap.docs.map(withId))));
+};
+
+export const getMarketSegment = async (hotelUid, segmentId) => {
+  if (!hotelUid || !segmentId) return null;
+  const snap = await getDoc(doc(db, marketSegmentsPath(hotelUid), segmentId));
+  return snap.exists() ? withId(snap) : null;
+};
+
+export const getSubSegment = async (hotelUid, subSegmentId) => {
+  if (!hotelUid || !subSegmentId) return null;
+  const snap = await getDoc(doc(db, subSegmentsPath(hotelUid), subSegmentId));
+  return snap.exists() ? withId(snap) : null;
+};
+
+export const saveMarketSegment = async (hotelUid, segmentId, data) => {
+  if (!hotelUid) throw new Error("Hotel ontbreekt");
+  const payload = { name: data.name || "", updatedAt: serverTimestamp() };
+
+  if (segmentId && segmentId !== "new") {
+    await updateDoc(doc(db, marketSegmentsPath(hotelUid), segmentId), payload);
+    return segmentId;
+  }
+
+  const docRef = await addDoc(collection(db, marketSegmentsPath(hotelUid)), {
+    ...payload,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
+
+export const saveSubSegment = async (hotelUid, subSegmentId, data) => {
+  if (!hotelUid) throw new Error("Hotel ontbreekt");
+  const payload = {
+    name: data.name || "",
+    prefix: data.prefix || "",
+    rateType: data.rateType || "",
+    description: data.description || "",
+    rateCategory: data.rateCategory || "",
+    marketSegmentId: data.marketSegmentId || "",
+    marketSegmentName: data.marketSegmentName || "",
+    transactionCode: data.transactionCode || "",
+    updatedAt: serverTimestamp(),
+  };
+
+  if (subSegmentId && subSegmentId !== "new") {
+    await updateDoc(doc(db, subSegmentsPath(hotelUid), subSegmentId), payload);
+    return subSegmentId;
+  }
+
+  const docRef = await addDoc(collection(db, subSegmentsPath(hotelUid)), {
+    ...payload,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+};
