@@ -589,10 +589,10 @@ export default function MadeReservationsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 items-start">
+        <div className="flex flex-col gap-3 items-start w-full">
           <p className="text-sm font-semibold text-gray-700">{t("filters.title")}</p>
-          <div className={`grid gap-4 w-full ${datePreset === "custom" ? "sm:grid-cols-3" : "sm:grid-cols-2"} max-w-4xl`}>
-            <label className="flex flex-col text-sm font-semibold text-gray-700">
+          <div className="flex flex-wrap items-end gap-3 w-full">
+            <label className="flex flex-col text-sm font-semibold text-gray-700 w-52 min-w-[12rem]">
               {t("filters.datePreset")}
               <select
                 value={datePreset}
@@ -607,8 +607,8 @@ export default function MadeReservationsPage() {
               </select>
             </label>
             {datePreset === "custom" && (
-              <>
-                <label className="flex flex-col text-sm font-semibold text-gray-700">
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
                   {t("filters.startDate")}
                   <input
                     type="date"
@@ -617,7 +617,7 @@ export default function MadeReservationsPage() {
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
                   {t("filters.endDate")}
                   <input
                     type="date"
@@ -626,10 +626,8 @@ export default function MadeReservationsPage() {
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </label>
-              </>
+              </div>
             )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3 w-full">
             <div className="relative">
               <button
                 type="button"
@@ -708,39 +706,41 @@ export default function MadeReservationsPage() {
             <h2 className="text-lg font-semibold">{t("summary.title")}</h2>
             <span className="text-xs text-gray-500">{t("page.compactHint")}</span>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
-                {t("summary.reservations")}
-              </p>
-              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalReservations}</p>
+          <div className="grid gap-4 md:grid-cols-2 items-start">
+            <div className="rounded-lg bg-gray-50 border border-gray-100 p-4 space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
+                  {t("summary.reservations")}
+                </p>
+                <p className="text-base font-bold text-gray-900 leading-tight">
+                  {reservationSummary.totalReservations}
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.nights")}</p>
+                <p className="text-base font-bold text-gray-900 leading-tight">{reservationSummary.totalNights}</p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.revenue")}</p>
+                <p className="text-base font-bold text-gray-900 leading-tight">{reservationSummary.totalRevenue}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.topCompany")}</p>
+                {reservationSummary.topCompany ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-gray-900 leading-tight truncate">
+                      {reservationSummary.topCompany.company}
+                    </span>
+                    <span className="text-[11px] bg-gray-200 text-gray-800 px-2 py-1 rounded-full">
+                      {t("summary.topCompanyCount", { count: reservationSummary.topCompany.count })}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">{t("page.noData")}</p>
+                )}
+              </div>
             </div>
-            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.nights")}</p>
-              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalNights}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.revenue")}</p>
-              <p className="text-lg font-bold text-gray-900 leading-tight">{reservationSummary.totalRevenue}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-gray-50 border border-gray-100">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">{t("summary.topCompany")}</p>
-              {reservationSummary.topCompany ? (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-900 leading-tight truncate">
-                    {reservationSummary.topCompany.company}
-                  </span>
-                  <span className="text-xs bg-gray-200 text-gray-800 px-2 py-1 rounded-full">
-                    {t("summary.topCompanyCount", { count: reservationSummary.topCompany.count })}
-                  </span>
-                </div>
-              ) : (
-                <p className="text-sm text-gray-500">{t("page.noData")}</p>
-              )}
-            </div>
-          </div>
-          <div className="mt-4 grid md:grid-cols-2 gap-4 items-start">
-            <div className="p-3 rounded-lg bg-white border border-gray-100">
+            <div className="p-3 rounded-lg bg-white border border-gray-100 h-full flex flex-col">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[11px] uppercase tracking-wide text-gray-500 font-semibold">
                   {t("summary.roomTypeBreakdown")}
