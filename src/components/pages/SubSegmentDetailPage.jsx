@@ -1,15 +1,22 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { auth, signOut } from "../../firebaseConfig";
+import { useHotelContext } from "../../contexts/HotelContext";
+import {
+  getSubSegment,
+  saveSubSegment,
+  subscribeMarketSegments,
+} from "../../services/segmentationService";
 
 export default function SubSegmentDetailPage() {
   const { subSegmentId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { hotelUid } = useHotelContext();
   const initialSubSegment = location.state?.subSegment;
-  const isNew = subSegmentId === "new" || !initialSubSegment;
+  const isNew = subSegmentId === "new" || !subSegmentId;
 
   const [formData, setFormData] = useState({
     name: initialSubSegment?.name || "",
@@ -17,10 +24,14 @@ export default function SubSegmentDetailPage() {
     rateType: initialSubSegment?.rateType || "",
     description: initialSubSegment?.description || "",
     rateCategory: initialSubSegment?.rateCategory || "",
-    marketSegment: initialSubSegment?.marketSegment || "",
+    marketSegmentId: initialSubSegment?.marketSegmentId || "",
+    marketSegmentName:
+      initialSubSegment?.marketSegmentName || initialSubSegment?.marketSegment || "",
     transactionCode: initialSubSegment?.transactionCode || "",
   });
+  const [marketSegments, setMarketSegments] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const todayLabel = useMemo(
     () =>
@@ -38,16 +49,80 @@ export default function SubSegmentDetailPage() {
     window.location.href = "/login";
   };
 
+  useEffect(() => {
+    if (!hotelUid || isNew || initialSubSegment) return;
+
+    const loadSubSegment = async () => {
+      setStatusMessage("Sub segment laden...");
+      const subSegment = await getSubSegment(hotelUid, subSegmentId);
+      if (subSegment) {
+        setFormData({
+          name: subSegment.name || "",
+          prefix: subSegment.prefix || "",
+          rateType: subSegment.rateType || "",
+          description: subSegment.description || "",
+          rateCategory: subSegment.rateCategory || "",
+          marketSegmentId: subSegment.marketSegmentId || "",
+          marketSegmentName: subSegment.marketSegmentName || "",
+          transactionCode: subSegment.transactionCode || "",
+        });
+        setStatusMessage("");
+      } else {
+        setStatusMessage("Sub segment niet gevonden.");
+      }
+    };
+
+    loadSubSegment();
+  }, [hotelUid, initialSubSegment, isNew, subSegmentId]);
+
+  useEffect(() => {
+    if (!hotelUid) return undefined;
+    const unsubscribe = subscribeMarketSegments(hotelUid, setMarketSegments);
+    return () => unsubscribe();
+  }, [hotelUid]);
+
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    setStatusMessage(
-      "Details klaar om op te slaan. Koppel de backend om deze informatie permanent te bewaren."
+    if (!formData.name.trim()) {
+      setStatusMessage("Naam is verplicht.");
+      return;
+    }
+
+    const linkedMarketSegment = marketSegments.find(
+      (segment) => segment.id === formData.marketSegmentId
     );
+
+    try {
+      setSaving(true);
+      const payload = {
+        ...formData,
+        name: formData.name.trim(),
+        marketSegmentName:
+          linkedMarketSegment?.name || formData.marketSegmentName || "",
+      };
+      const savedId = await saveSubSegment(
+        hotelUid,
+        isNew ? null : subSegmentId,
+        payload
+      );
+      setStatusMessage("Sub segment opgeslagen.");
+      if (isNew && savedId) {
+        navigate(`/settings/segmentation-mapping/sub-segments/${savedId}`, {
+          replace: true,
+          state: { subSegment: { id: savedId, ...payload } },
+        });
+      }
+    } catch (error) {
+      console.error("Opslaan mislukt", error);
+      setStatusMessage("Opslaan mislukt. Probeer het opnieuw.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -137,13 +212,18 @@ export default function SubSegmentDetailPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
               Market Segment
-              <input
-                type="text"
-                value={formData.marketSegment}
-                onChange={handleChange("marketSegment")}
+              <select
+                value={formData.marketSegmentId}
+                onChange={handleChange("marketSegmentId")}
                 className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-                placeholder="Gerelateerd market segment"
-              />
+              >
+                <option value="">Kies een market segment</option>
+                {marketSegments.map((segment) => (
+                  <option key={segment.id} value={segment.id}>
+                    {segment.name}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
@@ -161,14 +241,15 @@ export default function SubSegmentDetailPage() {
           <div className="flex items-center justify-between pt-2">
             <div className="text-sm text-gray-600">
               {isNew
-                ? "Dit sub segment wordt aangemaakt zodra de opslag is gekoppeld."
-                : "Werk de bestaande gegevens bij en bewaar ze zodra opslag beschikbaar is."}
+                ? "Dit sub segment wordt aangemaakt en opgeslagen in Firebase."
+                : "Werk de gegevens bij en sla op om Firebase te updaten."}
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-[#b41f1f] text-white rounded-md font-semibold hover:bg-[#9c1a1a]"
+              disabled={saving}
+              className="px-4 py-2 bg-[#b41f1f] text-white rounded-md font-semibold hover:bg-[#9c1a1a] disabled:opacity-60"
             >
-              Opslaan
+              {saving ? "Opslaan..." : "Opslaan"}
             </button>
           </div>
 

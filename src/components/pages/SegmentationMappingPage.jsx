@@ -1,13 +1,21 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { auth, signOut } from "../../firebaseConfig";
-import { marketSegments, subSegments } from "../../constants/segmentationData";
+import { useHotelContext } from "../../contexts/HotelContext";
+import {
+  subscribeMarketSegments,
+  subscribeSubSegments,
+} from "../../services/segmentationService";
 
 export default function SegmentationMappingPage() {
   const navigate = useNavigate();
+  const { hotelUid } = useHotelContext();
   const [activeTab, setActiveTab] = useState("market");
+  const [marketSegments, setMarketSegments] = useState([]);
+  const [subSegments, setSubSegments] = useState([]);
+  const [loadingMessage, setLoadingMessage] = useState("Gegevens laden...");
   const todayLabel = useMemo(
     () =>
       new Date().toLocaleDateString(undefined, {
@@ -23,6 +31,24 @@ export default function SegmentationMappingPage() {
     sessionStorage.clear();
     window.location.href = "/login";
   };
+
+  useEffect(() => {
+    if (!hotelUid) return undefined;
+    setLoadingMessage("Gegevens laden...");
+
+    const unsubscribeMarkets = subscribeMarketSegments(
+      hotelUid,
+      setMarketSegments
+    );
+    const unsubscribeSubs = subscribeSubSegments(hotelUid, setSubSegments);
+
+    setLoadingMessage("");
+
+    return () => {
+      unsubscribeMarkets();
+      unsubscribeSubs();
+    };
+  }, [hotelUid]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -85,6 +111,9 @@ export default function SegmentationMappingPage() {
               })
             }
           />
+        )}
+        {loadingMessage && (
+          <div className="text-sm text-gray-600">{loadingMessage}</div>
         )}
       </PageContainer>
     </div>
