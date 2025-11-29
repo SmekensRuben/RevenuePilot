@@ -7,6 +7,7 @@ import MadeReservationsPage from "./components/pages/MadeReservationsPage.jsx";
 import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.jsx";
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
 import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
+import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 
 export default function AppRouter() {
@@ -51,6 +52,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <SubSegmentDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendar/local"
+        element={
+          <ProtectedRoute>
+            <LocalCalendarPage />
           </ProtectedRoute>
         }
       />

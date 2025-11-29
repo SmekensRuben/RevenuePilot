@@ -1,0 +1,42 @@
+{
+  "title": "Local Calendar",
+  "description": "Plan and monitor local events for your property in a single view.",
+  "labels": {
+    "titlePrefix": "Local planning for {{hotel}}",
+    "events_one": "{{count}} event",
+    "events_other": "{{count}} events",
+    "today": "Today",
+    "noEventsMonth": "No events planned this month yet.",
+    "noEvents": "No local events scheduled.",
+    "local": "Local",
+    "noLocation": "No location"
+  },
+  "views": {
+    "week": "Week",
+    "month": "Month",
+    "year": "Year",
+    "list": "List"
+  },
+  "actions": {
+    "create": "Add event",
+    "today": "Today",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "form": {
+    "heading": "New local event",
+    "title": "Title",
+    "description": "Description",
+    "location": "Location",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "cancel": "Cancel",
+    "submit": "Save event",
+    "validation": "Please provide at least a title and start date.",
+    "invalidRange": "The end date cannot be before the start date."
+  },
+  "toast": {
+    "created": "Local event added",
+    "error": "Unable to save the event. Please try again."
+  }
+}

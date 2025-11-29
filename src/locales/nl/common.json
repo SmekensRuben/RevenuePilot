@@ -13,5 +13,9 @@
   "settingsDesc": "Beheer je applicatie-instellingen",
   "leavePageTitle": "Pagina verlaten?",
   "leavePageMessage": "Je winkelwagen wordt leeggemaakt. Weet je zeker dat je de pagina wilt verlaten?",
-  "logoutConfirm": "Wil je uitloggen?"
+  "logoutConfirm": "Wil je uitloggen?",
+  "calendar": {
+    "label": "Kalender",
+    "local": "Lokale kalender"
+  }
 }
