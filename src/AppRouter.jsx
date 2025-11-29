@@ -10,6 +10,7 @@ import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
 import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
 import LocalEventDetailPage from "./components/pages/LocalEventDetailPage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
+import CompsetPage from "./components/pages/CompsetPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -37,6 +38,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <SegmentationMappingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/compset"
+        element={
+          <ProtectedRoute>
+            <CompsetPage />
           </ProtectedRoute>
         }
       />
