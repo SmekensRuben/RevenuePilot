@@ -11,7 +11,9 @@ export default function HeaderBar({ today, onLogout }) {
   const { hotelUid, hotelUids = [], selectHotel } = useHotelContext();
   const [hotels, setHotels] = useState([]);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const reservationsMenuRef = useRef(null);
+  const settingsMenuRef = useRef(null);
 
   const reservationMenuItems = [
     {
@@ -19,6 +21,13 @@ export default function HeaderBar({ today, onLogout }) {
       description: t("header.madeReservationsDescription", { ns: "reservations" }),
       action: () => navigate("/reservations/made"),
       icon: ClipboardList,
+    },
+  ];
+
+  const settingsMenuItems = [
+    {
+      label: "Segmentation Mapping",
+      action: () => navigate("/settings/segmentation-mapping"),
     },
   ];
 
@@ -49,6 +58,10 @@ export default function HeaderBar({ today, onLogout }) {
         !reservationsMenuRef.current.contains(event.target)
       ) {
         setIsReservationsOpen(false);
+      }
+
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setIsSettingsOpen(false);
       }
     };
 
@@ -108,57 +121,104 @@ export default function HeaderBar({ today, onLogout }) {
           </div>
         </div>
 
-        <div ref={reservationsMenuRef} className="flex justify-start">
-          <div className="relative w-full sm:w-auto">
-            <button
-              onClick={() => setIsReservationsOpen((prev) => !prev)}
-              className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
-              style={{ minHeight: 44 }}
-            >
-              <div className="flex items-center gap-2">
-                <span className="uppercase tracking-wide">
-                  {t("header.menuButton", { ns: "reservations" })}
-                </span>
-              </div>
-              <span className="ml-3 text-base">▾</span>
-            </button>
-            {isReservationsOpen && (
-              <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
-                <div className="px-4 py-3 border-b border-gray-200">
-                  <p className="text-xs font-semibold uppercase tracking-wide">
-                    {t("header.menuTitle", { ns: "reservations" })}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {t("header.menuSubtitle", { ns: "reservations" })}
-                  </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div ref={reservationsMenuRef} className="flex justify-start">
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setIsReservationsOpen((prev) => !prev);
+                  setIsSettingsOpen(false);
+                }}
+                className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
+                style={{ minHeight: 44 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-wide">
+                    {t("header.menuButton", { ns: "reservations" })}
+                  </span>
                 </div>
-                <div className="py-2">
-                  {reservationMenuItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
+                <span className="ml-3 text-base">▾</span>
+              </button>
+              {isReservationsOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="px-4 py-3 border-b border-gray-200">
+                    <p className="text-xs font-semibold uppercase tracking-wide">
+                      {t("header.menuTitle", { ns: "reservations" })}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {t("header.menuSubtitle", { ns: "reservations" })}
+                    </p>
+                  </div>
+                  <div className="py-2">
+                    {reservationMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            item.action();
+                            setIsReservationsOpen(false);
+                          }}
+                          className="w-full px-4 py-2 flex items-start gap-3 hover:bg-gray-100 transition-colors text-left"
+                        >
+                          <span className="mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                            {Icon && <Icon className="h-4 w-4" />}
+                          </span>
+                          <span>
+                            <div className="text-sm font-semibold">{item.label}</div>
+                            {item.description && (
+                              <div className="text-xs text-gray-600 leading-snug">{item.description}</div>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div ref={settingsMenuRef} className="flex justify-start">
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setIsSettingsOpen((prev) => !prev);
+                  setIsReservationsOpen(false);
+                }}
+                className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
+                style={{ minHeight: 44 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-wide">Settings</span>
+                </div>
+                <span className="ml-3 text-base">▾</span>
+              </button>
+              {isSettingsOpen && (
+                <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="px-4 py-3 border-b border-gray-200">
+                    <p className="text-xs font-semibold uppercase tracking-wide">Settings</p>
+                    <p className="text-sm text-gray-600">Navigate to configuration tools</p>
+                  </div>
+                  <div className="py-2">
+                    {settingsMenuItems.map((item) => (
                       <button
                         key={item.label}
                         onClick={() => {
                           item.action();
-                          setIsReservationsOpen(false);
+                          setIsSettingsOpen(false);
                         }}
                         className="w-full px-4 py-2 flex items-start gap-3 hover:bg-gray-100 transition-colors text-left"
                       >
-                        <span className="mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
-                          {Icon && <Icon className="h-4 w-4" />}
-                        </span>
                         <span>
                           <div className="text-sm font-semibold">{item.label}</div>
-                          {item.description && (
-                            <div className="text-xs text-gray-600 leading-snug">{item.description}</div>
-                          )}
                         </span>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
