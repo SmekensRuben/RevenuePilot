@@ -18,6 +18,17 @@
     "datePreset": "Date filter",
     "startDate": "Start date",
     "endDate": "End date",
+    "weekday": "Weekday",
+    "weekdayAny": "All weekdays",
+    "weekdays": {
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday",
+      "sunday": "Sunday"
+    },
     "showGraph": "Show graph",
     "roomType": "Room type filter",
     "roomTypeAll": "All room types",

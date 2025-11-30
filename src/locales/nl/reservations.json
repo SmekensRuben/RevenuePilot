@@ -18,6 +18,17 @@
     "datePreset": "Datum filter",
     "startDate": "Startdatum",
     "endDate": "Einddatum",
+    "weekday": "Weekdag",
+    "weekdayAny": "Alle weekdagen",
+    "weekdays": {
+      "monday": "Maandag",
+      "tuesday": "Dinsdag",
+      "wednesday": "Woensdag",
+      "thursday": "Donderdag",
+      "friday": "Vrijdag",
+      "saturday": "Zaterdag",
+      "sunday": "Zondag"
+    },
     "showGraph": "Toon grafiek",
     "roomType": "Room type filter",
     "roomTypeAll": "Alle room types",

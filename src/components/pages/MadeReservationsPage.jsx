@@ -45,6 +45,17 @@ const DATE_PRESETS = [
   { key: "custom", labelKey: "filters.presets.custom" },
 ];
 
+const WEEKDAY_OPTIONS = [
+  { value: "", labelKey: "filters.weekdayAny" },
+  { value: "1", labelKey: "filters.weekdays.monday" },
+  { value: "2", labelKey: "filters.weekdays.tuesday" },
+  { value: "3", labelKey: "filters.weekdays.wednesday" },
+  { value: "4", labelKey: "filters.weekdays.thursday" },
+  { value: "5", labelKey: "filters.weekdays.friday" },
+  { value: "6", labelKey: "filters.weekdays.saturday" },
+  { value: "0", labelKey: "filters.weekdays.sunday" },
+];
+
 function parseDateFromInput(value) {
   if (!value) return null;
 
@@ -100,6 +111,7 @@ export default function MadeReservationsPage() {
   const [datePreset, setDatePreset] = useState("yesterday");
   const [dateRange, setDateRange] = useState(() => getDateRangeForPreset("yesterday"));
   const [importDate, setImportDate] = useState(formatDateInput());
+  const [selectedWeekday, setSelectedWeekday] = useState("");
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -141,6 +153,11 @@ export default function MadeReservationsPage() {
     [t]
   );
 
+  const weekdayOptions = useMemo(
+    () => WEEKDAY_OPTIONS.map((weekday) => ({ ...weekday, label: t(weekday.labelKey) })),
+    [t]
+  );
+
   const handleLogout = async () => {
     await signOut(auth);
     sessionStorage.clear();
@@ -150,6 +167,7 @@ export default function MadeReservationsPage() {
   useEffect(() => {
     if (datePreset !== "custom") {
       setDateRange(getDateRangeForPreset(datePreset));
+      setSelectedWeekday("");
     }
   }, [datePreset]);
 
@@ -172,7 +190,9 @@ export default function MadeReservationsPage() {
       const datesToLoad = [];
       const cursor = new Date(startDate);
       while (cursor <= normalizedEndDate) {
-        datesToLoad.push(formatDateInput(cursor));
+        if (!selectedWeekday || cursor.getDay() === Number(selectedWeekday)) {
+          datesToLoad.push(formatDateInput(cursor));
+        }
         cursor.setDate(cursor.getDate() + 1);
       }
 
@@ -213,7 +233,7 @@ export default function MadeReservationsPage() {
     }
 
     fetchReservations();
-  }, [hotelUid, dateRange, t]);
+  }, [hotelUid, dateRange, selectedWeekday, t]);
 
   const handleImportClick = () => {
     setIsImporting(true);
@@ -625,6 +645,20 @@ export default function MadeReservationsPage() {
                     onChange={(e) => handleDateChange("end", e.target.value)}
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700 w-44">
+                  {t("filters.weekday")}
+                  <select
+                    value={selectedWeekday}
+                    onChange={(e) => setSelectedWeekday(e.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    {weekdayOptions.map((weekday) => (
+                      <option key={weekday.value} value={weekday.value}>
+                        {weekday.label}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             )}
