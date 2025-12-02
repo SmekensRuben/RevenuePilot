@@ -67,9 +67,25 @@ const normalizeDateString = (value) => {
   const trimmed = String(value).trim();
   if (!trimmed) return null;
 
+  // If the value is already an ISO string (yyyy-mm-dd), return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Handle dd.mm.yy formatting from certain CSV exports
+  const dotSeparatedMatch = trimmed.match(/^(\d{2})\.(\d{2})\.(\d{2,4})$/);
+  if (dotSeparatedMatch) {
+    const [, day, month, shortYear] = dotSeparatedMatch;
+    const year = shortYear.length === 2 ? `20${shortYear}` : shortYear;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatDateInput(parsed);
+    }
+  }
+
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) {
-    return trimmed;
+    return null;
   }
 
   return formatDateInput(parsed);
