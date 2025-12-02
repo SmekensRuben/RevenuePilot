@@ -91,6 +91,7 @@ export default function ForecastPage() {
   const [forecastData, setForecastData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selectedReservationType, setSelectedReservationType] = useState("");
 
   useEffect(() => {
     if (!hotelUid) return;
@@ -133,7 +134,7 @@ export default function ForecastPage() {
     setUploading(true);
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: true,
+      skipEmptyLines: "greedy",
       complete: async ({ data, errors }) => {
         if (errors?.length) {
           console.error("CSV parse errors", errors);
@@ -141,6 +142,7 @@ export default function ForecastPage() {
         }
 
         try {
+          const forecastCollection = collection(db, `hotels/${hotelUid}/occupancyForecast`);
           let batch = writeBatch(db);
           let batchCounter = 0;
           let storedRows = 0;
@@ -168,7 +170,7 @@ export default function ForecastPage() {
               payload[field] = parseNumber(row[column]);
             });
 
-            const docRef = doc(db, `hotels/${hotelUid}/occupancyForecast`, dateString);
+            const docRef = doc(forecastCollection);
             batch.set(docRef, payload, { merge: true });
             batchCounter += 1;
             storedRows += 1;
@@ -192,28 +194,50 @@ export default function ForecastPage() {
     });
   };
 
+  const reservationTypes = useMemo(() => {
+    return Array.from(
+      new Set(forecastData.map((item) => item.reservationType).filter(Boolean))
+    ).sort();
+  }, [forecastData]);
+
+  useEffect(() => {
+    if (!reservationTypes.length) {
+      setSelectedReservationType("");
+      return;
+    }
+
+    if (!selectedReservationType || !reservationTypes.includes(selectedReservationType)) {
+      setSelectedReservationType(reservationTypes[0]);
+    }
+  }, [reservationTypes, selectedReservationType]);
+
+  const filteredForecastData = useMemo(() => {
+    if (!selectedReservationType) return forecastData;
+    return forecastData.filter((item) => item.reservationType === selectedReservationType);
+  }, [forecastData, selectedReservationType]);
+
   const chartData = useMemo(() => {
-    const labels = forecastData.map((item) => item.date);
+    const labels = filteredForecastData.map((item) => item.date);
     return {
       labels,
       datasets: [
         {
           label: "% Definite Occupancy",
-          data: forecastData.map((item) => Number(item.percentageDefiniteOccupancy) || 0),
+          data: filteredForecastData.map((item) => Number(item.percentageDefiniteOccupancy) || 0),
           borderColor: "#b41f1f",
           backgroundColor: "rgba(180, 31, 31, 0.1)",
           tension: 0.25,
         },
         {
           label: "% Tentative Occupancy",
-          data: forecastData.map((item) => Number(item.percentageTentativeOccupancy) || 0),
+          data: filteredForecastData.map((item) => Number(item.percentageTentativeOccupancy) || 0),
           borderColor: "#2563eb",
           backgroundColor: "rgba(37, 99, 235, 0.1)",
           tension: 0.25,
         },
       ],
     };
-  }, [forecastData]);
+  }, [filteredForecastData]);
 
   const chartOptions = {
     responsive: true,
@@ -288,17 +312,37 @@ export default function ForecastPage() {
         </Card>
 
         <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold">Bezetting</h2>
-            <span className="text-sm text-gray-500">
-              {forecastData.length} dagen gevonden
-            </span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-semibold">Bezetting</h2>
+              <span className="text-sm text-gray-500">
+                {filteredForecastData.length} dagen gevonden
+              </span>
+            </div>
+            <label className="flex flex-col sm:flex-row sm:items-center gap-2 text-sm font-semibold text-gray-700">
+              Reservatietype
+              <select
+                value={selectedReservationType}
+                onChange={(e) => setSelectedReservationType(e.target.value)}
+                className="border rounded px-3 py-2 text-sm min-w-[200px]"
+                disabled={!reservationTypes.length}
+              >
+                {!reservationTypes.length && <option value="">Geen data beschikbaar</option>}
+                {reservationTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          {forecastData.length > 0 ? (
+          {filteredForecastData.length > 0 ? (
             <Line data={chartData} options={chartOptions} />
           ) : (
             <p className="text-gray-600">
-              {loading ? "Data laden..." : "Geen data beschikbaar voor deze periode."}
+              {loading
+                ? "Data laden..."
+                : "Geen data beschikbaar voor deze periode of dit reservatietype."}
             </p>
           )}
         </Card>
