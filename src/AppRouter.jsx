@@ -9,6 +9,7 @@ import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.
 import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
 import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
 import LocalEventDetailPage from "./components/pages/LocalEventDetailPage.jsx";
+import ForecastPage from "./components/pages/ForecastPage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 import CompsetPage from "./components/pages/CompsetPage.jsx";
 
@@ -78,6 +79,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <LocalEventDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/forecast"
+        element={
+          <ProtectedRoute>
+            <ForecastPage />
           </ProtectedRoute>
         }
       />
