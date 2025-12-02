@@ -91,6 +91,18 @@ const normalizeDateString = (value) => {
   return formatDateInput(parsed);
 };
 
+const detectDelimiter = (file) =>
+  new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      preview: 1,
+      delimiter: "",
+      complete: ({ meta }) => {
+        resolve(meta?.delimiter || ",");
+      },
+      error: (err) => reject(err),
+    });
+  });
+
 export default function ForecastPage() {
   const { hotelUid } = useHotelContext();
   const today = new Date().toLocaleDateString(undefined, {
@@ -148,66 +160,84 @@ export default function ForecastPage() {
     if (!file || !hotelUid) return;
 
     setUploading(true);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: "greedy",
-      complete: async ({ data, errors }) => {
-        if (errors?.length) {
-          console.error("CSV parse errors", errors);
-          toast.error("CSV kon niet volledig gelezen worden.");
-        }
 
-        try {
-          const forecastCollection = collection(db, `hotels/${hotelUid}/occupancyForecast`);
-          let batch = writeBatch(db);
-          let batchCounter = 0;
-          let storedRows = 0;
+    try {
+      const delimiter = await detectDelimiter(file);
 
-          const commitBatch = async () => {
-            if (batchCounter === 0) return;
-            await batch.commit();
-            batch = writeBatch(db);
-            batchCounter = 0;
-          };
-
-          for (const row of data) {
-            const dateString = normalizeDateString(row["CONSIDERED_DATE"]);
-            if (!dateString) {
-              continue;
-            }
-
-            const payload = {
-              reservationType: row["RESV_TYPE"] || "",
-              date: dateString,
-              updatedAt: serverTimestamp(),
-            };
-
-            Object.entries(NUMBER_FIELDS).forEach(([field, column]) => {
-              payload[field] = parseNumber(row[column]);
-            });
-
-            const docRef = doc(forecastCollection);
-            batch.set(docRef, payload, { merge: true });
-            batchCounter += 1;
-            storedRows += 1;
-
-            if (batchCounter === 400) {
-              await commitBatch();
-            }
+      Papa.parse(file, {
+        delimiter,
+        header: true,
+        skipEmptyLines: "greedy",
+        skipLinesWithError: true,
+        complete: async ({ data, errors }) => {
+          if (errors?.length) {
+            console.error("CSV parse errors", errors);
+            toast.error("CSV bevat rijen met een afwijkend formaat en zijn overgeslagen.");
           }
 
-          await commitBatch();
-          toast.success(`Forecast geladen (${storedRows} rijen).`);
-          fetchForecast();
-        } catch (err) {
-          console.error("Error storing forecast", err);
-          toast.error("Kon forecast niet opslaan.");
-        } finally {
+          try {
+            const forecastCollection = collection(db, `hotels/${hotelUid}/occupancyForecast`);
+            let batch = writeBatch(db);
+            let batchCounter = 0;
+            let storedRows = 0;
+
+            const commitBatch = async () => {
+              if (batchCounter === 0) return;
+              await batch.commit();
+              batch = writeBatch(db);
+              batchCounter = 0;
+            };
+
+            for (const row of data) {
+              const dateString = normalizeDateString(row["CONSIDERED_DATE"]);
+              if (!dateString) {
+                continue;
+              }
+
+              const payload = {
+                reservationType: row["RESV_TYPE"] || "",
+                date: dateString,
+                updatedAt: serverTimestamp(),
+              };
+
+              Object.entries(NUMBER_FIELDS).forEach(([field, column]) => {
+                payload[field] = parseNumber(row[column]);
+              });
+
+              const docRef = doc(forecastCollection);
+              batch.set(docRef, payload, { merge: true });
+              batchCounter += 1;
+              storedRows += 1;
+
+              if (batchCounter === 400) {
+                await commitBatch();
+              }
+            }
+
+            await commitBatch();
+            toast.success(`Forecast geladen (${storedRows} rijen).`);
+            fetchForecast();
+          } catch (err) {
+            console.error("Error storing forecast", err);
+            toast.error("Kon forecast niet opslaan.");
+          } finally {
+            setUploading(false);
+            event.target.value = "";
+          }
+        },
+        error: (err) => {
+          console.error("Error parsing CSV", err);
+          toast.error("CSV kon niet gelezen worden.");
           setUploading(false);
           event.target.value = "";
-        }
-      },
-    });
+        },
+      });
+    } catch (err) {
+      console.error("Error detecting CSV delimiter", err);
+      toast.error("CSV kon niet gelezen worden.");
+      setUploading(false);
+      event.target.value = "";
+    }
   };
 
   const reservationTypes = useMemo(() => {
