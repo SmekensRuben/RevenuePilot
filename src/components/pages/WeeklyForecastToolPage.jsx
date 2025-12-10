@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
 import { FileInput } from "lucide-react";
@@ -6,6 +6,9 @@ import {
   collection,
   db,
   doc,
+  getDocs,
+  orderBy,
+  query,
   serverTimestamp,
   setDoc,
   writeBatch,
@@ -65,6 +68,31 @@ const ADR_MAPPINGS = [
   { header: "Group Association", field: "groupAssociationAdr" },
   { header: "Group Tour/Travel", field: "groupTourTravelAdr" },
   { header: "Group City Wide", field: "groupCityWideAdr" },
+];
+
+const SEGMENT_OVERVIEW_FIELDS = [
+  { label: "Group Corporate", roomsSoldField: "groupRoomsSold", adrField: "groupAdr" },
+  { label: "Retail", roomsSoldField: "retailRoomsSold", adrField: "retailAdr" },
+  { label: "Negotiated", roomsSoldField: "negotiatedRoomsSold", adrField: "negotiatedAdr" },
+  { label: "Government", roomsSoldField: "governmentRoomsSold", adrField: "governmentAdr" },
+  { label: "Wholesale", roomsSoldField: "wholesaleRoomsSold", adrField: "wholesaleAdr" },
+  {
+    label: "Internet Non-Opaque",
+    roomsSoldField: "internetNonOpaqueRoomsSold",
+    adrField: "internetNonOpaqueAdr",
+  },
+  {
+    label: "Internet Opaque",
+    roomsSoldField: "internetOpaqueRoomsSold",
+    adrField: "internetOpaqueAdr",
+  },
+  { label: "Package", roomsSoldField: "packageRoomsSold", adrField: "packageAdr" },
+  { label: "Discount", roomsSoldField: "discountRoomsSold", adrField: "discountAdr" },
+  {
+    label: "Brand Redemptions",
+    roomsSoldField: "brandRedemptionsRoomsSold",
+    adrField: "brandRedemptionsAdr",
+  },
 ];
 
 function formatDateInput(date = new Date()) {
@@ -142,6 +170,8 @@ export default function WeeklyForecastToolPage() {
   const [selectedReportDate, setSelectedReportDate] = useState(formatDateInput());
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [overviewRows, setOverviewRows] = useState([]);
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -153,6 +183,12 @@ export default function WeeklyForecastToolPage() {
       }),
     []
   );
+
+  const selectedMonthLabel = useMemo(() => {
+    if (!selectedReportDate) return "";
+    const parsed = new Date(selectedReportDate);
+    return parsed.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }, [selectedReportDate]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -274,6 +310,7 @@ export default function WeeklyForecastToolPage() {
 
           await commitBatch();
           toast.success(`Pickup report opgeslagen (${validRows.length} rijen).`);
+          await fetchOverviewData();
         } catch (err) {
           console.error("Error storing pickup report", err);
           toast.error("Kon pickup report niet opslaan.");
@@ -289,6 +326,54 @@ export default function WeeklyForecastToolPage() {
         event.target.value = "";
       },
     });
+  };
+
+  const fetchOverviewData = async () => {
+    if (!hotelUid || !selectedReportDate) return;
+
+    try {
+      setOverviewLoading(true);
+      const reportDocRef = doc(collection(db, `hotels/${hotelUid}/pickupReport`), selectedReportDate);
+      const datesCollection = collection(reportDocRef, "dates");
+      const snapshot = await getDocs(query(datesCollection, orderBy("date", "asc")));
+      const targetMonth = new Date(selectedReportDate).getMonth();
+      const targetYear = new Date(selectedReportDate).getFullYear();
+
+      const rows = snapshot.docs
+        .map((docSnap) => docSnap.data())
+        .filter((row) => {
+          const rowDate = new Date(row.date);
+          return rowDate.getMonth() === targetMonth && rowDate.getFullYear() === targetYear;
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      setOverviewRows(rows);
+    } catch (err) {
+      console.error("Error loading pickup report overview", err);
+      toast.error("Kon de pickup gegevens niet ophalen.");
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOverviewData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelUid, selectedReportDate]);
+
+  const formatEuro = (value) => {
+    if (value === null || value === undefined) return "-";
+    return value.toLocaleString(undefined, {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+  };
+
+  const formatNumber = (value) => {
+    if (value === null || value === undefined) return "-";
+    return Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
 
   return (
@@ -327,6 +412,61 @@ export default function WeeklyForecastToolPage() {
             <li>Rijen zonder geldige datum in de kolom "Date" worden overgeslagen.</li>
             <li>De waarden worden in Firestore opgeslagen per datum in de subcollectie <code>dates</code>.</li>
           </ul>
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Maandoverzicht pickup report</h2>
+              <p className="text-gray-600">Overzicht voor {selectedMonthLabel || "geselecteerde maand"}.</p>
+            </div>
+            <Button onClick={fetchOverviewData} disabled={overviewLoading}>
+              {overviewLoading ? "Bezig met laden..." : "Ververs overzicht"}
+            </Button>
+          </div>
+
+          {!overviewRows.length && !overviewLoading ? (
+            <p className="text-gray-600">Geen pickup data gevonden voor deze maand.</p>
+          ) : null}
+
+          <div className="space-y-6">
+            {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField, adrField }) => (
+              <div key={label} className="border border-gray-200 rounded-lg">
+                <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">{label}</h3>
+                  <span className="text-sm text-gray-600">Rooms Sold / ADR / Revenue</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-gray-100 text-gray-700">
+                      <tr>
+                        <th className="px-4 py-2 font-semibold">Datum</th>
+                        <th className="px-4 py-2 font-semibold">Rooms Sold</th>
+                        <th className="px-4 py-2 font-semibold">ADR</th>
+                        <th className="px-4 py-2 font-semibold">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {overviewRows.map((row) => {
+                        const roomsSold = row[roomsSoldField] ?? 0;
+                        const adr = row[adrField] ?? 0;
+                        const revenue = roomsSold && adr ? roomsSold * adr : 0;
+
+                        return (
+                          <tr key={`${label}-${row.date}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 whitespace-nowrap">{row.date}</td>
+                            <td className="px-4 py-2">{formatNumber(roomsSold)}</td>
+                            <td className="px-4 py-2">{formatEuro(adr)}</td>
+                            <td className="px-4 py-2">{formatEuro(revenue)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       </PageContainer>
 
