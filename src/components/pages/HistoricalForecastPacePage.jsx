@@ -62,7 +62,14 @@ const SEGMENT_MAPPINGS = [
   { header: "AAA", segment: "Discount" },
 ];
 
-const SEGMENT_OPTIONS = Array.from(new Set(SEGMENT_MAPPINGS.map(({ segment }) => segment)));
+const SEGMENT_OPTIONS = [
+  ...Array.from(new Set(SEGMENT_MAPPINGS.map(({ segment }) => segment))),
+  "Groups",
+];
+
+const SEGMENT_FIELD_OVERRIDES = {
+  Groups: "totalGroupOtb",
+};
 
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
@@ -357,7 +364,7 @@ export default function HistoricalForecastPacePage() {
     const labels = historicalData.map(({ reportDate }) => reportDate);
     const datasets = selectedSegments.map((segment, index) => {
       const color = palette[index % palette.length];
-      const fieldName = `${toCamelCase(segment)}Otb`;
+      const fieldName = SEGMENT_FIELD_OVERRIDES[segment] || `${toCamelCase(segment)}Otb`;
 
       return {
         label: segment,
