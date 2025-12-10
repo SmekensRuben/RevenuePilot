@@ -111,6 +111,23 @@ const parseNumber = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
+const getDaysInMonth = (dateString) => {
+  const parsed = new Date(dateString || Date.now());
+
+  if (Number.isNaN(parsed.getTime())) {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  }
+
+  return new Date(parsed.getFullYear(), parsed.getMonth() + 1, 0).getDate();
+};
+
+const getDayFromDate = (dateString) => {
+  if (!dateString) return null;
+  const parsed = new Date(dateString);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getDate();
+};
+
 const normalizeCsvDate = (value) => {
   if (!value) return null;
   const trimmed = String(value).trim();
@@ -376,6 +393,23 @@ export default function WeeklyForecastToolPage() {
     return Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
   };
 
+  const dayNumbers = useMemo(() => {
+    const daysInMonth = getDaysInMonth(selectedReportDate);
+    return Array.from({ length: daysInMonth }, (_, index) => index + 1);
+  }, [selectedReportDate]);
+
+  const overviewByDay = useMemo(() => {
+    if (!overviewRows?.length) return {};
+
+    return overviewRows.reduce((acc, row) => {
+      const day = getDayFromDate(row.date);
+      if (day !== null) {
+        acc[day] = row;
+      }
+      return acc;
+    }, {});
+  }, [overviewRows]);
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={today} onLogout={handleLogout} />
@@ -437,30 +471,61 @@ export default function WeeklyForecastToolPage() {
                   <span className="text-sm text-gray-600">Rooms Sold / ADR / Revenue</span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-[800px] text-sm text-right">
                     <thead className="bg-gray-100 text-gray-700">
                       <tr>
-                        <th className="px-4 py-2 font-semibold">Datum</th>
-                        <th className="px-4 py-2 font-semibold">Rooms Sold</th>
-                        <th className="px-4 py-2 font-semibold">ADR</th>
-                        <th className="px-4 py-2 font-semibold">Revenue</th>
+                        <th className="px-4 py-2 font-semibold text-left sticky left-0 bg-gray-100">Meting</th>
+                        {dayNumbers.map((day) => (
+                          <th key={`${label}-day-${day}`} className="px-4 py-2 font-semibold">
+                            {day}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {overviewRows.map((row) => {
-                        const roomsSold = row[roomsSoldField] ?? 0;
-                        const adr = row[adrField] ?? 0;
-                        const revenue = roomsSold && adr ? roomsSold * adr : 0;
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-semibold text-left sticky left-0 bg-gray-50">
+                          Rooms Sold
+                        </td>
+                        {dayNumbers.map((day) => {
+                          const roomsSold = overviewByDay[day]?.[roomsSoldField] ?? null;
+                          return (
+                            <td key={`${label}-roomsSold-${day}`} className="px-4 py-2">
+                              {formatNumber(roomsSold)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-semibold text-left sticky left-0 bg-gray-50">ADR</td>
+                        {dayNumbers.map((day) => {
+                          const adr = overviewByDay[day]?.[adrField] ?? null;
+                          return (
+                            <td key={`${label}-adr-${day}`} className="px-4 py-2">
+                              {formatEuro(adr)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-semibold text-left sticky left-0 bg-gray-50">
+                          Revenue
+                        </td>
+                        {dayNumbers.map((day) => {
+                          const roomsSold = overviewByDay[day]?.[roomsSoldField];
+                          const adr = overviewByDay[day]?.[adrField];
+                          const revenue =
+                            roomsSold !== null && roomsSold !== undefined && adr !== null && adr !== undefined
+                              ? roomsSold * adr
+                              : null;
 
-                        return (
-                          <tr key={`${label}-${row.date}`} className="hover:bg-gray-50">
-                            <td className="px-4 py-2 whitespace-nowrap">{row.date}</td>
-                            <td className="px-4 py-2">{formatNumber(roomsSold)}</td>
-                            <td className="px-4 py-2">{formatEuro(adr)}</td>
-                            <td className="px-4 py-2">{formatEuro(revenue)}</td>
-                          </tr>
-                        );
-                      })}
+                          return (
+                            <td key={`${label}-revenue-${day}`} className="px-4 py-2">
+                              {formatEuro(revenue)}
+                            </td>
+                          );
+                        })}
+                      </tr>
                     </tbody>
                   </table>
                 </div>
