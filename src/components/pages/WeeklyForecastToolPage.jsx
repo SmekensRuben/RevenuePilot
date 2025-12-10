@@ -190,6 +190,7 @@ export default function WeeklyForecastToolPage() {
   const [uploading, setUploading] = useState(false);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewRows, setOverviewRows] = useState([]);
+  const [latestReportDate, setLatestReportDate] = useState("");
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -207,6 +208,18 @@ export default function WeeklyForecastToolPage() {
     const parsed = new Date(selectedReportDate);
     return parsed.toLocaleDateString(undefined, { month: "long", year: "numeric" });
   }, [selectedReportDate]);
+
+  const latestReportDateLabel = useMemo(() => {
+    if (!latestReportDate) return "";
+    const parsed = new Date(latestReportDate);
+    if (Number.isNaN(parsed.getTime())) return latestReportDate;
+
+    return parsed.toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }, [latestReportDate]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -347,15 +360,35 @@ export default function WeeklyForecastToolPage() {
   };
 
   const fetchOverviewData = async () => {
-    if (!hotelUid || !selectedReportDate) return;
+    if (!hotelUid) return;
 
     try {
       setOverviewLoading(true);
-      const reportDocRef = doc(collection(db, `hotels/${hotelUid}/pickupReport`), selectedReportDate);
+      const reportCollection = collection(db, `hotels/${hotelUid}/pickupReport`);
+      const reportsSnapshot = await getDocs(query(reportCollection, orderBy("reportDate", "desc")));
+
+      const mostRecentReportDoc = reportsSnapshot.docs?.[0];
+      const mostRecentReportDate = mostRecentReportDoc
+        ? mostRecentReportDoc.data()?.reportDate || mostRecentReportDoc.id
+        : null;
+
+      if (!mostRecentReportDate) {
+        setOverviewRows([]);
+        setLatestReportDate("");
+        return;
+      }
+
+      if (mostRecentReportDate !== selectedReportDate) {
+        setSelectedReportDate(mostRecentReportDate);
+      }
+
+      setLatestReportDate(mostRecentReportDate);
+
+      const reportDocRef = doc(reportCollection, mostRecentReportDate);
       const datesCollection = collection(reportDocRef, "dates");
       const snapshot = await getDocs(query(datesCollection, orderBy("date", "asc")));
-      const targetMonth = new Date(selectedReportDate).getMonth();
-      const targetYear = new Date(selectedReportDate).getFullYear();
+      const targetMonth = new Date(mostRecentReportDate).getMonth();
+      const targetYear = new Date(mostRecentReportDate).getFullYear();
 
       const rows = snapshot.docs
         .map((docSnap) => docSnap.data())
@@ -377,7 +410,7 @@ export default function WeeklyForecastToolPage() {
   useEffect(() => {
     fetchOverviewData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hotelUid, selectedReportDate]);
+  }, [hotelUid]);
 
   const formatEuro = (value) => {
     if (value === null || value === undefined) return "-";
@@ -505,7 +538,9 @@ export default function WeeklyForecastToolPage() {
         <Card className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Maandoverzicht pickup report</h2>
+              <h2 className="text-xl font-semibold">
+                Business on books: {latestReportDateLabel || "geen data beschikbaar"}
+              </h2>
               <p className="text-gray-600">Overzicht voor {selectedMonthLabel || "geselecteerde maand"}.</p>
             </div>
             <Button onClick={fetchOverviewData} disabled={overviewLoading}>
@@ -514,7 +549,7 @@ export default function WeeklyForecastToolPage() {
           </div>
 
           {!overviewRows.length && !overviewLoading ? (
-            <p className="text-gray-600">Geen pickup data gevonden voor deze maand.</p>
+            <p className="text-gray-600">Geen pickup data gevonden voor deze rapportdatum.</p>
           ) : null}
 
           <div className="space-y-6">
