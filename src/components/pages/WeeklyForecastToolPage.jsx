@@ -43,6 +43,30 @@ const SEGMENT_MAPPINGS = [
   { header: "Group City Wide", field: "groupCityWideRoomsSold" },
 ];
 
+const ADR_MAPPINGS = [
+  { header: "Total ADR", field: "totalAdr" },
+  { header: "Trans", field: "transientAdr" },
+  { header: "Retail", field: "retailAdr" },
+  { header: "Discount", field: "discountAdr" },
+  { header: "Internet Non-Opaque", field: "internetNonOpaqueAdr" },
+  { header: "Internet Opaque", field: "internetOpaqueAdr" },
+  { header: "Negotiated", field: "negotiatedAdr" },
+  { header: "Government", field: "governmentAdr" },
+  { header: "Package", field: "packageAdr" },
+  { header: "Brand Redemptions", field: "brandRedemptionsAdr" },
+  { header: "Wholesale", field: "wholesaleAdr" },
+  { header: "Contract Base", field: "contractBaseAdr" },
+  { header: "Complimentary", field: "complimentaryAdr" },
+  { header: "House Use", field: "houseUseAdr" },
+  { header: "Group", field: "groupAdr" },
+  { header: "Group Corporate", field: "groupCorporateAdr" },
+  { header: "Group SMERF", field: "groupSmerfAdr" },
+  { header: "Group Government", field: "groupGovernmentAdr" },
+  { header: "Group Association", field: "groupAssociationAdr" },
+  { header: "Group Tour/Travel", field: "groupTourTravelAdr" },
+  { header: "Group City Wide", field: "groupCityWideAdr" },
+];
+
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -88,6 +112,29 @@ const getValueByHeader = (row, header) => {
     (key) => key === header || key.startsWith(`${header}_`)
   );
   return matchingKey ? row[matchingKey] : undefined;
+};
+
+const createAdrHeaderLookup = (fields) => {
+  if (!fields?.length) return {};
+
+  const normalizeHeader = (header) => header.replace(/_\d+$/, "");
+  const adrStartIndex = fields.findIndex(
+    (field) => normalizeHeader(field) === "Total ADR"
+  );
+
+  if (adrStartIndex === -1) return {};
+
+  return ADR_MAPPINGS.reduce((acc, { header, field }) => {
+    const matchingField = fields
+      .slice(adrStartIndex)
+      .find((fieldName) => normalizeHeader(fieldName) === header);
+
+    if (matchingField) {
+      acc[field] = matchingField;
+    }
+
+    return acc;
+  }, {});
 };
 
 export default function WeeklyForecastToolPage() {
@@ -148,6 +195,7 @@ export default function WeeklyForecastToolPage() {
         }
 
         try {
+          const adrHeaderLookup = createAdrHeaderLookup(meta?.fields);
           const validRows = data
             .map((row) => {
               const rawDate = getValueByHeader(row, "Date");
@@ -158,6 +206,16 @@ export default function WeeklyForecastToolPage() {
 
               SEGMENT_MAPPINGS.forEach(({ header, field }) => {
                 const value = parseNumber(getValueByHeader(row, header));
+                if (value !== null) {
+                  payload[field] = value;
+                }
+              });
+
+              ADR_MAPPINGS.forEach(({ field }) => {
+                const headerKey = adrHeaderLookup[field];
+                if (!headerKey) return;
+
+                const value = parseNumber(row[headerKey]);
                 if (value !== null) {
                   payload[field] = value;
                 }
