@@ -11,6 +11,7 @@ import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
 import LocalEventDetailPage from "./components/pages/LocalEventDetailPage.jsx";
 import ForecastPage from "./components/pages/ForecastPage.jsx";
 import WeeklyForecastToolPage from "./components/pages/WeeklyForecastToolPage.jsx";
+import HistoricalForecastPacePage from "./components/pages/HistoricalForecastPacePage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 import CompsetPage from "./components/pages/CompsetPage.jsx";
 
@@ -96,6 +97,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <WeeklyForecastToolPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/forecast/historical-pace"
+        element={
+          <ProtectedRoute>
+            <HistoricalForecastPacePage />
           </ProtectedRoute>
         }
       />
