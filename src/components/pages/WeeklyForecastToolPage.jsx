@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { toast } from "react-toastify";
-import { FileInput } from "lucide-react";
+import { FileInput, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   collection,
   db,
@@ -410,6 +411,51 @@ export default function WeeklyForecastToolPage() {
     }, {});
   }, [overviewRows]);
 
+  const handleExportToExcel = () => {
+    if (!overviewRows.length) {
+      toast.warn("Geen pickup data om te exporteren.");
+      return;
+    }
+
+    const headerRow = ["Segment", "Meting", ...dayNumbers.map((day) => `Dag ${day}`)];
+
+    const rows = SEGMENT_OVERVIEW_FIELDS.flatMap(({ label, roomsSoldField, adrField }) => {
+      const roomsSoldRow = [label, "Rooms Sold", ...dayNumbers.map((day) => overviewByDay[day]?.[roomsSoldField] ?? "")];
+      const adrRow = [label, "ADR", ...dayNumbers.map((day) => overviewByDay[day]?.[adrField] ?? "")];
+      const revenueRow = [
+        label,
+        "Revenue",
+        ...dayNumbers.map((day) => {
+          const roomsSold = overviewByDay[day]?.[roomsSoldField];
+          const adr = overviewByDay[day]?.[adrField];
+          return roomsSold !== null && roomsSold !== undefined && adr !== null && adr !== undefined
+            ? roomsSold * adr
+            : "";
+        }),
+      ];
+
+      return [roomsSoldRow, adrRow, revenueRow];
+    });
+
+    const exportData = [
+      ["Weekly Forecast Tool export"],
+      ["Hotel", hotelUid || "-"],
+      ["Rapportdatum", selectedReportDate || "-"],
+      ["Maand", selectedMonthLabel || "-"],
+      [],
+      headerRow,
+      ...rows,
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pickup overzicht");
+
+    const filename = `weekly-forecast-${selectedReportDate || "export"}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    toast.success("Excel export aangemaakt.");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={today} onLogout={handleLogout} />
@@ -422,7 +468,15 @@ export default function WeeklyForecastToolPage() {
               Importeer een pickup report CSV en sla de resultaten gestructureerd op.
             </p>
           </div>
-          <div className="flex items-center justify-end w-full sm:w-auto">
+          <div className="flex items-center justify-end w-full sm:w-auto gap-3">
+            <Button
+              onClick={handleExportToExcel}
+              disabled={!overviewRows.length}
+              className="bg-green-700 hover:bg-green-800 flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Exporteren naar Excel</span>
+            </Button>
             <Button onClick={openDateDialog} disabled={uploading} className="bg-[#b41f1f] hover:bg-[#9d1b1b] flex items-center gap-2">
               <FileInput className="h-4 w-4" />
               <span>{uploading ? "Bezig met import..." : "Importeer pickup CSV"}</span>
