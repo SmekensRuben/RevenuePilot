@@ -66,6 +66,11 @@ export default function HeaderBar({ today, onLogout }) {
       action: () => navigate("/forecast/weekly"),
       icon: FileSpreadsheet,
     },
+    {
+      label: "Historical Forecast Pace",
+      action: () => navigate("/forecast/historical-pace"),
+      icon: FileSpreadsheet,
+    },
   ];
 
   useEffect(() => {
