@@ -1222,16 +1222,19 @@ export default function WeeklyForecastToolPage() {
                                 </p>
                               </div>
                               <div className="mt-4 overflow-x-auto">
-                                <div className="min-w-[600px]">
-                                  <div className="flex items-end gap-4 pb-4">
+                                <div className="min-w-full">
+                                  <div className="flex items-end gap-2 pb-4">
                                     {PICKUP_BUCKETS.map(({ label: labelText }, index) => {
                                       const value = bucketValues[index] ?? 0;
                                       const height = maxBucket > 0 ? Math.min((value / maxBucket) * 160, 160) : 0;
 
                                       return (
-                                        <div key={`${roomsSoldField}-bucket-${labelText}`} className="flex-1 min-w-[80px]">
+                                        <div
+                                          key={`${roomsSoldField}-bucket-${labelText}`}
+                                          className="w-12 min-w-[44px]"
+                                        >
                                           <div className="flex flex-col items-center gap-2">
-                                            <div className="relative w-full max-w-[70px] bg-emerald-100 rounded-sm" style={{ height: 160 }}>
+                                            <div className="relative w-full bg-emerald-100 rounded-sm" style={{ height: 160 }}>
                                               <div
                                                 className="absolute bottom-0 left-0 right-0 bg-emerald-500 rounded-sm transition-all duration-200"
                                                 style={{ height }}
@@ -1247,7 +1250,7 @@ export default function WeeklyForecastToolPage() {
                                               step="0.1"
                                               value={pickupCurves[roomsSoldField]?.[index] ?? ""}
                                               onChange={(event) => handleCurveChange(roomsSoldField, index, event.target.value)}
-                                              className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-200"
+                                              className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring focus:ring-blue-200"
                                             />
                                           </div>
                                         </div>
