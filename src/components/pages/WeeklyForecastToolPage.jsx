@@ -596,6 +596,12 @@ export default function WeeklyForecastToolPage() {
     }, {});
   }, [overviewRows]);
 
+  const hasForecastedRooms = useMemo(() => {
+    return Object.values(forecastedRooms).some((segments) =>
+      Object.values(segments || {}).some((value) => Number(value || 0) > 0)
+    );
+  }, [forecastedRooms]);
+
   const forecastSummaryByDay = useMemo(() => {
     return dayNumbers.map((day) => {
       const forecastForDay = forecastedRooms[day] || {};
@@ -875,33 +881,51 @@ export default function WeeklyForecastToolPage() {
     toast.success("Forecast berekend. Er zijn geen wijzigingen opgeslagen.");
   };
 
-  const handleExportToExcel = () => {
-    if (!overviewRows.length) {
-      toast.warn("Geen pickup data om te exporteren.");
-      return;
-    }
-
+  const buildExportData = (includeForecastedRooms = false) => {
     const headerRow = ["Segment", "Meting", ...dayNumbers.map((day) => `Dag ${day}`)];
 
     const rows = SEGMENT_OVERVIEW_FIELDS.flatMap(({ label, roomsSoldField, adrField }) => {
-      const roomsSoldRow = [label, "Rooms Sold", ...dayNumbers.map((day) => overviewByDay[day]?.[roomsSoldField] ?? "")];
+      const roomsSoldRow = [
+        label,
+        "Rooms Sold",
+        ...dayNumbers.map((day) => {
+          const baseRooms = overviewByDay[day]?.[roomsSoldField];
+
+          if (!includeForecastedRooms) {
+            return baseRooms ?? "";
+          }
+
+          const forecastRooms = forecastedRooms[day]?.[roomsSoldField];
+          const hasBase = baseRooms !== undefined && baseRooms !== null;
+          const hasForecast = forecastRooms !== undefined && forecastRooms !== null;
+
+          if (!hasBase && !hasForecast) return "";
+
+          return Number(baseRooms || 0) + Number(forecastRooms || 0);
+        }),
+      ];
+
       const adrRow = [label, "ADR", ...dayNumbers.map((day) => overviewByDay[day]?.[adrField] ?? "")];
+
       const revenueRow = [
         label,
         "Revenue",
         ...dayNumbers.map((day) => {
-          const roomsSold = overviewByDay[day]?.[roomsSoldField];
           const adr = overviewByDay[day]?.[adrField];
-          return roomsSold !== null && roomsSold !== undefined && adr !== null && adr !== undefined
-            ? roomsSold * adr
-            : "";
+          if (adr === null || adr === undefined) return "";
+
+          const baseRooms = Number(overviewByDay[day]?.[roomsSoldField] || 0);
+          const forecastRooms = includeForecastedRooms ? Number(forecastedRooms[day]?.[roomsSoldField] || 0) : 0;
+          const totalRooms = includeForecastedRooms ? baseRooms + forecastRooms : baseRooms;
+
+          return totalRooms ? totalRooms * adr : "";
         }),
       ];
 
       return [roomsSoldRow, adrRow, revenueRow];
     });
 
-    const exportData = [
+    return [
       ["Weekly Forecast Tool export"],
       ["Hotel", hotelUid || "-"],
       ["Rapportdatum", selectedReportDate || "-"],
@@ -910,15 +934,32 @@ export default function WeeklyForecastToolPage() {
       headerRow,
       ...rows,
     ];
+  };
 
+  const exportToExcel = (includeForecastedRooms = false) => {
+    if (!overviewRows.length) {
+      toast.warn("Geen pickup data om te exporteren.");
+      return;
+    }
+
+    if (includeForecastedRooms && !hasForecastedRooms) {
+      toast.warn("Bereken eerst een forecast om deze export te gebruiken.");
+      return;
+    }
+
+    const exportData = buildExportData(includeForecastedRooms);
     const worksheet = XLSX.utils.aoa_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Pickup overzicht");
 
-    const filename = `weekly-forecast-${selectedReportDate || "export"}.xlsx`;
+    const filenameSuffix = includeForecastedRooms ? "-calculated" : "";
+    const filename = `weekly-forecast${filenameSuffix}-${selectedReportDate || "export"}.xlsx`;
     XLSX.writeFile(workbook, filename);
     toast.success("Excel export aangemaakt.");
   };
+
+  const handleExportToExcel = () => exportToExcel(false);
+  const handleCalculatedForecastExport = () => exportToExcel(true);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -933,6 +974,14 @@ export default function WeeklyForecastToolPage() {
             </p>
           </div>
           <div className="flex items-center justify-end w-full sm:w-auto gap-3">
+            <Button
+              onClick={handleCalculatedForecastExport}
+              disabled={!overviewRows.length || !hasForecastedRooms}
+              className="bg-emerald-700 hover:bg-emerald-800 flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Calculated forecast exporteren</span>
+            </Button>
             <Button
               onClick={handleExportToExcel}
               disabled={!overviewRows.length}
