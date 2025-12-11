@@ -818,19 +818,33 @@ export default function WeeklyForecastToolPage() {
       });
 
       if (remainder > 0) {
-        sortedDays.forEach((entry) => {
-          while (remainder > 0 && entry.adjustedRooms + 1 <= entry.maxAddable) {
-            entry.adjustedRooms += 1;
-            remainder -= 1;
-          }
-        });
+        let distributed = false;
+        while (remainder > 0) {
+          distributed = false;
+          sortedDays.forEach((entry) => {
+            if (remainder > 0 && entry.adjustedRooms < entry.maxAddable) {
+              entry.adjustedRooms += 1;
+              remainder -= 1;
+              distributed = true;
+            }
+          });
+
+          if (!distributed) break;
+        }
       } else {
-        sortedDays.reverse().forEach((entry) => {
-          while (remainder < 0 && entry.adjustedRooms > 0) {
-            entry.adjustedRooms -= 1;
-            remainder += 1;
-          }
-        });
+        let distributed = false;
+        while (remainder < 0) {
+          distributed = false;
+          [...sortedDays].reverse().forEach((entry) => {
+            if (remainder < 0 && entry.adjustedRooms > 0) {
+              entry.adjustedRooms -= 1;
+              remainder += 1;
+              distributed = true;
+            }
+          });
+
+          if (!distributed) break;
+        }
       }
 
       unreachableRemainder = Math.max(0, remainder);
