@@ -110,6 +110,16 @@ const DEFAULT_OCCUPANCY_WEIGHTS = [
   { threshold: 1.01, weight: 0.1 },
 ];
 
+const normalizeOccupancyWeights = (weights) => {
+  if (!Array.isArray(weights)) return DEFAULT_OCCUPANCY_WEIGHTS;
+
+  const cleaned = weights
+    .map((item) => ({ threshold: Number(item?.threshold), weight: Number(item?.weight) }))
+    .filter(({ threshold, weight }) => Number.isFinite(threshold) && Number.isFinite(weight));
+
+  return cleaned.length ? cleaned.sort((a, b) => a.threshold - b.threshold) : DEFAULT_OCCUPANCY_WEIGHTS;
+};
+
 const getDefaultSegmentWeights = () =>
   Object.fromEntries(
     SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
@@ -227,6 +237,7 @@ export default function WeeklyForecastToolPage() {
   const [revenueToForecast, setRevenueToForecast] = useState("");
   const [segmentWeights, setSegmentWeights] = useState(getDefaultSegmentWeights);
   const [pickupCurves, setPickupCurves] = useState(getDefaultPickupCurves);
+  const [occupancyWeights, setOccupancyWeights] = useState(DEFAULT_OCCUPANCY_WEIGHTS);
   const [forecastedRooms, setForecastedRooms] = useState({});
   const [forecastSettingsCollapsed, setForecastSettingsCollapsed] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -441,6 +452,7 @@ export default function WeeklyForecastToolPage() {
       }
       setSegmentWeights(data.segmentWeights || getDefaultSegmentWeights());
       setPickupCurves(normalizePickupCurves(data.pickupCurves));
+      setOccupancyWeights(normalizeOccupancyWeights(data.occupancyWeights));
     } catch (err) {
       console.error("Error loading forecast settings", err);
       toast.error("Kon de forecast instellingen niet laden.");
@@ -464,6 +476,7 @@ export default function WeeklyForecastToolPage() {
           revenueToForecast: Number(revenueToForecast) || 0,
           segmentWeights,
           pickupCurves,
+          occupancyWeights: normalizeOccupancyWeights(occupancyWeights),
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -653,6 +666,23 @@ export default function WeeklyForecastToolPage() {
     });
   };
 
+  const handleOccupancyWeightChange = (index, field, value) => {
+    setOccupancyWeights((prev) => {
+      const updated = [...prev];
+      const numericValue = Number(value);
+      updated[index] = {
+        ...updated[index],
+        [field]: Number.isFinite(numericValue) ? numericValue : updated[index]?.[field] ?? 0,
+      };
+      return updated;
+    });
+  };
+
+  const effectiveOccupancyWeights = useMemo(
+    () => normalizeOccupancyWeights(occupancyWeights),
+    [occupancyWeights]
+  );
+
   const segmentWeightValues = useMemo(
     () => SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => Number(segmentWeights[roomsSoldField] || 0)),
     [segmentWeights]
@@ -736,8 +766,8 @@ export default function WeeklyForecastToolPage() {
     };
 
     const getOccupancyWeight = (occupancy) => {
-      const step = DEFAULT_OCCUPANCY_WEIGHTS.find(({ threshold }) => occupancy < threshold);
-      return step ? step.weight : DEFAULT_OCCUPANCY_WEIGHTS[DEFAULT_OCCUPANCY_WEIGHTS.length - 1].weight;
+      const step = effectiveOccupancyWeights.find(({ threshold }) => occupancy < threshold);
+      return step ? step.weight : effectiveOccupancyWeights[effectiveOccupancyWeights.length - 1].weight;
     };
 
     const base = forecastBaseDate ? new Date(forecastBaseDate) : new Date();
@@ -807,11 +837,9 @@ export default function WeeklyForecastToolPage() {
       const occupancyWeight = getOccupancyWeight(occupancyBefore);
       const maxAddable = Math.max(availableRooms - currentOtbRooms, 0);
       const baseRooms = roundedBaseTotals[day] || 0;
-      const adjustedRooms = Math.min(baseRooms * occupancyWeight, maxAddable);
 
       return {
         day,
-        adjustedRooms,
         baseRooms,
         occupancyBefore,
         occupancyWeight,
@@ -820,86 +848,21 @@ export default function WeeklyForecastToolPage() {
       };
     });
 
-    let remainder = targetTotalRooms - occupancyAdjusted.reduce((sum, { adjustedRooms }) => sum + adjustedRooms, 0);
-    let unreachableRemainder = 0;
-
-    if (remainder !== 0) {
-      const sortedDays = [...occupancyAdjusted].sort((a, b) => {
-        if (a.occupancyBefore === b.occupancyBefore) {
-          return b.occupancyWeight - a.occupancyWeight;
-        }
-        return a.occupancyBefore - b.occupancyBefore;
-      });
-
-      if (remainder > 0) {
-        const withShortfall = sortedDays.map((entry) => ({
-          entry,
-          desiredShortfall: Math.max(entry.baseRooms - entry.adjustedRooms, 0),
-        }));
-
-        while (remainder > 0) {
-          const candidates = withShortfall.filter(
-            ({ entry, desiredShortfall }) => entry.adjustedRooms < entry.maxAddable && desiredShortfall > 0
-          );
-
-          if (!candidates.length) break;
-
-          candidates.forEach((entry) => {
-            if (remainder > 0 && entry.entry.adjustedRooms < entry.entry.maxAddable && entry.desiredShortfall > 0) {
-              entry.entry.adjustedRooms += 1;
-              entry.desiredShortfall -= 1;
-              remainder -= 1;
-            }
-          });
-        }
-
-        if (remainder > 0) {
-          const withCapacity = sortedDays
-            .map((entry) => ({ entry, remainingCapacity: Math.max(entry.maxAddable - entry.adjustedRooms, 0) }))
-            .filter(({ remainingCapacity }) => remainingCapacity > 0);
-
-          let index = 0;
-          while (remainder > 0 && withCapacity.length) {
-            const current = withCapacity[index % withCapacity.length];
-            if (current.remainingCapacity > 0) {
-              current.entry.adjustedRooms += 1;
-              current.remainingCapacity -= 1;
-              remainder -= 1;
-            }
-
-            if (current.remainingCapacity <= 0) {
-              withCapacity.splice(index % withCapacity.length, 1);
-              index = 0;
-            } else {
-              index += 1;
-            }
-          }
-        }
-      } else {
-        let distributed = false;
-        while (remainder < 0) {
-          distributed = false;
-          [...sortedDays].reverse().forEach((entry) => {
-            if (remainder < 0 && entry.adjustedRooms > 0) {
-              entry.adjustedRooms -= 1;
-              remainder += 1;
-              distributed = true;
-            }
-          });
-
-          if (!distributed) break;
-        }
-      }
-
-      unreachableRemainder = Math.max(0, remainder);
-    }
-
     const caps = Object.fromEntries(occupancyAdjusted.map(({ day, maxAddable }) => [day, maxAddable]));
     const adjustedTotals = roundAllocations(
-      occupancyAdjusted.map(({ day, adjustedRooms }) => ({ key: day, value: adjustedRooms })),
-      targetTotalRooms - unreachableRemainder,
+      occupancyAdjusted.map(({ day, baseRooms, occupancyWeight }) => ({ key: day, value: baseRooms * occupancyWeight })),
+      targetTotalRooms,
       caps
     );
+
+    const allocatedTotal = Object.values(adjustedTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+    const unreachableRemainder = Math.max(0, targetTotalRooms - allocatedTotal);
+
+    if (unreachableRemainder > 0) {
+      toast.warn(
+        `Er zijn ${formatNumber(unreachableRemainder)} kamers die niet kunnen worden verdeeld vanwege capaciteitslimieten.`
+      );
+    }
 
     const finalForecast = dayNumbers.reduce((acc, day) => {
       const dayTotal = adjustedTotals[day] || 0;
@@ -1154,6 +1117,45 @@ export default function WeeklyForecastToolPage() {
                       <div className="flex items-center justify-between">
                         <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
                         <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-md font-semibold">Occupancy weight</h4>
+                          <p className="text-sm text-gray-600">Configureer hoeveel forecast meeweegt per bezettingsniveau.</p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                          {effectiveOccupancyWeights.map((step, index) => (
+                            <div key={`occupancy-step-${index}`} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                              <div className="text-sm text-gray-700">
+                                <p className="font-semibold">Drempel: &lt; {formatDecimal(step.threshold * 100)}% occupancy</p>
+                                <p className="text-xs text-gray-600">Pas de drempel of het gewicht aan.</p>
+                              </div>
+                              <label className="flex flex-col gap-1 text-sm">
+                                <span className="text-gray-700">Drempel (%)</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={step.threshold}
+                                  onChange={(event) => handleOccupancyWeightChange(index, "threshold", event.target.value)}
+                                  className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1 text-sm">
+                                <span className="text-gray-700">Weight (0-1)</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="0.05"
+                                  value={step.weight}
+                                  onChange={(event) => handleOccupancyWeightChange(index, "weight", event.target.value)}
+                                  className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                                />
+                              </label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="space-y-4">
                         {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => {
