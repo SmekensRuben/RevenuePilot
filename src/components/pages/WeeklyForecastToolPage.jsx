@@ -1125,7 +1125,7 @@ export default function WeeklyForecastToolPage() {
                         Total: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%
                       </p>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr">
+                    <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 auto-rows-fr">
                       {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => {
                         const value = Number(segmentWeights[roomsSoldField] || 0);
                         const height = maxSegmentWeight > 0 ? Math.min((value / maxSegmentWeight) * 160, 160) : 0;
@@ -1133,10 +1133,10 @@ export default function WeeklyForecastToolPage() {
                         return (
                           <div
                             key={roomsSoldField}
-                            className="flex flex-col gap-3 border rounded-lg p-3 bg-gray-50 h-full"
+                            className="flex flex-col gap-3 border rounded-lg p-2 sm:p-3 bg-gray-50 h-full"
                           >
                             <span className="font-semibold text-gray-800">{label}</span>
-                            <div className="flex items-end justify-center gap-2 flex-1">
+                            <div className="flex items-end justify-center gap-2 flex-1 pt-3">
                               <div className="flex flex-col items-center gap-1">
                                 <div className="relative w-8 bg-blue-100 rounded-sm flex items-end justify-center" style={{ height: 160 }}>
                                   <div
