@@ -860,26 +860,39 @@ export default function WeeklyForecastToolPage() {
     let remainder = Math.max(0, Math.min(targetTotalRooms, totalCapacity) - allocatedTotal);
 
     if (remainder > 0) {
-      const distributeRemainder = () => {
-        let distributed = false;
+      const allocateNextRoom = () => {
+        const candidates = dayNumbers
+          .map((day) => {
+            const capacity = Math.max(caps[day] ?? Infinity, 0);
+            const currentTotal = Math.max(adjustedTotals[day] || 0, 0);
+            const remainingCapacity = Math.max(capacity - currentTotal, 0);
 
-        dayNumbers.forEach((day) => {
-          if (!remainder) return;
+            if (!remainingCapacity) return null;
 
-          const currentTotal = adjustedTotals[day] || 0;
-          const capacity = Math.max((caps[day] ?? Infinity) - currentTotal, 0);
+            const fillRatio = capacity === Infinity ? 0 : currentTotal / capacity;
+            return { day, remainingCapacity, fillRatio };
+          })
+          .filter(Boolean)
+          .sort((a, b) => {
+            if (a.fillRatio === b.fillRatio) return a.day - b.day;
+            return a.fillRatio - b.fillRatio;
+          });
 
-          if (capacity > 0) {
-            adjustedTotals[day] = currentTotal + 1;
-            remainder -= 1;
-            distributed = true;
-          }
+        if (!candidates.length) return false;
+
+        const lowestFill = candidates[0].fillRatio;
+        const lowestFillDays = candidates.filter(({ fillRatio }) => fillRatio === lowestFill);
+
+        lowestFillDays.forEach(({ day, remainingCapacity }) => {
+          if (!remainder || !remainingCapacity) return;
+          adjustedTotals[day] = (adjustedTotals[day] || 0) + 1;
+          remainder -= 1;
         });
 
-        return distributed;
+        return remainder > 0;
       };
 
-      while (remainder > 0 && distributeRemainder()) {
+      while (remainder > 0 && allocateNextRoom()) {
         // continue distributing until no remainder or all capacity is filled
       }
 
