@@ -97,6 +97,22 @@ const SEGMENT_OVERVIEW_FIELDS = [
   },
 ];
 
+const PICKUP_BUCKETS = [
+  { label: "0", minDays: 0, maxDays: 0 },
+  { label: "1-3", minDays: 1, maxDays: 3 },
+  { label: "4-7", minDays: 4, maxDays: 7 },
+  { label: "8-14", minDays: 8, maxDays: 14 },
+  { label: "15-21", minDays: 15, maxDays: 21 },
+  { label: "22+", minDays: 22, maxDays: Infinity },
+];
+
+const DEFAULT_OCCUPANCY_WEIGHTS = [
+  { threshold: 0.8, weight: 1 },
+  { threshold: 0.9, weight: 0.7 },
+  { threshold: 0.95, weight: 0.4 },
+  { threshold: 1.01, weight: 0.1 },
+];
+
 const getDefaultSegmentWeights = () =>
   Object.fromEntries(
     SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
@@ -106,7 +122,12 @@ const getDefaultSegmentWeights = () =>
   );
 
 const getDefaultPickupCurves = () =>
-  Object.fromEntries(SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [roomsSoldField, [25, 25, 25, 25]]));
+  Object.fromEntries(
+    SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
+      roomsSoldField,
+      [15, 20, 20, 20, 15, 10],
+    ])
+  );
 
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
@@ -211,6 +232,21 @@ export default function WeeklyForecastToolPage() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const fileInputRef = useRef(null);
+
+  const normalizePickupCurves = (curves) => {
+    const defaults = getDefaultPickupCurves();
+    const source = curves || {};
+
+    return Object.fromEntries(
+      SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
+        roomsSoldField,
+        PICKUP_BUCKETS.map((_, index) => {
+          const value = source[roomsSoldField]?.[index];
+          return value !== undefined ? value : defaults[roomsSoldField][index];
+        }),
+      ])
+    );
+  };
 
   const today = useMemo(
     () =>
@@ -404,7 +440,7 @@ export default function WeeklyForecastToolPage() {
         setRevenueToForecast(String(data.revenueToForecast ?? ""));
       }
       setSegmentWeights(data.segmentWeights || getDefaultSegmentWeights());
-      setPickupCurves(data.pickupCurves || getDefaultPickupCurves());
+      setPickupCurves(normalizePickupCurves(data.pickupCurves));
     } catch (err) {
       console.error("Error loading forecast settings", err);
       toast.error("Kon de forecast instellingen niet laden.");
@@ -584,12 +620,19 @@ export default function WeeklyForecastToolPage() {
     });
   }, [averageTotalAdr, dayNumbers, forecastedRooms, overviewByDay]);
 
-  const getLeadTimeBucket = (leadTime) => {
-    if (leadTime <= 7) return 0;
-    if (leadTime <= 14) return 1;
-    if (leadTime <= 21) return 2;
-    return 3;
-  };
+  const monthlyForecastTotals = useMemo(() => {
+    return forecastSummaryByDay.reduce(
+      (acc, { addedRooms, addedRevenue }) => {
+        acc.totalAddedRooms += Number(addedRooms || 0);
+        acc.totalAddedRevenue += Number(addedRevenue || 0);
+        return acc;
+      },
+      { totalAddedRooms: 0, totalAddedRevenue: 0 }
+    );
+  }, [forecastSummaryByDay]);
+
+  const getLeadTimeBucket = (leadTime) =>
+    PICKUP_BUCKETS.findIndex(({ minDays, maxDays }) => leadTime >= minDays && leadTime <= maxDays);
 
   const handleWeightChange = (field, value) => {
     setSegmentWeights((prev) => ({ ...prev, [field]: value }));
@@ -597,7 +640,7 @@ export default function WeeklyForecastToolPage() {
 
   const handleCurveChange = (field, bucketIndex, value) => {
     setPickupCurves((prev) => {
-      const currentBuckets = prev[field] || [0, 0, 0, 0];
+      const currentBuckets = PICKUP_BUCKETS.map((_, index) => prev[field]?.[index] ?? 0);
       const updatedBuckets = [...currentBuckets];
       updatedBuckets[bucketIndex] = value;
       return { ...prev, [field]: updatedBuckets };
@@ -616,17 +659,88 @@ export default function WeeklyForecastToolPage() {
       return;
     }
 
+    const roundAllocations = (entries, targetTotal, caps = {}) => {
+      const normalizedTarget = Math.max(Math.round(targetTotal), 0);
+      const baseEntries = entries.map(({ key, value }) => {
+        const cap = caps[key] ?? Infinity;
+        const floored = Math.min(Math.floor(value), cap);
+        return {
+          key,
+          floored,
+          fraction: Math.max(value - floored, 0),
+          cap,
+        };
+      });
+
+      let currentTotal = baseEntries.reduce((sum, { floored }) => sum + floored, 0);
+      let remainder = normalizedTarget - currentTotal;
+      const result = Object.fromEntries(baseEntries.map(({ key, floored }) => [key, floored]));
+
+      const distribute = (sortedEntries, step) => {
+        sortedEntries.forEach(({ key, cap }) => {
+          if (!remainder) return;
+          const limit = Math.max(0, cap - result[key]);
+          if (limit <= 0) return;
+          const delta = Math.min(step, remainder, limit);
+          result[key] += delta;
+          remainder -= delta;
+        });
+      };
+
+      if (remainder > 0) {
+        const sorted = [...baseEntries].sort((a, b) => b.fraction - a.fraction);
+        while (remainder > 0) {
+          distribute(sorted, 1);
+          const hasCapacity = sorted.some(({ key, cap }) => result[key] < cap);
+          if (!hasCapacity) break;
+        }
+      } else if (remainder < 0) {
+        const sorted = [...baseEntries].sort((a, b) => a.fraction - b.fraction);
+        while (remainder < 0) {
+          sorted.forEach(({ key }) => {
+            if (remainder < 0 && result[key] > 0) {
+              result[key] -= 1;
+              remainder += 1;
+            }
+          });
+          const hasRooms = sorted.some(({ key }) => result[key] > 0);
+          if (!hasRooms) break;
+        }
+      }
+
+      return result;
+    };
+
+    const allocateSegmentsForDay = (segments, targetRooms) => {
+      const entries = Object.entries(segments || {});
+      if (!entries.length || !targetRooms) return {};
+
+      const total = entries.reduce((sum, [, value]) => sum + Number(value || 0), 0);
+      if (!total) return {};
+
+      const scaled = entries.map(([key, value]) => ({ key, value: (Number(value || 0) / total) * targetRooms }));
+      return roundAllocations(scaled, targetRooms);
+    };
+
+    const getOccupancyWeight = (occupancy) => {
+      const step = DEFAULT_OCCUPANCY_WEIGHTS.find(({ threshold }) => occupancy < threshold);
+      return step ? step.weight : DEFAULT_OCCUPANCY_WEIGHTS[DEFAULT_OCCUPANCY_WEIGHTS.length - 1].weight;
+    };
+
     const base = forecastBaseDate ? new Date(forecastBaseDate) : new Date();
     const normalizedBaseDate = Number.isNaN(base.getTime()) ? new Date() : base;
     const baseDay = normalizedBaseDate.getDate();
     const daysInMonth = getDaysInMonth(normalizedBaseDate);
     const remainingDaysInMonth = Math.max(daysInMonth - baseDay + 1, 0);
+    const targetTotalRooms = Math.max(Math.round(roomsToForecast), 0);
 
-    const bucketDays = [[], [], [], []];
+    const bucketDays = PICKUP_BUCKETS.map(() => []);
     Array.from({ length: remainingDaysInMonth }, (_, offset) => offset).forEach((daysOut) => {
       const bucket = getLeadTimeBucket(daysOut);
       const dayNumber = baseDay + daysOut;
-      bucketDays[bucket].push(dayNumber);
+      if (bucket >= 0) {
+        bucketDays[bucket].push(dayNumber);
+      }
     });
 
     const newForecast = {};
@@ -636,9 +750,9 @@ export default function WeeklyForecastToolPage() {
       if (segmentWeight <= 0) return;
 
       const segmentRooms = (roomsToForecast * segmentWeight) / totalWeight;
-      const curve = pickupCurves[roomsSoldField] || [];
+      const curve = PICKUP_BUCKETS.map((_, index) => Number(pickupCurves[roomsSoldField]?.[index] || 0));
       const bucketInfo = bucketDays
-        .map((days, index) => ({ days, weight: Number(curve[index] || 0) }))
+        .map((days, index) => ({ days, weight: curve[index] }))
         .filter(({ days }) => days.length);
 
       if (!bucketInfo.length) return;
@@ -661,7 +775,82 @@ export default function WeeklyForecastToolPage() {
       });
     });
 
-    setForecastedRooms(newForecast);
+    const baseDayEntries = dayNumbers.map((day) => {
+      const segments = newForecast[day] || {};
+      const total = Object.values(segments).reduce((sum, value) => sum + Number(value || 0), 0);
+      return { key: day, value: total, segments };
+    });
+
+    const roundedBaseTotals = roundAllocations(baseDayEntries, targetTotalRooms);
+
+    const occupancyAdjusted = dayNumbers.map((day) => {
+      const dayOverview = overviewByDay[day] || {};
+      const totalRoomsSold = Number(dayOverview.totalRoomsSold || 0);
+      const roomsLeftToSell = Number(dayOverview.roomsLeftToSell || 0);
+      const availableRooms = totalRoomsSold + roomsLeftToSell;
+      const currentOtbRooms = totalRoomsSold;
+      const occupancyBefore = availableRooms > 0 ? currentOtbRooms / availableRooms : 0;
+      const occupancyWeight = getOccupancyWeight(occupancyBefore);
+      const maxAddable = Math.max(availableRooms - currentOtbRooms, 0);
+      const baseRooms = roundedBaseTotals[day] || 0;
+      const adjustedRooms = Math.min(baseRooms * occupancyWeight, maxAddable);
+
+      return {
+        day,
+        adjustedRooms,
+        baseRooms,
+        occupancyBefore,
+        occupancyWeight,
+        maxAddable,
+        segments: newForecast[day] || {},
+      };
+    });
+
+    let remainder = targetTotalRooms - occupancyAdjusted.reduce((sum, { adjustedRooms }) => sum + adjustedRooms, 0);
+    let unreachableRemainder = 0;
+
+    if (remainder !== 0) {
+      const sortedDays = [...occupancyAdjusted].sort((a, b) => {
+        if (a.occupancyBefore === b.occupancyBefore) {
+          return b.occupancyWeight - a.occupancyWeight;
+        }
+        return a.occupancyBefore - b.occupancyBefore;
+      });
+
+      if (remainder > 0) {
+        sortedDays.forEach((entry) => {
+          while (remainder > 0 && entry.adjustedRooms + 1 <= entry.maxAddable) {
+            entry.adjustedRooms += 1;
+            remainder -= 1;
+          }
+        });
+      } else {
+        sortedDays.reverse().forEach((entry) => {
+          while (remainder < 0 && entry.adjustedRooms > 0) {
+            entry.adjustedRooms -= 1;
+            remainder += 1;
+          }
+        });
+      }
+
+      unreachableRemainder = Math.max(0, remainder);
+    }
+
+    const caps = Object.fromEntries(occupancyAdjusted.map(({ day, maxAddable }) => [day, maxAddable]));
+    const adjustedTotals = roundAllocations(
+      occupancyAdjusted.map(({ day, adjustedRooms }) => ({ key: day, value: adjustedRooms })),
+      targetTotalRooms - unreachableRemainder,
+      caps
+    );
+
+    const finalForecast = dayNumbers.reduce((acc, day) => {
+      const dayTotal = adjustedTotals[day] || 0;
+      const segments = allocateSegmentsForDay(newForecast[day], dayTotal);
+      acc[day] = segments;
+      return acc;
+    }, {});
+
+    setForecastedRooms(finalForecast);
     toast.success("Forecast berekend. Er zijn geen wijzigingen opgeslagen.");
   };
 
@@ -830,22 +1019,22 @@ export default function WeeklyForecastToolPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
-                      <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
-                    </div>
                     <div className="space-y-4">
-                      {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
-                        <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
-                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="font-semibold text-gray-800">{label}</p>
-                            <p className="text-xs text-gray-600">
-                              Lead time buckets: 0-7, 8-14, 15-21 en 22+ dagen.
-                            </p>
-                          </div>
-                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            {["0-7", "8-14", "15-21", "22+"].map((labelText, index) => (
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
+                        <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
+                      </div>
+                      <div className="space-y-4">
+                        {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
+                          <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="font-semibold text-gray-800">{label}</p>
+                              <p className="text-xs text-gray-600">
+                              Lead time buckets: 0, 1-3, 4-7, 8-14, 15-21 en 22+ dagen.
+                              </p>
+                            </div>
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {PICKUP_BUCKETS.map(({ label: labelText }, index) => (
                               <label key={`${roomsSoldField}-bucket-${labelText}`} className="flex flex-col gap-1 text-sm">
                                 <span className="text-gray-700">{labelText} dagen</span>
                                 <input
@@ -859,10 +1048,10 @@ export default function WeeklyForecastToolPage() {
                               </label>
                             ))}
                           </div>
-                        </div>
-                      ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
                 </>
               )}
 
@@ -900,13 +1089,30 @@ export default function WeeklyForecastToolPage() {
                 {forecastSummaryByDay.map(({ day, addedRooms, addedRevenue, occupancyRooms }) => (
                   <tr key={`forecast-summary-${day}`} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-left font-medium text-gray-800">{day}</td>
-                    <td className="px-3 py-2 text-green-700 font-semibold">+{formatDecimal(addedRooms) ?? 0}</td>
+                    <td className="px-3 py-2 text-green-700 font-semibold">+{formatNumber(addedRooms)}</td>
                     <td className="px-3 py-2 text-green-700 font-semibold">{formatEuro(addedRevenue)}</td>
                     <td className="px-3 py-2 font-medium">{formatNumber(occupancyRooms)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-lg px-4 py-3">
+              <div>
+                <p className="text-sm text-green-800">Kamers toegevoegd (maandtotaal)</p>
+                <p className="text-lg font-semibold text-green-900">
+                  +{formatNumber(monthlyForecastTotals.totalAddedRooms)} kamers
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+              <div>
+                <p className="text-sm text-blue-800">Revenue toegevoegd (maandtotaal)</p>
+                <p className="text-lg font-semibold text-blue-900">{formatEuro(monthlyForecastTotals.totalAddedRevenue)}</p>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -954,11 +1160,11 @@ export default function WeeklyForecastToolPage() {
                         {dayNumbers.map((day) => {
                           const roomsSold = overviewByDay[day]?.[roomsSoldField] ?? null;
                           const forecastAddition = forecastedRooms[day]?.[roomsSoldField];
-                          return (
+                              return (
                             <td key={`${label}-roomsSold-${day}`} className="px-4 py-2">
                               {forecastAddition !== undefined ? (
                                 <div className="text-xs text-green-700 font-semibold leading-tight">
-                                  +{formatDecimal(forecastAddition) ?? 0}
+                                  +{formatNumber(forecastAddition)}
                                 </div>
                               ) : null}
                               <div>{formatNumber(roomsSold)}</div>
