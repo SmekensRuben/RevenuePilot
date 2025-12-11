@@ -584,14 +584,7 @@ export default function WeeklyForecastToolPage() {
     });
   }, [averageTotalAdr, dayNumbers, forecastedRooms, overviewByDay]);
 
-  const getLeadTimeBucket = (day) => {
-    const baseDate = forecastBaseDate ? new Date(forecastBaseDate) : new Date();
-    const normalizedBase = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
-    const targetDate = new Date(normalizedBase.getFullYear(), normalizedBase.getMonth(), day);
-
-    const diffDays = Math.round((targetDate - normalizedBase) / (1000 * 60 * 60 * 24));
-    const leadTime = Math.max(diffDays, 0);
-
+  const getLeadTimeBucket = (leadTime) => {
     if (leadTime <= 7) return 0;
     if (leadTime <= 14) return 1;
     if (leadTime <= 21) return 2;
@@ -623,11 +616,17 @@ export default function WeeklyForecastToolPage() {
       return;
     }
 
+    const base = forecastBaseDate ? new Date(forecastBaseDate) : new Date();
+    const normalizedBaseDate = Number.isNaN(base.getTime()) ? new Date() : base;
+    const baseDay = normalizedBaseDate.getDate();
+    const daysInMonth = getDaysInMonth(normalizedBaseDate);
+    const remainingDaysInMonth = Math.max(daysInMonth - baseDay + 1, 0);
+
     const bucketDays = [[], [], [], []];
-    dayNumbers.forEach((day) => {
-      if (day < forecastBaseDay) return;
-      const bucket = getLeadTimeBucket(day);
-      bucketDays[bucket].push(day);
+    Array.from({ length: remainingDaysInMonth }, (_, offset) => offset).forEach((daysOut) => {
+      const bucket = getLeadTimeBucket(daysOut);
+      const dayNumber = baseDay + daysOut;
+      bucketDays[bucket].push(dayNumber);
     });
 
     const newForecast = {};
@@ -638,20 +637,24 @@ export default function WeeklyForecastToolPage() {
 
       const segmentRooms = (roomsToForecast * segmentWeight) / totalWeight;
       const curve = pickupCurves[roomsSoldField] || [];
-      const curveSum = curve.reduce((sum, value) => sum + Number(value || 0), 0);
-      const normalizedCurve = curveSum
-        ? curve.map((value) => Number(value || 0) / curveSum)
-        : [0.25, 0.25, 0.25, 0.25];
+      const bucketInfo = bucketDays
+        .map((days, index) => ({ days, weight: Number(curve[index] || 0) }))
+        .filter(({ days }) => days.length);
 
-      normalizedCurve.forEach((portion, index) => {
+      if (!bucketInfo.length) return;
+
+      const weightSum = bucketInfo.reduce((sum, { weight }) => sum + weight, 0);
+      const normalizedBuckets = weightSum
+        ? bucketInfo.map(({ days, weight }) => ({ days, portion: weight / weightSum }))
+        : bucketInfo.map(({ days }) => ({ days, portion: 1 / bucketInfo.length }));
+
+      normalizedBuckets.forEach(({ portion, days }) => {
         if (portion <= 0) return;
-        const daysInBucket = bucketDays[index];
-        if (!daysInBucket.length) return;
 
         const bucketRooms = segmentRooms * portion;
-        const perDay = bucketRooms / daysInBucket.length;
+        const perDay = bucketRooms / days.length;
 
-        daysInBucket.forEach((day) => {
+        days.forEach((day) => {
           newForecast[day] = newForecast[day] || {};
           newForecast[day][roomsSoldField] = (newForecast[day][roomsSoldField] || 0) + perDay;
         });
