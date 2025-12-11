@@ -653,6 +653,13 @@ export default function WeeklyForecastToolPage() {
     });
   };
 
+  const segmentWeightValues = useMemo(
+    () => SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => Number(segmentWeights[roomsSoldField] || 0)),
+    [segmentWeights]
+  );
+
+  const maxSegmentWeight = useMemo(() => Math.max(100, ...segmentWeightValues), [segmentWeightValues]);
+
   const handleCalculateForecast = () => {
     if (!roomsToForecast) {
       toast.error("Voer een geldige revenue in om kamers te forecasten.");
@@ -1072,20 +1079,39 @@ export default function WeeklyForecastToolPage() {
                         Totaal: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%
                       </p>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
-                        <label key={roomsSoldField} className="flex flex-col gap-2 border rounded-lg p-3 bg-gray-50">
-                          <span className="font-semibold text-gray-800">{label}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={segmentWeights[roomsSoldField] ?? ""}
-                            onChange={(event) => handleWeightChange(roomsSoldField, event.target.value)}
-                            className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-                          />
-                        </label>
-                      ))}
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => {
+                        const value = Number(segmentWeights[roomsSoldField] || 0);
+                        const height = maxSegmentWeight > 0 ? Math.min((value / maxSegmentWeight) * 160, 160) : 0;
+
+                        return (
+                          <div key={roomsSoldField} className="flex flex-col gap-3 border rounded-lg p-3 bg-gray-50">
+                            <span className="font-semibold text-gray-800">{label}</span>
+                            <div className="flex items-end justify-center gap-2 h-48">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="relative w-10 bg-blue-100 rounded-sm flex items-end justify-center" style={{ height: 160 }}>
+                                  <div
+                                    className="w-full bg-blue-500 rounded-sm transition-all duration-200"
+                                    style={{ height }}
+                                  />
+                                  <span className="absolute -top-6 text-sm font-semibold text-blue-800">{formatDecimal(value)}%</span>
+                                </div>
+                              </div>
+                            </div>
+                            <label className="flex flex-col gap-1 text-sm">
+                              <span className="text-gray-700">Aanpassen (%)</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={segmentWeights[roomsSoldField] ?? ""}
+                                onChange={(event) => handleWeightChange(roomsSoldField, event.target.value)}
+                                className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                              />
+                            </label>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1095,31 +1121,56 @@ export default function WeeklyForecastToolPage() {
                         <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
                       </div>
                       <div className="space-y-4">
-                        {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
-                          <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="font-semibold text-gray-800">{label}</p>
-                              <p className="text-xs text-gray-600">
-                              Lead time buckets: 0, 1-3, 4-7, 8-14, 15-21 en 22+ dagen.
-                              </p>
+                        {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => {
+                          const bucketValues = PICKUP_BUCKETS.map((_, index) => Number(pickupCurves[roomsSoldField]?.[index] || 0));
+                          const maxBucket = Math.max(20, ...bucketValues);
+
+                          return (
+                            <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <p className="font-semibold text-gray-800">{label}</p>
+                                <p className="text-xs text-gray-600">
+                                  Lead time buckets: 0, 1-3, 4-7, 8-14, 15-21 en 22+ dagen.
+                                </p>
+                              </div>
+                              <div className="mt-4 overflow-x-auto">
+                                <div className="min-w-[600px]">
+                                  <div className="flex items-end gap-4 pb-4">
+                                    {PICKUP_BUCKETS.map(({ label: labelText }, index) => {
+                                      const value = bucketValues[index] ?? 0;
+                                      const height = maxBucket > 0 ? Math.min((value / maxBucket) * 160, 160) : 0;
+
+                                      return (
+                                        <div key={`${roomsSoldField}-bucket-${labelText}`} className="flex-1 min-w-[80px]">
+                                          <div className="flex flex-col items-center gap-2">
+                                            <div className="relative w-full max-w-[70px] bg-emerald-100 rounded-sm" style={{ height: 160 }}>
+                                              <div
+                                                className="absolute bottom-0 left-0 right-0 bg-emerald-500 rounded-sm transition-all duration-200"
+                                                style={{ height }}
+                                              />
+                                              <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-sm font-semibold text-emerald-800">
+                                                {formatDecimal(value)}%
+                                              </span>
+                                            </div>
+                                            <span className="text-xs text-gray-700">{labelText} dagen</span>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              step="0.1"
+                                              value={pickupCurves[roomsSoldField]?.[index] ?? ""}
+                                              onChange={(event) => handleCurveChange(roomsSoldField, index, event.target.value)}
+                                              className="w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-blue-200"
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                            {PICKUP_BUCKETS.map(({ label: labelText }, index) => (
-                              <label key={`${roomsSoldField}-bucket-${labelText}`} className="flex flex-col gap-1 text-sm">
-                                <span className="text-gray-700">{labelText} dagen</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.1"
-                                  value={pickupCurves[roomsSoldField]?.[index] ?? ""}
-                                  onChange={(event) => handleCurveChange(roomsSoldField, index, event.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-                                />
-                              </label>
-                            ))}
-                          </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                 </>
