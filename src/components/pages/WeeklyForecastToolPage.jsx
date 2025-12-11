@@ -97,11 +97,11 @@ const SEGMENT_OVERVIEW_FIELDS = [
   },
 ];
 
-const PICKUP_BUCKETS = Array.from({ length: 15 }, (_, index) => {
-  const minDays = index * 2;
-  const maxDays = minDays + 1;
-  return { label: `${minDays}-${maxDays}`, minDays, maxDays };
-});
+const PICKUP_BUCKETS = Array.from({ length: 30 }, (_, index) => ({
+  label: `${index}`,
+  minDays: index,
+  maxDays: index,
+}));
 
 const DEFAULT_OCCUPANCY_WEIGHTS = [
   { threshold: 0.8, weight: 1 },
