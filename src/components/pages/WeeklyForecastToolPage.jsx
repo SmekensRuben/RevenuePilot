@@ -855,7 +855,37 @@ export default function WeeklyForecastToolPage() {
       caps
     );
 
-    const allocatedTotal = Object.values(adjustedTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+    const totalCapacity = dayNumbers.reduce((sum, day) => sum + Math.max(caps[day] ?? Infinity, 0), 0);
+    let allocatedTotal = Object.values(adjustedTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+    let remainder = Math.max(0, Math.min(targetTotalRooms, totalCapacity) - allocatedTotal);
+
+    if (remainder > 0) {
+      const distributeRemainder = () => {
+        let distributed = false;
+
+        dayNumbers.forEach((day) => {
+          if (!remainder) return;
+
+          const currentTotal = adjustedTotals[day] || 0;
+          const capacity = Math.max((caps[day] ?? Infinity) - currentTotal, 0);
+
+          if (capacity > 0) {
+            adjustedTotals[day] = currentTotal + 1;
+            remainder -= 1;
+            distributed = true;
+          }
+        });
+
+        return distributed;
+      };
+
+      while (remainder > 0 && distributeRemainder()) {
+        // continue distributing until no remainder or all capacity is filled
+      }
+
+      allocatedTotal = Object.values(adjustedTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+    }
+
     const unreachableRemainder = Math.max(0, targetTotalRooms - allocatedTotal);
 
     if (unreachableRemainder > 0) {
