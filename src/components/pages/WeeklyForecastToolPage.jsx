@@ -7,6 +7,7 @@ import {
   collection,
   db,
   doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -95,6 +96,17 @@ const SEGMENT_OVERVIEW_FIELDS = [
     adrField: "brandRedemptionsAdr",
   },
 ];
+
+const getDefaultSegmentWeights = () =>
+  Object.fromEntries(
+    SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
+      roomsSoldField,
+      Math.round(100 / SEGMENT_OVERVIEW_FIELDS.length),
+    ])
+  );
+
+const getDefaultPickupCurves = () =>
+  Object.fromEntries(SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [roomsSoldField, [25, 25, 25, 25]]));
 
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
@@ -192,15 +204,12 @@ export default function WeeklyForecastToolPage() {
   const [overviewRows, setOverviewRows] = useState([]);
   const [latestReportDate, setLatestReportDate] = useState("");
   const [revenueToForecast, setRevenueToForecast] = useState("");
-  const [segmentWeights, setSegmentWeights] = useState(() =>
-    Object.fromEntries(
-      SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [roomsSoldField, Math.round(100 / SEGMENT_OVERVIEW_FIELDS.length)])
-    )
-  );
-  const [pickupCurves, setPickupCurves] = useState(() =>
-    Object.fromEntries(SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [roomsSoldField, [25, 25, 25, 25]]))
-  );
+  const [segmentWeights, setSegmentWeights] = useState(getDefaultSegmentWeights);
+  const [pickupCurves, setPickupCurves] = useState(getDefaultPickupCurves);
   const [forecastedRooms, setForecastedRooms] = useState({});
+  const [forecastSettingsCollapsed, setForecastSettingsCollapsed] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -213,11 +222,16 @@ export default function WeeklyForecastToolPage() {
     []
   );
 
+  const forecastBaseDate = useMemo(
+    () => latestReportDate || selectedReportDate || null,
+    [latestReportDate, selectedReportDate]
+  );
+
   const selectedMonthLabel = useMemo(() => {
-    if (!selectedReportDate) return "";
-    const parsed = new Date(selectedReportDate);
+    if (!forecastBaseDate) return "";
+    const parsed = new Date(forecastBaseDate);
     return parsed.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  }, [selectedReportDate]);
+  }, [forecastBaseDate]);
 
   const latestReportDateLabel = useMemo(() => {
     if (!latestReportDate) return "";
@@ -369,6 +383,64 @@ export default function WeeklyForecastToolPage() {
     });
   };
 
+  const settingsDocRef = useMemo(
+    () => (hotelUid ? doc(db, `hotels/${hotelUid}/weeklyForecastSettings`, "settings") : null),
+    [hotelUid]
+  );
+
+  const loadForecastSettings = async () => {
+    if (!settingsDocRef) return;
+
+    try {
+      setSettingsLoading(true);
+      const snapshot = await getDoc(settingsDocRef);
+      if (!snapshot.exists()) return;
+
+      const data = snapshot.data();
+      if (data.selectedReportDate) {
+        setSelectedReportDate(data.selectedReportDate);
+      }
+      if (data.revenueToForecast !== undefined) {
+        setRevenueToForecast(String(data.revenueToForecast ?? ""));
+      }
+      setSegmentWeights(data.segmentWeights || getDefaultSegmentWeights());
+      setPickupCurves(data.pickupCurves || getDefaultPickupCurves());
+    } catch (err) {
+      console.error("Error loading forecast settings", err);
+      toast.error("Kon de forecast instellingen niet laden.");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveForecastSettings = async () => {
+    if (!settingsDocRef) {
+      toast.error("Selecteer eerst een hotel om instellingen op te slaan.");
+      return;
+    }
+
+    try {
+      setSavingSettings(true);
+      await setDoc(
+        settingsDocRef,
+        {
+          selectedReportDate,
+          revenueToForecast: Number(revenueToForecast) || 0,
+          segmentWeights,
+          pickupCurves,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      toast.success("Forecast instellingen opgeslagen.");
+    } catch (err) {
+      console.error("Error saving forecast settings", err);
+      toast.error("Kon forecast instellingen niet opslaan.");
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   const fetchOverviewData = async () => {
     if (!hotelUid) return;
 
@@ -422,6 +494,11 @@ export default function WeeklyForecastToolPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelUid]);
 
+  useEffect(() => {
+    loadForecastSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsDocRef]);
+
   const formatEuro = (value) => {
     if (value === null || value === undefined) return "-";
     return value.toLocaleString(undefined, {
@@ -442,10 +519,16 @@ export default function WeeklyForecastToolPage() {
     return Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 });
   };
 
+  const forecastBaseDay = useMemo(() => {
+    if (!forecastBaseDate) return 1;
+    const parsed = new Date(forecastBaseDate);
+    return Number.isNaN(parsed.getTime()) ? 1 : parsed.getDate();
+  }, [forecastBaseDate]);
+
   const dayNumbers = useMemo(() => {
-    const daysInMonth = getDaysInMonth(selectedReportDate);
+    const daysInMonth = getDaysInMonth(forecastBaseDate);
     return Array.from({ length: daysInMonth }, (_, index) => index + 1);
-  }, [selectedReportDate]);
+  }, [forecastBaseDate]);
 
   const averageTotalAdr = useMemo(() => {
     const validAdrs = overviewRows.map((row) => row.totalAdr).filter((value) => value !== null && value !== undefined);
@@ -477,11 +560,36 @@ export default function WeeklyForecastToolPage() {
     }, {});
   }, [overviewRows]);
 
-  const getLeadTimeBucket = (day) => {
-    const baseDate = selectedReportDate ? new Date(selectedReportDate) : new Date();
-    const targetDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), day);
+  const forecastSummaryByDay = useMemo(() => {
+    return dayNumbers.map((day) => {
+      const forecastForDay = forecastedRooms[day] || {};
+      const addedRooms = Object.values(forecastForDay).reduce((sum, value) => sum + Number(value || 0), 0);
+      const baseAdr = overviewByDay[day]?.totalAdr ?? averageTotalAdr ?? 0;
 
-    const diffDays = Math.round((targetDate - baseDate) / (1000 * 60 * 60 * 24));
+      const addedRevenue = SEGMENT_OVERVIEW_FIELDS.reduce((sum, { roomsSoldField, adrField }) => {
+        const rooms = Number(forecastForDay[roomsSoldField] || 0);
+        if (!rooms) return sum;
+        const adr = overviewByDay[day]?.[adrField] ?? baseAdr;
+        return sum + rooms * (adr || 0);
+      }, 0);
+
+      const baseRooms = overviewByDay[day]?.totalRoomsSold ?? 0;
+
+      return {
+        day,
+        addedRooms,
+        addedRevenue,
+        occupancyRooms: baseRooms + addedRooms,
+      };
+    });
+  }, [averageTotalAdr, dayNumbers, forecastedRooms, overviewByDay]);
+
+  const getLeadTimeBucket = (day) => {
+    const baseDate = forecastBaseDate ? new Date(forecastBaseDate) : new Date();
+    const normalizedBase = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+    const targetDate = new Date(normalizedBase.getFullYear(), normalizedBase.getMonth(), day);
+
+    const diffDays = Math.round((targetDate - normalizedBase) / (1000 * 60 * 60 * 24));
     const leadTime = Math.max(diffDays, 0);
 
     if (leadTime <= 7) return 0;
@@ -517,6 +625,7 @@ export default function WeeklyForecastToolPage() {
 
     const bucketDays = [[], [], [], []];
     dayNumbers.forEach((day) => {
+      if (day < forecastBaseDay) return;
       const bucket = getLeadTimeBucket(day);
       bucketDays[bucket].push(day);
     });
@@ -635,101 +744,166 @@ export default function WeeklyForecastToolPage() {
         </div>
 
         <Card className="space-y-6">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1">
               <h2 className="text-xl font-semibold">Forecast instellingen</h2>
               <p className="text-gray-600 text-sm sm:text-base">
                 Verdeel de nog te forecasten revenue over segmenten en lead times. Deze berekening past niets in
                 Firestore aan.
               </p>
+              <p className="text-xs text-gray-600">
+                Forecast start vanaf pickup report datum {latestReportDateLabel || selectedMonthLabel || "-"}.
+              </p>
             </div>
-            <div className="text-right text-sm text-gray-700">
-              <p className="font-semibold">Gemiddelde Total ADR</p>
-              <p>{averageTotalAdr ? formatEuro(averageTotalAdr) : "Geen ADR bekend"}</p>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-gray-800">Revenue still to be forecasted</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={revenueToForecast}
-                onChange={(event) => setRevenueToForecast(event.target.value)}
-                placeholder="Bijv. 50000"
-                className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-              />
-            </label>
-
-            <div className="flex flex-col justify-center gap-1 bg-gray-50 border rounded px-3 py-2">
-              <span className="text-sm font-medium text-gray-800">Rooms to be forecasted</span>
-              <span className="text-2xl font-semibold text-blue-700">{formatNumber(roomsToForecast)}</span>
-              <p className="text-xs text-gray-600">Berekend op basis van de meest recente Total ADR.</p>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <div className="text-right text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
+                <p className="font-semibold">Gemiddelde Total ADR</p>
+                <p>{averageTotalAdr ? formatEuro(averageTotalAdr) : "Geen ADR bekend"}</p>
+              </div>
+              <Button
+                onClick={saveForecastSettings}
+                disabled={savingSettings || settingsLoading}
+                className="bg-blue-700 hover:bg-blue-800"
+              >
+                {savingSettings ? "Opslaan..." : "Instellingen opslaan"}
+              </Button>
+              <Button
+                onClick={() => setForecastSettingsCollapsed((prev) => !prev)}
+                className="bg-gray-100 text-gray-800 hover:bg-gray-200"
+              >
+                {forecastSettingsCollapsed ? "Toon instellingen" : "Minimaliseer instellingen"}
+              </Button>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Weight per segment (%)</h3>
-              <p className="text-sm text-gray-600">Totaal: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%</p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
-                <label key={roomsSoldField} className="flex flex-col gap-2 border rounded-lg p-3 bg-gray-50">
-                  <span className="font-semibold text-gray-800">{label}</span>
+          {settingsLoading ? (
+            <p className="text-gray-600">Instellingen worden geladen...</p>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-gray-800">Revenue still to be forecasted</span>
                   <input
                     type="number"
                     min="0"
-                    step="0.1"
-                    value={segmentWeights[roomsSoldField] ?? ""}
-                    onChange={(event) => handleWeightChange(roomsSoldField, event.target.value)}
+                    step="0.01"
+                    value={revenueToForecast}
+                    onChange={(event) => setRevenueToForecast(event.target.value)}
+                    placeholder="Bijv. 50000"
                     className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
                   />
                 </label>
-              ))}
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
-              <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
-            </div>
-            <div className="space-y-4">
-              {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
-                <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="font-semibold text-gray-800">{label}</p>
-                    <p className="text-xs text-gray-600">
-                      Lead time buckets: 0-7, 8-14, 15-21 en 22+ dagen.
-                    </p>
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {["0-7", "8-14", "15-21", "22+"].map((labelText, index) => (
-                      <label key={`${roomsSoldField}-bucket-${labelText}`} className="flex flex-col gap-1 text-sm">
-                        <span className="text-gray-700">{labelText} dagen</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          value={pickupCurves[roomsSoldField]?.[index] ?? ""}
-                          onChange={(event) => handleCurveChange(roomsSoldField, index, event.target.value)}
-                          className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-                        />
-                      </label>
-                    ))}
-                  </div>
+                <div className="flex flex-col justify-center gap-1 bg-gray-50 border rounded px-3 py-2">
+                  <span className="text-sm font-medium text-gray-800">Rooms to be forecasted</span>
+                  <span className="text-2xl font-semibold text-blue-700">{formatNumber(roomsToForecast)}</span>
+                  <p className="text-xs text-gray-600">Berekend op basis van de meest recente Total ADR.</p>
                 </div>
-              ))}
+              </div>
+
+              {!forecastSettingsCollapsed && (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Weight per segment (%)</h3>
+                      <p className="text-sm text-gray-600">
+                        Totaal: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
+                        <label key={roomsSoldField} className="flex flex-col gap-2 border rounded-lg p-3 bg-gray-50">
+                          <span className="font-semibold text-gray-800">{label}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={segmentWeights[roomsSoldField] ?? ""}
+                            onChange={(event) => handleWeightChange(roomsSoldField, event.target.value)}
+                            className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
+                      <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
+                    </div>
+                    <div className="space-y-4">
+                      {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => (
+                        <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="font-semibold text-gray-800">{label}</p>
+                            <p className="text-xs text-gray-600">
+                              Lead time buckets: 0-7, 8-14, 15-21 en 22+ dagen.
+                            </p>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {["0-7", "8-14", "15-21", "22+"].map((labelText, index) => (
+                              <label key={`${roomsSoldField}-bucket-${labelText}`} className="flex flex-col gap-1 text-sm">
+                                <span className="text-gray-700">{labelText} dagen</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.1"
+                                  value={pickupCurves[roomsSoldField]?.[index] ?? ""}
+                                  onChange={(event) => handleCurveChange(roomsSoldField, index, event.target.value)}
+                                  className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end">
+                <Button onClick={handleCalculateForecast} className="bg-green-700 hover:bg-green-800">
+                  Calculate forecast
+                </Button>
+              </div>
+            </>
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Forecast toevoegingen per dag</h2>
+              <p className="text-gray-600 text-sm">Kamers en revenue die via de forecast worden toegevoegd plus totale bezetting.</p>
+            </div>
+            <div className="text-sm text-gray-700 bg-gray-100 rounded px-3 py-1.5">
+              Forecast vanaf dag {forecastBaseDay} van {selectedMonthLabel || "onbekend"}
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <Button onClick={handleCalculateForecast} className="bg-green-700 hover:bg-green-800">
-              Calculate forecast
-            </Button>
+          <div className="overflow-x-auto">
+            <table className="min-w-[600px] w-full text-sm text-right">
+              <thead className="bg-gray-100 text-gray-700">
+                <tr>
+                  <th className="px-3 py-2 text-left">Dag</th>
+                  <th className="px-3 py-2">Kamers toegevoegd</th>
+                  <th className="px-3 py-2">Revenue toegevoegd</th>
+                  <th className="px-3 py-2">Bezetting (rooms)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {forecastSummaryByDay.map(({ day, addedRooms, addedRevenue, occupancyRooms }) => (
+                  <tr key={`forecast-summary-${day}`} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-left font-medium text-gray-800">{day}</td>
+                    <td className="px-3 py-2 text-green-700 font-semibold">+{formatDecimal(addedRooms) ?? 0}</td>
+                    <td className="px-3 py-2 text-green-700 font-semibold">{formatEuro(addedRevenue)}</td>
+                    <td className="px-3 py-2 font-medium">{formatNumber(occupancyRooms)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Card>
 
