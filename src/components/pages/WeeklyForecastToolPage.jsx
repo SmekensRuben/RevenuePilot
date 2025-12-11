@@ -304,7 +304,7 @@ export default function WeeklyForecastToolPage() {
 
   const confirmDateAndOpenFilePicker = () => {
     if (!selectedReportDate) {
-      toast.error("Selecteer eerst een datum voor het pickup report.");
+      toast.error("Please select a pickup report date first.");
       return;
     }
     setIsDateDialogOpen(false);
@@ -315,7 +315,7 @@ export default function WeeklyForecastToolPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     if (!hotelUid) {
-      toast.error("Selecteer een hotel om data op te slaan.");
+      toast.error("Select a hotel before saving data.");
       event.target.value = "";
       return;
     }
@@ -327,10 +327,10 @@ export default function WeeklyForecastToolPage() {
       header: true,
       skipEmptyLines: "greedy",
       complete: async ({ data, errors, meta }) => {
-        if (errors?.length) {
-          console.warn("CSV parse errors", errors);
-          toast.warn("Sommige rijen hadden een foutief formaat en zijn overgeslagen.");
-        }
+          if (errors?.length) {
+            console.warn("CSV parse errors", errors);
+            toast.warn("Some rows had an invalid format and were skipped.");
+          }
 
         try {
           const adrHeaderLookup = createAdrHeaderLookup(meta?.fields);
@@ -364,7 +364,7 @@ export default function WeeklyForecastToolPage() {
             .filter(Boolean);
 
           if (!validRows.length) {
-            toast.error("Geen geldige rijen gevonden in het CSV-bestand.");
+            toast.error("No valid rows found in the CSV file.");
             return;
           }
 
@@ -411,11 +411,11 @@ export default function WeeklyForecastToolPage() {
           }
 
           await commitBatch();
-          toast.success(`Pickup report opgeslagen (${validRows.length} rijen).`);
+          toast.success(`Pickup report saved (${validRows.length} rows).`);
           await fetchOverviewData();
         } catch (err) {
           console.error("Error storing pickup report", err);
-          toast.error("Kon pickup report niet opslaan.");
+          toast.error("Could not save the pickup report.");
         } finally {
           setUploading(false);
           event.target.value = "";
@@ -423,7 +423,7 @@ export default function WeeklyForecastToolPage() {
       },
       error: (err) => {
         console.error("Error parsing CSV", err);
-        toast.error("CSV kon niet gelezen worden.");
+        toast.error("The CSV file could not be read.");
         setUploading(false);
         event.target.value = "";
       },
@@ -455,7 +455,7 @@ export default function WeeklyForecastToolPage() {
       setOccupancyWeights(normalizeOccupancyWeights(data.occupancyWeights));
     } catch (err) {
       console.error("Error loading forecast settings", err);
-      toast.error("Kon de forecast instellingen niet laden.");
+      toast.error("Could not load the forecast settings.");
     } finally {
       setSettingsLoading(false);
     }
@@ -463,7 +463,7 @@ export default function WeeklyForecastToolPage() {
 
   const saveForecastSettings = async () => {
     if (!settingsDocRef) {
-      toast.error("Selecteer eerst een hotel om instellingen op te slaan.");
+      toast.error("Select a hotel before saving settings.");
       return;
     }
 
@@ -481,10 +481,10 @@ export default function WeeklyForecastToolPage() {
         },
         { merge: true }
       );
-      toast.success("Forecast instellingen opgeslagen.");
+      toast.success("Forecast settings saved.");
     } catch (err) {
       console.error("Error saving forecast settings", err);
-      toast.error("Kon forecast instellingen niet opslaan.");
+      toast.error("Could not save the forecast settings.");
     } finally {
       setSavingSettings(false);
     }
@@ -532,7 +532,7 @@ export default function WeeklyForecastToolPage() {
       setOverviewRows(rows);
     } catch (err) {
       console.error("Error loading pickup report overview", err);
-      toast.error("Kon de pickup gegevens niet ophalen.");
+      toast.error("Could not fetch the pickup data.");
     } finally {
       setOverviewLoading(false);
     }
@@ -692,13 +692,13 @@ export default function WeeklyForecastToolPage() {
 
   const handleCalculateForecast = () => {
     if (!roomsToForecast) {
-      toast.error("Voer een geldige revenue in om kamers te forecasten.");
+      toast.error("Enter a valid revenue amount to generate the forecast.");
       return;
     }
 
     const totalWeight = Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0);
     if (!totalWeight) {
-      toast.error("Voeg een weight toe per segment om te verdelen.");
+      toast.error("Add a weight per segment before distributing.");
       return;
     }
 
@@ -904,7 +904,7 @@ export default function WeeklyForecastToolPage() {
 
     if (unreachableRemainder > 0) {
       toast.warn(
-        `Er zijn ${formatNumber(unreachableRemainder)} kamers die niet kunnen worden verdeeld vanwege capaciteitslimieten.`
+        `There are ${formatNumber(unreachableRemainder)} rooms that cannot be distributed due to capacity limits.`
       );
     }
 
@@ -923,7 +923,7 @@ export default function WeeklyForecastToolPage() {
     }, {});
 
     setForecastedRooms(finalForecast);
-    toast.success("Forecast berekend. Er zijn geen wijzigingen opgeslagen.");
+    toast.success("Forecast calculated. No changes were saved.");
   };
 
   const buildExportData = (includeForecastedRooms = false) => {
@@ -981,8 +981,8 @@ export default function WeeklyForecastToolPage() {
     return [
       ["Weekly Forecast Tool export"],
       ["Hotel", hotelUid || "-"],
-      ["Rapportdatum", selectedReportDate || "-"],
-      ["Maand", selectedMonthLabel || "-"],
+      ["Report date", selectedReportDate || "-"],
+      ["Month", selectedMonthLabel || "-"],
       [],
       headerRow,
       ...rows,
@@ -991,12 +991,12 @@ export default function WeeklyForecastToolPage() {
 
   const exportToExcel = (includeForecastedRooms = false) => {
     if (!overviewRows.length) {
-      toast.warn("Geen pickup data om te exporteren.");
+      toast.warn("No pickup data available to export.");
       return;
     }
 
     if (includeForecastedRooms && !hasForecastedRooms) {
-      toast.warn("Bereken eerst een forecast om deze export te gebruiken.");
+      toast.warn("Calculate a forecast first to use this export.");
       return;
     }
 
@@ -1008,7 +1008,7 @@ export default function WeeklyForecastToolPage() {
     const filenameSuffix = includeForecastedRooms ? "-calculated" : "";
     const filename = `weekly-forecast${filenameSuffix}-${selectedReportDate || "export"}.xlsx`;
     XLSX.writeFile(workbook, filename);
-    toast.success("Excel export aangemaakt.");
+    toast.success("Excel export created.");
   };
 
   const handleExportToExcel = () => exportToExcel(false);
@@ -1023,7 +1023,7 @@ export default function WeeklyForecastToolPage() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Weekly Forecast Tool</h1>
             <p className="text-gray-600">
-              Importeer een pickup report CSV en sla de resultaten gestructureerd op.
+              Import a pickup report CSV and store the results in a structured way.
             </p>
           </div>
           <div className="flex items-center justify-end w-full sm:w-auto gap-3">
@@ -1033,7 +1033,7 @@ export default function WeeklyForecastToolPage() {
               className="bg-emerald-700 hover:bg-emerald-800 flex items-center gap-2"
             >
               <FileSpreadsheet className="h-4 w-4" />
-              <span>Calculated forecast exporteren</span>
+              <span>Export calculated forecast</span>
             </Button>
             <Button
               onClick={handleExportToExcel}
@@ -1041,11 +1041,11 @@ export default function WeeklyForecastToolPage() {
               className="bg-green-700 hover:bg-green-800 flex items-center gap-2"
             >
               <FileSpreadsheet className="h-4 w-4" />
-              <span>Exporteren naar Excel</span>
+              <span>Export to Excel</span>
             </Button>
             <Button onClick={openDateDialog} disabled={uploading} className="bg-[#b41f1f] hover:bg-[#9d1b1b] flex items-center gap-2">
               <FileInput className="h-4 w-4" />
-              <span>{uploading ? "Bezig met import..." : "Importeer pickup CSV"}</span>
+              <span>{uploading ? "Import in progress..." : "Import pickup CSV"}</span>
             </Button>
             <input
               ref={fileInputRef}
@@ -1061,38 +1061,38 @@ export default function WeeklyForecastToolPage() {
         <Card className="space-y-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1">
-              <h2 className="text-xl font-semibold">Forecast instellingen</h2>
+              <h2 className="text-xl font-semibold">Forecast settings</h2>
               <p className="text-gray-600 text-sm sm:text-base">
-                Verdeel de nog te forecasten revenue over segmenten en lead times. Deze berekening past niets in
-                Firestore aan.
+                Distribute the remaining revenue to forecast across segments and lead times. This calculation does
+                not update anything in Firestore.
               </p>
               <p className="text-xs text-gray-600">
-                Forecast start vanaf pickup report datum {latestReportDateLabel || selectedMonthLabel || "-"}.
+                Forecast starts from the pickup report date {latestReportDateLabel || selectedMonthLabel || "-"}.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-end">
               <div className="text-right text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
-                <p className="font-semibold">Gemiddelde Total ADR</p>
-                <p>{averageTotalAdr ? formatEuro(averageTotalAdr) : "Geen ADR bekend"}</p>
+                <p className="font-semibold">Average Total ADR</p>
+                <p>{averageTotalAdr ? formatEuro(averageTotalAdr) : "No ADR available"}</p>
               </div>
               <Button
                 onClick={saveForecastSettings}
                 disabled={savingSettings || settingsLoading}
                 className="bg-blue-700 hover:bg-blue-800"
               >
-                {savingSettings ? "Opslaan..." : "Instellingen opslaan"}
+                {savingSettings ? "Saving..." : "Save settings"}
               </Button>
               <Button
                 onClick={() => setForecastSettingsCollapsed((prev) => !prev)}
                 className="bg-gray-100 text-gray-800 hover:bg-gray-200"
               >
-                {forecastSettingsCollapsed ? "Toon instellingen" : "Minimaliseer instellingen"}
+                {forecastSettingsCollapsed ? "Show settings" : "Collapse settings"}
               </Button>
             </div>
           </div>
 
           {settingsLoading ? (
-            <p className="text-gray-600">Instellingen worden geladen...</p>
+            <p className="text-gray-600">Loading settings...</p>
           ) : (
             <>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1104,7 +1104,7 @@ export default function WeeklyForecastToolPage() {
                     step="0.01"
                     value={revenueToForecast}
                     onChange={(event) => setRevenueToForecast(event.target.value)}
-                    placeholder="Bijv. 50000"
+                    placeholder="e.g. 50000"
                     className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
                   />
                 </label>
@@ -1112,7 +1112,7 @@ export default function WeeklyForecastToolPage() {
                 <div className="flex flex-col justify-center gap-1 bg-gray-50 border rounded px-3 py-2">
                   <span className="text-sm font-medium text-gray-800">Rooms to be forecasted</span>
                   <span className="text-2xl font-semibold text-blue-700">{formatNumber(roomsToForecast)}</span>
-                  <p className="text-xs text-gray-600">Berekend op basis van de meest recente Total ADR.</p>
+                  <p className="text-xs text-gray-600">Calculated based on the most recent Total ADR.</p>
                 </div>
               </div>
 
@@ -1122,10 +1122,10 @@ export default function WeeklyForecastToolPage() {
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">Weight per segment (%)</h3>
                       <p className="text-sm text-gray-600">
-                        Totaal: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%
+                        Total: {formatDecimal(Object.values(segmentWeights).reduce((sum, value) => sum + Number(value || 0), 0)) || 0}%
                       </p>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 auto-rows-fr">
                       {SEGMENT_OVERVIEW_FIELDS.map(({ label, roomsSoldField }) => {
                         const value = Number(segmentWeights[roomsSoldField] || 0);
                         const height = maxSegmentWeight > 0 ? Math.min((value / maxSegmentWeight) * 160, 160) : 0;
@@ -1138,7 +1138,7 @@ export default function WeeklyForecastToolPage() {
                             <span className="font-semibold text-gray-800">{label}</span>
                             <div className="flex items-end justify-center gap-2 flex-1">
                               <div className="flex flex-col items-center gap-1">
-                                <div className="relative w-10 bg-blue-100 rounded-sm flex items-end justify-center" style={{ height: 160 }}>
+                                <div className="relative w-8 bg-blue-100 rounded-sm flex items-end justify-center" style={{ height: 160 }}>
                                   <div
                                     className="w-full bg-blue-500 rounded-sm transition-all duration-200"
                                     style={{ height }}
@@ -1148,7 +1148,7 @@ export default function WeeklyForecastToolPage() {
                               </div>
                             </div>
                             <label className="flex flex-col gap-1 text-sm">
-                              <span className="text-gray-700">Aanpassen (%)</span>
+                              <span className="text-gray-700">Adjust (%)</span>
                               <input
                                 type="number"
                                 min="0"
@@ -1165,35 +1165,35 @@ export default function WeeklyForecastToolPage() {
                   </div>
 
                     <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
+                      <p className="text-sm text-gray-600">Distribute the weight per lead time (days).</p>
+                    </div>
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">Pickup curves per segment</h3>
-                        <p className="text-sm text-gray-600">Verdeel de weight per lead time (dagen).</p>
+                        <h4 className="text-md font-semibold">Occupancy weight</h4>
+                        <p className="text-sm text-gray-600">Configure how much forecast contribution to use per occupancy level.</p>
                       </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-md font-semibold">Occupancy weight</h4>
-                          <p className="text-sm text-gray-600">Configureer hoeveel forecast meeweegt per bezettingsniveau.</p>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                          {effectiveOccupancyWeights.map((step, index) => (
-                            <div key={`occupancy-step-${index}`} className="border rounded-lg p-3 bg-gray-50 space-y-2">
-                              <div className="text-sm text-gray-700">
-                                <p className="font-semibold">Drempel: &lt; {formatDecimal(step.threshold * 100)}% occupancy</p>
-                                <p className="text-xs text-gray-600">Pas de drempel of het gewicht aan.</p>
-                              </div>
-                              <label className="flex flex-col gap-1 text-sm">
-                                <span className="text-gray-700">Drempel (%)</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={step.threshold}
-                                  onChange={(event) => handleOccupancyWeightChange(index, "threshold", event.target.value)}
-                                  className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
-                                />
-                              </label>
-                              <label className="flex flex-col gap-1 text-sm">
-                                <span className="text-gray-700">Weight (0-1)</span>
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        {effectiveOccupancyWeights.map((step, index) => (
+                          <div key={`occupancy-step-${index}`} className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                            <div className="text-sm text-gray-700">
+                              <p className="font-semibold">Threshold: &lt; {formatDecimal(step.threshold * 100)}% occupancy</p>
+                              <p className="text-xs text-gray-600">Adjust the threshold or weight.</p>
+                            </div>
+                            <label className="flex flex-col gap-1 text-sm">
+                              <span className="text-gray-700">Threshold (%)</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={step.threshold}
+                                onChange={(event) => handleOccupancyWeightChange(index, "threshold", event.target.value)}
+                                className="border rounded px-3 py-2 focus:outline-none focus:ring focus:ring-blue-200"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1 text-sm">
+                              <span className="text-gray-700">Weight (0-1)</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -1214,27 +1214,27 @@ export default function WeeklyForecastToolPage() {
                           const maxBucket = Math.max(20, ...bucketValues);
 
                           return (
-                            <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
-                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                <p className="font-semibold text-gray-800">{label}</p>
-                                <p className="text-xs text-gray-600">
-                                  Lead time buckets: 0, 1-3, 4-7, 8-14, 15-21 en 22+ dagen.
-                                </p>
-                              </div>
-                              <div className="mt-4 overflow-x-auto">
-                                <div className="min-w-full">
-                                  <div className="flex items-end gap-2 pb-4">
-                                    {PICKUP_BUCKETS.map(({ label: labelText }, index) => {
-                                      const value = bucketValues[index] ?? 0;
-                                      const height = maxBucket > 0 ? Math.min((value / maxBucket) * 160, 160) : 0;
+                          <div key={`${roomsSoldField}-curve`} className="border rounded-lg p-3">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="font-semibold text-gray-800">{label}</p>
+                              <p className="text-xs text-gray-600">
+                                  Lead time buckets: 0, 1-3, 4-7, 8-14, 15-21 and 22+ days.
+                              </p>
+                            </div>
+                            <div className="mt-4 overflow-x-auto">
+                              <div className="min-w-full">
+                                <div className="flex items-end gap-2 pb-4">
+                                  {PICKUP_BUCKETS.map(({ label: labelText }, index) => {
+                                    const value = bucketValues[index] ?? 0;
+                                    const height = maxBucket > 0 ? Math.min((value / maxBucket) * 190, 190) : 0;
 
-                                      return (
-                                        <div
-                                          key={`${roomsSoldField}-bucket-${labelText}`}
-                                          className="w-12 min-w-[44px]"
-                                        >
-                                          <div className="flex flex-col items-center gap-2">
-                                            <div className="relative w-full bg-emerald-100 rounded-sm" style={{ height: 160 }}>
+                                    return (
+                                      <div
+                                        key={`${roomsSoldField}-bucket-${labelText}`}
+                                        className="w-12 min-w-[44px]"
+                                      >
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="relative w-full bg-emerald-100 rounded-sm" style={{ height: 190 }}>
                                               <div
                                                 className="absolute bottom-0 left-0 right-0 bg-emerald-500 rounded-sm transition-all duration-200"
                                                 style={{ height }}
@@ -1243,7 +1243,7 @@ export default function WeeklyForecastToolPage() {
                                                 {formatDecimal(value)}%
                                               </span>
                                             </div>
-                                            <span className="text-xs text-gray-700">{labelText} dagen</span>
+                                            <span className="text-xs text-gray-700">{labelText} days</span>
                                             <input
                                               type="number"
                                               min="0"
@@ -1279,11 +1279,11 @@ export default function WeeklyForecastToolPage() {
         <Card className="space-y-4">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Forecast toevoegingen per dag</h2>
-              <p className="text-gray-600 text-sm">Kamers en revenue die via de forecast worden toegevoegd plus totale bezetting.</p>
+              <h2 className="text-xl font-semibold">Forecast additions per day</h2>
+              <p className="text-gray-600 text-sm">Rooms and revenue added by the forecast plus total occupancy.</p>
             </div>
             <div className="text-sm text-gray-700 bg-gray-100 rounded px-3 py-1.5">
-              Forecast vanaf dag {forecastBaseDay} van {selectedMonthLabel || "onbekend"}
+              Forecast starting from day {forecastBaseDay} of {selectedMonthLabel || "unknown"}
             </div>
           </div>
 
@@ -1291,10 +1291,10 @@ export default function WeeklyForecastToolPage() {
             <table className="min-w-[600px] w-full text-sm text-right">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
-                  <th className="px-3 py-2 text-left">Dag</th>
-                  <th className="px-3 py-2">Kamers toegevoegd</th>
-                  <th className="px-3 py-2">Revenue toegevoegd</th>
-                  <th className="px-3 py-2">Bezetting (rooms)</th>
+                  <th className="px-3 py-2 text-left">Day</th>
+                  <th className="px-3 py-2">Rooms added</th>
+                  <th className="px-3 py-2">Revenue added</th>
+                  <th className="px-3 py-2">Occupancy (rooms)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -1313,15 +1313,15 @@ export default function WeeklyForecastToolPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex items-center justify-between bg-green-50 border border-green-100 rounded-lg px-4 py-3">
               <div>
-                <p className="text-sm text-green-800">Kamers toegevoegd (maandtotaal)</p>
+                <p className="text-sm text-green-800">Rooms added (month total)</p>
                 <p className="text-lg font-semibold text-green-900">
-                  +{formatNumber(monthlyForecastTotals.totalAddedRooms)} kamers
+                  +{formatNumber(monthlyForecastTotals.totalAddedRooms)} rooms
                 </p>
               </div>
             </div>
             <div className="flex items-center justify-between bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
               <div>
-                <p className="text-sm text-blue-800">Revenue toegevoegd (maandtotaal)</p>
+                <p className="text-sm text-blue-800">Revenue added (month total)</p>
                 <p className="text-lg font-semibold text-blue-900">{formatEuro(monthlyForecastTotals.totalAddedRevenue)}</p>
               </div>
             </div>
@@ -1332,17 +1332,17 @@ export default function WeeklyForecastToolPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold">
-                Business on books: {latestReportDateLabel || "geen data beschikbaar"}
+                Business on books: {latestReportDateLabel || "no data available"}
               </h2>
-              <p className="text-gray-600">Overzicht voor {selectedMonthLabel || "geselecteerde maand"}.</p>
+              <p className="text-gray-600">Overview for {selectedMonthLabel || "selected month"}.</p>
             </div>
             <Button onClick={fetchOverviewData} disabled={overviewLoading}>
-              {overviewLoading ? "Bezig met laden..." : "Ververs overzicht"}
+              {overviewLoading ? "Loading..." : "Refresh overview"}
             </Button>
           </div>
 
           {!overviewRows.length && !overviewLoading ? (
-            <p className="text-gray-600">Geen pickup data gevonden voor deze rapportdatum.</p>
+            <p className="text-gray-600">No pickup data found for this report date.</p>
           ) : null}
 
           <div className="space-y-6">
@@ -1426,10 +1426,8 @@ export default function WeeklyForecastToolPage() {
       {isDateDialogOpen && (
         <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center px-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Kies datum voor pickup report</h3>
-            <p className="text-sm text-gray-600">
-              Deze datum wordt gebruikt als documentId in Firestore.
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900">Choose a date for the pickup report</h3>
+            <p className="text-sm text-gray-600">This date will be used as the documentId in Firestore.</p>
             <input
               type="date"
               value={selectedReportDate}
@@ -1443,14 +1441,14 @@ export default function WeeklyForecastToolPage() {
                 onClick={() => setIsDateDialogOpen(false)}
                 disabled={uploading}
               >
-                Annuleren
+                Cancel
               </Button>
               <Button
                 type="button"
                 onClick={confirmDateAndOpenFilePicker}
                 disabled={uploading || !selectedReportDate}
               >
-                Kies CSV-bestand
+                Choose CSV file
               </Button>
             </div>
           </div>
