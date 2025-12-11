@@ -97,14 +97,11 @@ const SEGMENT_OVERVIEW_FIELDS = [
   },
 ];
 
-const PICKUP_BUCKETS = [
-  { label: "0", minDays: 0, maxDays: 0 },
-  { label: "1-3", minDays: 1, maxDays: 3 },
-  { label: "4-7", minDays: 4, maxDays: 7 },
-  { label: "8-14", minDays: 8, maxDays: 14 },
-  { label: "15-21", minDays: 15, maxDays: 21 },
-  { label: "22+", minDays: 22, maxDays: Infinity },
-];
+const PICKUP_BUCKETS = Array.from({ length: 15 }, (_, index) => {
+  const minDays = index * 2;
+  const maxDays = minDays + 1;
+  return { label: `${minDays}-${maxDays}`, minDays, maxDays };
+});
 
 const DEFAULT_OCCUPANCY_WEIGHTS = [
   { threshold: 0.8, weight: 1 },
@@ -121,13 +118,16 @@ const getDefaultSegmentWeights = () =>
     ])
   );
 
-const getDefaultPickupCurves = () =>
-  Object.fromEntries(
+const getDefaultPickupCurves = () => {
+  const defaultPortion = 100 / PICKUP_BUCKETS.length;
+
+  return Object.fromEntries(
     SEGMENT_OVERVIEW_FIELDS.map(({ roomsSoldField }) => [
       roomsSoldField,
-      [15, 20, 20, 20, 15, 10],
+      Array.from({ length: PICKUP_BUCKETS.length }, () => defaultPortion),
     ])
   );
+};
 
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
@@ -745,10 +745,11 @@ export default function WeeklyForecastToolPage() {
     const baseDay = normalizedBaseDate.getDate();
     const daysInMonth = getDaysInMonth(normalizedBaseDate);
     const remainingDaysInMonth = Math.max(daysInMonth - baseDay + 1, 0);
+    const forecastHorizon = Math.min(remainingDaysInMonth, 30);
     const targetTotalRooms = Math.max(Math.round(roomsToForecast), 0);
 
     const bucketDays = PICKUP_BUCKETS.map(() => []);
-    Array.from({ length: remainingDaysInMonth }, (_, offset) => offset).forEach((daysOut) => {
+    Array.from({ length: forecastHorizon }, (_, offset) => offset).forEach((daysOut) => {
       const bucket = getLeadTimeBucket(daysOut);
       const dayNumber = baseDay + daysOut;
       if (bucket >= 0) {
@@ -891,6 +892,12 @@ export default function WeeklyForecastToolPage() {
   const buildExportData = (includeForecastedRooms = false) => {
     const headerRow = ["Segment", "Meting", ...dayNumbers.map((day) => `Dag ${day}`)];
 
+    const roundExportValue = (value) => {
+      if (value === null || value === undefined) return "";
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? Math.round(numericValue) : "";
+    };
+
     const rows = SEGMENT_OVERVIEW_FIELDS.flatMap(({ label, roomsSoldField, adrField }) => {
       const roomsSoldRow = [
         label,
@@ -912,7 +919,7 @@ export default function WeeklyForecastToolPage() {
         }),
       ];
 
-      const adrRow = [label, "ADR", ...dayNumbers.map((day) => overviewByDay[day]?.[adrField] ?? "")];
+      const adrRow = [label, "ADR", ...dayNumbers.map((day) => roundExportValue(overviewByDay[day]?.[adrField]))];
 
       const revenueRow = [
         label,
@@ -925,7 +932,9 @@ export default function WeeklyForecastToolPage() {
           const forecastRooms = includeForecastedRooms ? Number(forecastedRooms[day]?.[roomsSoldField] || 0) : 0;
           const totalRooms = includeForecastedRooms ? baseRooms + forecastRooms : baseRooms;
 
-          return totalRooms ? totalRooms * adr : "";
+          if (!totalRooms) return "";
+
+          return roundExportValue(totalRooms * adr);
         }),
       ];
 
