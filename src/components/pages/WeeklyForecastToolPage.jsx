@@ -778,10 +778,11 @@ export default function WeeklyForecastToolPage() {
     const forecastHorizon = Math.min(remainingDaysInMonth, 30);
     const targetTotalRooms = Math.max(Math.round(roomsToForecast), 0);
 
+    const forecastDays = Array.from({ length: forecastHorizon }, (_, offset) => baseDay + offset);
+
     const bucketDays = PICKUP_BUCKETS.map(() => []);
-    Array.from({ length: forecastHorizon }, (_, offset) => offset).forEach((daysOut) => {
-      const bucket = getLeadTimeBucket(daysOut);
-      const dayNumber = baseDay + daysOut;
+    forecastDays.forEach((dayNumber) => {
+      const bucket = getLeadTimeBucket(dayNumber - baseDay);
       if (bucket >= 0) {
         bucketDays[bucket].push(dayNumber);
       }
@@ -819,7 +820,7 @@ export default function WeeklyForecastToolPage() {
       });
     });
 
-    const baseDayEntries = dayNumbers.map((day) => {
+    const baseDayEntries = forecastDays.map((day) => {
       const segments = newForecast[day] || {};
       const total = Object.values(segments).reduce((sum, value) => sum + Number(value || 0), 0);
       return { key: day, value: total, segments };
@@ -827,7 +828,7 @@ export default function WeeklyForecastToolPage() {
 
     const roundedBaseTotals = roundAllocations(baseDayEntries, targetTotalRooms);
 
-    const occupancyAdjusted = dayNumbers.map((day) => {
+    const occupancyAdjusted = forecastDays.map((day) => {
       const dayOverview = overviewByDay[day] || {};
       const totalRoomsSold = Number(dayOverview.totalRoomsSold || 0);
       const roomsLeftToSell = Number(dayOverview.roomsLeftToSell || 0);
@@ -855,13 +856,13 @@ export default function WeeklyForecastToolPage() {
       caps
     );
 
-    const totalCapacity = dayNumbers.reduce((sum, day) => sum + Math.max(caps[day] ?? Infinity, 0), 0);
+    const totalCapacity = forecastDays.reduce((sum, day) => sum + Math.max(caps[day] ?? Infinity, 0), 0);
     let allocatedTotal = Object.values(adjustedTotals).reduce((sum, value) => sum + Number(value || 0), 0);
     let remainder = Math.max(0, Math.min(targetTotalRooms, totalCapacity) - allocatedTotal);
 
     if (remainder > 0) {
       const allocateNextRoom = () => {
-        const candidates = dayNumbers
+        const candidates = forecastDays
           .map((day) => {
             const capacity = Math.max(caps[day] ?? Infinity, 0);
             const currentTotal = Math.max(adjustedTotals[day] || 0, 0);
@@ -907,7 +908,14 @@ export default function WeeklyForecastToolPage() {
       );
     }
 
+    const forecastDaySet = new Set(forecastDays);
+
     const finalForecast = dayNumbers.reduce((acc, day) => {
+      if (!forecastDaySet.has(day)) {
+        acc[day] = {};
+        return acc;
+      }
+
       const dayTotal = adjustedTotals[day] || 0;
       const segments = allocateSegmentsForDay(newForecast[day], dayTotal);
       acc[day] = segments;
