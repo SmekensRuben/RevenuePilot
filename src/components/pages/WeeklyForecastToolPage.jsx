@@ -818,18 +818,25 @@ export default function WeeklyForecastToolPage() {
       });
 
       if (remainder > 0) {
-        let distributed = false;
+        const withShortfall = sortedDays.map((entry) => ({
+          entry,
+          desiredShortfall: Math.max(entry.baseRooms - entry.adjustedRooms, 0),
+        }));
+
         while (remainder > 0) {
-          distributed = false;
-          sortedDays.forEach((entry) => {
-            if (remainder > 0 && entry.adjustedRooms < entry.maxAddable) {
-              entry.adjustedRooms += 1;
+          const candidates = withShortfall.filter(
+            ({ entry, desiredShortfall }) => entry.adjustedRooms < entry.maxAddable && desiredShortfall > 0
+          );
+
+          if (!candidates.length) break;
+
+          candidates.forEach((entry) => {
+            if (remainder > 0 && entry.entry.adjustedRooms < entry.entry.maxAddable && entry.desiredShortfall > 0) {
+              entry.entry.adjustedRooms += 1;
+              entry.desiredShortfall -= 1;
               remainder -= 1;
-              distributed = true;
             }
           });
-
-          if (!distributed) break;
         }
       } else {
         let distributed = false;
