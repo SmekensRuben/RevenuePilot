@@ -852,6 +852,29 @@ export default function WeeklyForecastToolPage() {
             }
           });
         }
+
+        if (remainder > 0) {
+          const withCapacity = sortedDays
+            .map((entry) => ({ entry, remainingCapacity: Math.max(entry.maxAddable - entry.adjustedRooms, 0) }))
+            .filter(({ remainingCapacity }) => remainingCapacity > 0);
+
+          let index = 0;
+          while (remainder > 0 && withCapacity.length) {
+            const current = withCapacity[index % withCapacity.length];
+            if (current.remainingCapacity > 0) {
+              current.entry.adjustedRooms += 1;
+              current.remainingCapacity -= 1;
+              remainder -= 1;
+            }
+
+            if (current.remainingCapacity <= 0) {
+              withCapacity.splice(index % withCapacity.length, 1);
+              index = 0;
+            } else {
+              index += 1;
+            }
+          }
+        }
       } else {
         let distributed = false;
         while (remainder < 0) {
