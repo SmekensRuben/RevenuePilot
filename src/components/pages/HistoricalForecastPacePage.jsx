@@ -126,6 +126,11 @@ export default function HistoricalForecastPacePage() {
   const [selectedSegments, setSelectedSegments] = useState(SEGMENT_OPTIONS);
   const [historicalData, setHistoricalData] = useState([]);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
+  const [comparisonStartDate, setComparisonStartDate] = useState(formatDateInput());
+  const [comparisonEndDate, setComparisonEndDate] = useState(formatDateInput());
+  const [comparisonSegment, setComparisonSegment] = useState(SEGMENT_OPTIONS[0]);
+  const [comparisonChartData, setComparisonChartData] = useState(null);
+  const [loadingComparisonChart, setLoadingComparisonChart] = useState(false);
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -223,6 +228,100 @@ export default function HistoricalForecastPacePage() {
       toast.error("Kon historische forecast pace niet laden.");
     } finally {
       setLoadingHistorical(false);
+    }
+  };
+
+  const buildDateRange = (start, end) => {
+    const result = [];
+    const cursor = new Date(start);
+    const limit = new Date(end);
+
+    if (Number.isNaN(cursor.getTime()) || Number.isNaN(limit.getTime())) {
+      return result;
+    }
+
+    while (cursor <= limit) {
+      result.push(formatDateInput(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return result;
+  };
+
+  const fetchComparisonChart = async () => {
+    if (!hotelUid) {
+      toast.error("Selecteer een hotel om data te laden.");
+      return;
+    }
+
+    if (!comparisonStartDate || !comparisonEndDate) {
+      toast.error("Kies een begin- en einddatum.");
+      return;
+    }
+
+    if (new Date(comparisonStartDate) > new Date(comparisonEndDate)) {
+      toast.error("De begindatum moet vóór de einddatum liggen.");
+      return;
+    }
+
+    const segmentField =
+      SEGMENT_FIELD_OVERRIDES[comparisonSegment] || `${toCamelCase(comparisonSegment)}Otb`;
+
+    const dateRange = buildDateRange(comparisonStartDate, comparisonEndDate);
+
+    if (!dateRange.length) {
+      toast.error("Ongeldige datumbereik gekozen.");
+      return;
+    }
+
+    setLoadingComparisonChart(true);
+
+    try {
+      const reportCollection = collection(db, `hotels/${hotelUid}/historicalBobPerSegment`);
+
+      const getValueForDate = async (reportDate, stayDate) => {
+        const reportDocRef = doc(reportCollection, reportDate);
+        const dateDocRef = doc(reportDocRef, "dates", stayDate);
+        const dateSnap = await getDoc(dateDocRef);
+        if (!dateSnap.exists()) return 0;
+        const value = parseNumber(dateSnap.data()?.[segmentField]);
+        return value ?? 0;
+      };
+
+      const baselineData = await Promise.all(
+        dateRange.map((date) => getValueForDate(comparisonStartDate, date))
+      );
+
+      const actualData = await Promise.all(
+        dateRange.map((date) => getValueForDate(date, date))
+      );
+
+      setComparisonChartData({
+        labels: dateRange,
+        datasets: [
+          {
+            label: `BOB op ${comparisonStartDate}`,
+            data: baselineData,
+            borderColor: "#2563eb",
+            backgroundColor: "#2563eb33",
+            tension: 0.25,
+            pointRadius: 3,
+          },
+          {
+            label: "Actuele BOB",
+            data: actualData,
+            borderColor: "#b41f1f",
+            backgroundColor: "#b41f1f33",
+            tension: 0.25,
+            pointRadius: 3,
+          },
+        ],
+      });
+    } catch (err) {
+      console.error("Error fetching comparison chart data", err);
+      toast.error("Kon historische BOB-vergelijking niet laden.");
+    } finally {
+      setLoadingComparisonChart(false);
     }
   };
 
@@ -530,6 +629,75 @@ export default function HistoricalForecastPacePage() {
           ) : (
             <p className="text-gray-600">
               Geen data beschikbaar voor de gekozen combinatie van datum en segmenten.
+            </p>
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">BOB-vergelijking per segment</h2>
+              <p className="text-sm text-gray-500">
+                Vergelijk de BOB van de begindag met de werkelijke BOB per dag tot de einddatum.
+              </p>
+            </div>
+            <div className="text-sm text-gray-600">
+              Segment: <span className="font-semibold">{comparisonSegment}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Begindatum</label>
+              <input
+                type="date"
+                value={comparisonStartDate}
+                onChange={(e) => setComparisonStartDate(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Einddatum</label>
+              <input
+                type="date"
+                value={comparisonEndDate}
+                onChange={(e) => setComparisonEndDate(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Segment</label>
+              <select
+                value={comparisonSegment}
+                onChange={(e) => setComparisonSegment(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              >
+                {SEGMENT_OPTIONS.map((segment) => (
+                  <option key={segment} value={segment}>
+                    {segment}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                type="button"
+                className="w-full"
+                disabled={loadingComparisonChart}
+                onClick={fetchComparisonChart}
+              >
+                {loadingComparisonChart ? "Laden..." : "Toon BOB-vergelijking"}
+              </Button>
+            </div>
+          </div>
+
+          {loadingComparisonChart ? (
+            <p className="text-gray-600">Data laden...</p>
+          ) : comparisonChartData ? (
+            <Line data={comparisonChartData} options={historicalChartOptions} />
+          ) : (
+            <p className="text-gray-600">
+              Selecteer een bereik en segment om de BOB-vergelijking te tonen.
             </p>
           )}
         </Card>
