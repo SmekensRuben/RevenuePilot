@@ -75,6 +75,7 @@
     "departure": "Vertrek",
     "room": "Kamer",
     "roomType": "Room Type",
+    "rateCode": "Tariefcode",
     "nights": "Nachten",
     "shareAmount": "Share Amount",
     "company": "Company"

@@ -75,6 +75,7 @@
     "departure": "Departure",
     "room": "Room",
     "roomType": "Room Type",
+    "rateCode": "Rate Code",
     "nights": "Nights",
     "shareAmount": "Share Amount",
     "company": "Company"
