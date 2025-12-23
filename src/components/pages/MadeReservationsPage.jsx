@@ -123,11 +123,12 @@ export default function MadeReservationsPage() {
 
   const visibleColumns = useMemo(
     () => [
-      { key: "fullName", label: t("columns.guest") },
+      { key: "fullName", label: t("columns.guest"), className: "w-32 max-w-[140px]" },
       { key: "arrivalDate", label: t("columns.arrival") },
       { key: "departureDate", label: t("columns.departure") },
       { key: "room", label: t("columns.room") },
       { key: "roomTypeCode", label: t("columns.roomType") },
+      { key: "rateCode", label: t("columns.rateCode") },
       { key: "nights", label: t("columns.nights") },
       { key: "shareAmount", label: t("columns.shareAmount") },
       { key: "companyName", label: t("columns.company") },
@@ -885,7 +886,7 @@ export default function MadeReservationsPage() {
                         <th
                           key={column.key}
                           scope="col"
-                          className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                          className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider ${column.className || ""}`}
                         >
                           <button
                             type="button"
@@ -904,7 +905,13 @@ export default function MadeReservationsPage() {
                   {sortedReservations.map((reservation, index) => (
                     <tr key={`${reservation.resNameId || index}-${index}`}>
                       {visibleColumns.map((column) => (
-                        <td key={column.key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
+                        <td
+                          key={column.key}
+                          className={`px-4 py-3 whitespace-nowrap text-sm text-gray-800 ${
+                            column.className ? `${column.className} truncate` : ""
+                          }`}
+                          title={reservation[column.key] || "-"}
+                        >
                           {reservation[column.key] || "-"}
                         </td>
                       ))}
