@@ -14,6 +14,7 @@ import WeeklyForecastToolPage from "./components/pages/WeeklyForecastToolPage.js
 import HistoricalForecastPacePage from "./components/pages/HistoricalForecastPacePage.jsx";
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 import CompsetPage from "./components/pages/CompsetPage.jsx";
+import ArrivalConverterPage from "./components/pages/ArrivalConverterPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -105,6 +106,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <HistoricalForecastPacePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tools/arrival-converter"
+        element={
+          <ProtectedRoute>
+            <ArrivalConverterPage />
           </ProtectedRoute>
         }
       />
