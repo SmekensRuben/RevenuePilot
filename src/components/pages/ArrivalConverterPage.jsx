@@ -14,50 +14,59 @@ const normalizeArrivalFile = (rawText) => {
 
   const headers = headerLine.split("\t");
   const expectedColumnCount = headers.length;
+  const billToIndex = headers.indexOf("BILL_TO_ADDRESS");
   const rows = [];
-  let buffer = "";
+  let currentColumns = null;
 
-  lines.forEach((line) => {
-    if (buffer) {
-      buffer = `${buffer}\n${line}`;
-    } else {
-      buffer = line;
-    }
-
-    const columns = buffer.split("\t");
-    if (columns.length >= expectedColumnCount) {
-      let cleanedColumns = columns;
-      if (columns.length > expectedColumnCount) {
-        cleanedColumns = [
-          ...columns.slice(0, expectedColumnCount - 1),
-          columns.slice(expectedColumnCount - 1).join("\t"),
-        ];
-      } else if (columns.length < expectedColumnCount) {
-        cleanedColumns = [
-          ...columns,
-          ...Array(expectedColumnCount - columns.length).fill(""),
-        ];
-      }
-      rows.push(cleanedColumns);
-      buffer = "";
-    }
-  });
-
-  if (buffer) {
-    const columns = buffer.split("\t");
-    let cleanedColumns = columns;
+  const normalizeColumns = (columns) => {
+    let normalizedColumns = columns;
     if (columns.length > expectedColumnCount) {
-      cleanedColumns = [
+      normalizedColumns = [
         ...columns.slice(0, expectedColumnCount - 1),
         columns.slice(expectedColumnCount - 1).join("\t"),
       ];
     } else if (columns.length < expectedColumnCount) {
-      cleanedColumns = [
+      normalizedColumns = [
         ...columns,
         ...Array(expectedColumnCount - columns.length).fill(""),
       ];
     }
-    rows.push(cleanedColumns);
+    return normalizedColumns;
+  };
+
+  const appendContinuation = (line) => {
+    if (!currentColumns) {
+      return;
+    }
+
+    const targetIndex =
+      billToIndex >= 0 ? billToIndex : Math.max(currentColumns.length - 1, 0);
+
+    while (currentColumns.length <= targetIndex) {
+      currentColumns.push("");
+    }
+
+    currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${line}`.trim();
+  };
+
+  lines.forEach((line) => {
+    if (!line) {
+      return;
+    }
+
+    if (line.includes("\t")) {
+      if (currentColumns) {
+        rows.push(normalizeColumns(currentColumns));
+      }
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    appendContinuation(line);
+  });
+
+  if (currentColumns) {
+    rows.push(normalizeColumns(currentColumns));
   }
 
   return { headers, rows };
