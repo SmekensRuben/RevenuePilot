@@ -8,8 +8,6 @@ import {
   db,
   doc,
   getDocs,
-  orderBy,
-  query,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -368,8 +366,7 @@ export default function ArrivalConverterPage() {
         db,
         `hotels/${hotelUid}/arrivalsDetailedPackages`
       );
-      const arrivalsQuery = query(arrivalsRef, orderBy("__name__"));
-      const arrivalsSnapshot = await getDocs(arrivalsQuery);
+      const arrivalsSnapshot = await getDocs(arrivalsRef);
       console.info("ArrivalConverter: Loaded arrival date documents.", {
         total: arrivalsSnapshot.size,
       });
