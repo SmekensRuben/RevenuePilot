@@ -235,6 +235,7 @@ export default function ArrivalConverterPage() {
     event.target.value = "";
 
     if (!file) {
+      console.debug("ArrivalConverter: No file selected.");
       return;
     }
 
@@ -243,22 +244,44 @@ export default function ArrivalConverterPage() {
 
     try {
       if (!hotelUid) {
+        console.debug("ArrivalConverter: Missing hotelUid.");
         setStatus({ type: "error", message: "Selecteer eerst een hotel." });
         return;
       }
 
+      console.debug("ArrivalConverter: Processing file.", {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        hotelUid,
+      });
       const rawText = await file.text();
+      console.debug("ArrivalConverter: File loaded.", {
+        characters: rawText.length,
+      });
       const parsed = normalizeArrivalFile(rawText);
 
       if (!parsed) {
+        console.debug("ArrivalConverter: No parsed data from file.");
         setStatus({ type: "error", message: "Het bestand bevat geen data." });
         return;
       }
 
       const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
+      console.debug("ArrivalConverter: Parsed records.", {
+        headers: parsed.headers,
+        rows: parsed.rows.length,
+        records: arrivalRecords.length,
+      });
       if (arrivalRecords.length) {
         const batch = writeBatch(db);
         arrivalRecords.forEach(({ dateKey, reservationId, data }) => {
+          console.debug("ArrivalConverter: Writing record.", {
+            dateKey,
+            reservationId,
+            arrivalDate: data.arrivalDate,
+            products: data.products?.length || 0,
+          });
           const recordRef = doc(
             db,
             `hotels/${hotelUid}/arrivalsDetailedPackages`,
@@ -269,6 +292,9 @@ export default function ArrivalConverterPage() {
           batch.set(recordRef, data, { merge: true });
         });
         await batch.commit();
+        console.debug("ArrivalConverter: Batch write committed.", {
+          records: arrivalRecords.length,
+        });
       }
 
       setSummary({ rows: parsed.rows.length, columns: parsed.headers.length });
@@ -281,11 +307,16 @@ export default function ArrivalConverterPage() {
 
   const handleSearch = async () => {
     if (!hotelUid) {
+      console.debug("ArrivalConverter: Missing hotelUid on search.");
       setSearchStatus({ type: "error", message: "Selecteer eerst een hotel." });
       return;
     }
 
     if (!startDate || !endDate) {
+      console.debug("ArrivalConverter: Missing date range.", {
+        startDate,
+        endDate,
+      });
       setSearchStatus({
         type: "error",
         message: "Vul een begin- en einddatum in.",
@@ -294,6 +325,10 @@ export default function ArrivalConverterPage() {
     }
 
     if (startDate > endDate) {
+      console.debug("ArrivalConverter: Invalid date range.", {
+        startDate,
+        endDate,
+      });
       setSearchStatus({
         type: "error",
         message: "De begindatum moet vóór de einddatum liggen.",
@@ -304,6 +339,12 @@ export default function ArrivalConverterPage() {
     const rangeStart = parseArrivalDate(startDate);
     const rangeEnd = parseArrivalDate(endDate);
     if (!rangeStart || !rangeEnd) {
+      console.debug("ArrivalConverter: Unable to parse date range.", {
+        startDate,
+        endDate,
+        rangeStart,
+        rangeEnd,
+      });
       setSearchStatus({
         type: "error",
         message: "De datums konden niet worden gelezen.",
@@ -312,6 +353,13 @@ export default function ArrivalConverterPage() {
     }
     rangeEnd.setHours(23, 59, 59, 999);
 
+    console.debug("ArrivalConverter: Searching product overview.", {
+      hotelUid,
+      startDate,
+      endDate,
+      rangeStart,
+      rangeEnd,
+    });
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
 
@@ -322,6 +370,9 @@ export default function ArrivalConverterPage() {
       );
       const arrivalsQuery = query(arrivalsRef, orderBy("__name__"));
       const arrivalsSnapshot = await getDocs(arrivalsQuery);
+      console.debug("ArrivalConverter: Loaded arrival date documents.", {
+        total: arrivalsSnapshot.size,
+      });
       const totals = new Map();
 
       await Promise.all(
@@ -333,9 +384,16 @@ export default function ArrivalConverterPage() {
             arrivalDateFromKey < rangeStart ||
             arrivalDateFromKey > rangeEnd
           ) {
+            console.debug("ArrivalConverter: Skipping arrival date.", {
+              arrivalDateKey,
+              arrivalDateFromKey,
+            });
             return;
           }
 
+          console.debug("ArrivalConverter: Fetching reservations.", {
+            arrivalDateKey,
+          });
           const reservationsRef = collection(
             db,
             `hotels/${hotelUid}/arrivalsDetailedPackages`,
@@ -343,10 +401,19 @@ export default function ArrivalConverterPage() {
             "reservations"
           );
           const reservationsSnapshot = await getDocs(reservationsRef);
+          console.debug("ArrivalConverter: Reservations loaded.", {
+            arrivalDateKey,
+            count: reservationsSnapshot.size,
+          });
           reservationsSnapshot.forEach((reservationDoc) => {
             const data = reservationDoc.data();
             const arrivalDateValue = parseArrivalDate(data.arrivalDate);
             if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
+              console.debug("ArrivalConverter: Skipping reservation.", {
+                arrivalDateKey,
+                reservationId: reservationDoc.id,
+                arrivalDateValue,
+              });
               return;
             }
 
@@ -363,6 +430,10 @@ export default function ArrivalConverterPage() {
         .map(([product, count]) => ({ product, count }))
         .sort((a, b) => b.count - a.count);
 
+      console.debug("ArrivalConverter: Product summary built.", {
+        items: summaryItems.length,
+        totals: summaryItems,
+      });
       setProductSummary(summaryItems);
       setSearchStatus({
         type: "success",
