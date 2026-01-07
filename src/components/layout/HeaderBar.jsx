@@ -10,6 +10,7 @@ import {
   Settings2,
   LineChart,
   FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
@@ -44,6 +45,11 @@ export default function HeaderBar({ today, onLogout }) {
       label: "Compset",
       action: () => navigate("/settings/compset"),
       icon: Building2,
+    },
+    {
+      label: "Arrival converter",
+      action: () => navigate("/tools/arrival-converter"),
+      icon: FileText,
     },
   ];
 
