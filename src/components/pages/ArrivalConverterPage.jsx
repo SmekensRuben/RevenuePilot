@@ -2,7 +2,17 @@ import React, { useMemo, useState } from "react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { auth, db, doc, signOut, writeBatch } from "../../firebaseConfig";
+import {
+  auth,
+  collection,
+  db,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  signOut,
+  writeBatch,
+} from "../../firebaseConfig";
 
 const normalizeArrivalFile = (rawText) => {
   const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -105,17 +115,6 @@ const normalizeArrivalFile = (rawText) => {
   return { headers, rows };
 };
 
-const buildCsv = (headers, rows) => {
-  const escapeValue = (value) => {
-    const stringValue = String(value ?? "");
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  };
-
-  const headerRow = headers.map(escapeValue).join(",");
-  const dataRows = rows.map((row) => row.map(escapeValue).join(","));
-  return [headerRow, ...dataRows].join("\r\n");
-};
-
 const buildArrivalRecords = (headers, rows) => {
   const indexMap = headers.reduce((acc, header, index) => {
     acc[header] = index;
@@ -165,21 +164,16 @@ const buildArrivalRecords = (headers, rows) => {
     .filter(Boolean);
 };
 
-const downloadFile = (contents, filename) => {
-  const blob = new Blob([contents], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-};
-
 export default function ArrivalConverterPage() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [summary, setSummary] = useState(null);
+  const [searchStatus, setSearchStatus] = useState({
+    type: "idle",
+    message: "",
+  });
+  const [productSummary, setProductSummary] = useState([]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const { hotelUid } = useHotelContext();
 
   const todayLabel = useMemo(
@@ -210,6 +204,11 @@ export default function ArrivalConverterPage() {
     setSummary(null);
 
     try {
+      if (!hotelUid) {
+        setStatus({ type: "error", message: "Selecteer eerst een hotel." });
+        return;
+      }
+
       const rawText = await file.text();
       const parsed = normalizeArrivalFile(rawText);
 
@@ -218,34 +217,113 @@ export default function ArrivalConverterPage() {
         return;
       }
 
-      const csvContents = buildCsv(parsed.headers, parsed.rows);
-      const baseName = file.name.replace(/\.[^/.]+$/, "");
-      const outputName = `${baseName || "arrival-converter"}-corrected.csv`;
-      downloadFile(csvContents, outputName);
-
-      if (hotelUid) {
-        const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
-        if (arrivalRecords.length) {
-          const batch = writeBatch(db);
-          arrivalRecords.forEach(({ dateKey, reservationId, data }) => {
-            const recordRef = doc(
-              db,
-              `hotels/${hotelUid}/arrivalsDetailedPackages`,
-              dateKey,
-              "reservations",
-              reservationId
-            );
-            batch.set(recordRef, data, { merge: true });
-          });
-          await batch.commit();
-        }
+      const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
+      if (arrivalRecords.length) {
+        const batch = writeBatch(db);
+        arrivalRecords.forEach(({ dateKey, reservationId, data }) => {
+          const recordRef = doc(
+            db,
+            `hotels/${hotelUid}/arrivalsDetailedPackages`,
+            dateKey,
+            "reservations",
+            reservationId
+          );
+          batch.set(recordRef, data, { merge: true });
+        });
+        await batch.commit();
       }
 
       setSummary({ rows: parsed.rows.length, columns: parsed.headers.length });
-      setStatus({ type: "success", message: "Bestand is verwerkt en gedownload." });
+      setStatus({ type: "success", message: "Bestand is verwerkt en opgeslagen." });
     } catch (error) {
       console.error(error);
       setStatus({ type: "error", message: "Het verwerken van het bestand is mislukt." });
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!hotelUid) {
+      setSearchStatus({ type: "error", message: "Selecteer eerst een hotel." });
+      return;
+    }
+
+    if (!startDate || !endDate) {
+      setSearchStatus({
+        type: "error",
+        message: "Vul een begin- en einddatum in.",
+      });
+      return;
+    }
+
+    if (startDate > endDate) {
+      setSearchStatus({
+        type: "error",
+        message: "De begindatum moet vóór de einddatum liggen.",
+      });
+      return;
+    }
+
+    setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
+    setProductSummary([]);
+
+    try {
+      const arrivalsRef = collection(
+        db,
+        `hotels/${hotelUid}/arrivalsDetailedPackages`
+      );
+      const arrivalsQuery = query(arrivalsRef, orderBy("__name__"));
+      const arrivalsSnapshot = await getDocs(arrivalsQuery);
+      const totals = new Map();
+
+      await Promise.all(
+        arrivalsSnapshot.docs.map(async (arrivalDoc) => {
+          const arrivalDateKey = arrivalDoc.id;
+          if (arrivalDateKey < startDate || arrivalDateKey > endDate) {
+            return;
+          }
+
+          const reservationsRef = collection(
+            db,
+            `hotels/${hotelUid}/arrivalsDetailedPackages`,
+            arrivalDateKey,
+            "reservations"
+          );
+          const reservationsSnapshot = await getDocs(reservationsRef);
+          reservationsSnapshot.forEach((reservationDoc) => {
+            const data = reservationDoc.data();
+            const arrivalDateValue = String(data.arrivalDate ?? "").trim();
+            if (
+              !arrivalDateValue ||
+              arrivalDateValue < startDate ||
+              arrivalDateValue > endDate
+            ) {
+              return;
+            }
+
+            (data.products || []).forEach((product) => {
+              const label = String(product || "").trim();
+              if (!label) return;
+              totals.set(label, (totals.get(label) || 0) + 1);
+            });
+          });
+        })
+      );
+
+      const summaryItems = Array.from(totals.entries())
+        .map(([product, count]) => ({ product, count }))
+        .sort((a, b) => b.count - a.count);
+
+      setProductSummary(summaryItems);
+      setSearchStatus({
+        type: "success",
+        message: "Overzicht geladen.",
+      });
+    } catch (error) {
+      console.error(error);
+      setSearchStatus({
+        type: "error",
+        message: "Het ophalen van het overzicht is mislukt.",
+      });
     }
   };
 
@@ -259,8 +337,7 @@ export default function ArrivalConverterPage() {
           <h1 className="text-3xl font-semibold">Arrival converter</h1>
           <p className="text-gray-600 mt-2 max-w-3xl">
             Upload het tab-gescheiden arrival bestand. We herstellen records waarbij de
-            BILL_TO_ADDRESS meerdere regels bevat en leveren een correct CSV-bestand dat
-            direct in Excel geopend kan worden.
+            BILL_TO_ADDRESS meerdere regels bevat en slaan de data op per reservatie.
           </p>
         </div>
 
@@ -269,7 +346,7 @@ export default function ArrivalConverterPage() {
             <div>
               <h2 className="text-lg font-semibold">Bestand uploaden</h2>
               <p className="text-sm text-gray-600">
-                Kies het originele exportbestand (tab-gescheiden). Na upload start de download.
+                Kies het originele exportbestand (tab-gescheiden). Na upload wordt het opgeslagen.
               </p>
             </div>
             <label className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold cursor-pointer hover:bg-[#9c1a1a]">
@@ -302,6 +379,89 @@ export default function ArrivalConverterPage() {
               Verwerkte rijen: <span className="font-semibold">{summary.rows}</span> · Kolommen:
               <span className="font-semibold"> {summary.columns}</span>
             </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Productoverzicht</h2>
+            <p className="text-sm text-gray-600">
+              Kies een periode om alle producten te tellen op basis van de arrivalDate.
+              Vertrekdagen worden niet meegeteld.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <label className="flex flex-col text-sm text-gray-600">
+              Begindatum
+              <input
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+              />
+            </label>
+            <label className="flex flex-col text-sm text-gray-600">
+              Einddatum
+              <input
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={handleSearch}
+                className="px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+              >
+                Search
+              </button>
+            </div>
+          </div>
+
+          {searchStatus.type !== "idle" && (
+            <div
+              className={`text-sm rounded-md px-3 py-2 border ${
+                searchStatus.type === "error"
+                  ? "bg-red-50 border-red-200 text-red-700"
+                  : searchStatus.type === "success"
+                  ? "bg-green-50 border-green-200 text-green-700"
+                  : "bg-blue-50 border-blue-200 text-blue-700"
+              }`}
+            >
+              {searchStatus.message}
+            </div>
+          )}
+
+          {productSummary.length ? (
+            <div className="overflow-hidden border border-gray-200 rounded-md">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-semibold">Product</th>
+                    <th className="text-right px-4 py-2 font-semibold">Aantal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {productSummary.map((item) => (
+                    <tr key={item.product}>
+                      <td className="px-4 py-2 text-gray-900">{item.product}</td>
+                      <td className="px-4 py-2 text-right text-gray-900">
+                        {item.count}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            searchStatus.type === "success" && (
+              <div className="text-sm text-gray-600">
+                Geen producten gevonden binnen deze periode.
+              </div>
+            )
           )}
         </div>
       </PageContainer>
