@@ -5,6 +5,7 @@ import { useHotelContext } from "../../contexts/HotelContext";
 import {
   auth,
   collection,
+  collectionGroup,
   db,
   doc,
   getDocs,
@@ -372,72 +373,121 @@ export default function ArrivalConverterPage() {
       });
       const totals = new Map();
 
-      await Promise.all(
-        arrivalsSnapshot.docs.map(async (arrivalDoc) => {
-          const arrivalDateKey = arrivalDoc.id;
+      const processReservations = (arrivalDateKey, reservationsSnapshot) => {
+        console.info("ArrivalConverter: Reservations loaded.", {
+          arrivalDateKey,
+          count: reservationsSnapshot.size,
+        });
+        let includedReservations = 0;
+        let excludedReservations = 0;
+        let productsCounted = 0;
+        reservationsSnapshot.forEach((reservationDoc) => {
+          const data = reservationDoc.data();
+          const arrivalDateValue = parseArrivalDate(data.arrivalDate);
+          if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
+            excludedReservations += 1;
+            console.info("ArrivalConverter: Skipping reservation.", {
+              arrivalDateKey,
+              reservationId: reservationDoc.id,
+              arrivalDateValue,
+            });
+            return;
+          }
+
+          includedReservations += 1;
+          (data.products || []).forEach((product) => {
+            const label = String(product || "").trim();
+            if (!label) return;
+            totals.set(label, (totals.get(label) || 0) + 1);
+            productsCounted += 1;
+          });
+        });
+        console.info("ArrivalConverter: Reservations processed.", {
+          arrivalDateKey,
+          includedReservations,
+          excludedReservations,
+          productsCounted,
+        });
+      };
+
+      if (arrivalsSnapshot.size) {
+        await Promise.all(
+          arrivalsSnapshot.docs.map(async (arrivalDoc) => {
+            const arrivalDateKey = arrivalDoc.id;
+            const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
+            if (
+              !arrivalDateFromKey ||
+              arrivalDateFromKey < rangeStart ||
+              arrivalDateFromKey > rangeEnd
+            ) {
+              console.info("ArrivalConverter: Skipping arrival date.", {
+                arrivalDateKey,
+                arrivalDateFromKey,
+              });
+              return;
+            }
+
+            console.info("ArrivalConverter: Using arrival date.", {
+              arrivalDateKey,
+              arrivalDateFromKey,
+            });
+            console.info("ArrivalConverter: Fetching reservations.", {
+              arrivalDateKey,
+            });
+            const reservationsRef = collection(
+              db,
+              `hotels/${hotelUid}/arrivalsDetailedPackages`,
+              arrivalDateKey,
+              "reservations"
+            );
+            const reservationsSnapshot = await getDocs(reservationsRef);
+            processReservations(arrivalDateKey, reservationsSnapshot);
+          })
+        );
+      } else {
+        console.info("ArrivalConverter: Falling back to reservations collectionGroup.", {
+          hotelUid,
+        });
+        const reservationsGroup = collectionGroup(db, "reservations");
+        const reservationsSnapshot = await getDocs(reservationsGroup);
+        console.info("ArrivalConverter: CollectionGroup reservations loaded.", {
+          total: reservationsSnapshot.size,
+        });
+
+        reservationsSnapshot.forEach((reservationDoc) => {
+          const reservationPath = reservationDoc.ref.path;
+          const expectedPrefix = `hotels/${hotelUid}/arrivalsDetailedPackages/`;
+          if (!reservationPath.startsWith(expectedPrefix)) {
+            return;
+          }
+
+          const arrivalDateKey = reservationDoc.ref.parent.parent?.id;
+          if (!arrivalDateKey) {
+            console.info("ArrivalConverter: Reservation missing arrival date key.", {
+              reservationId: reservationDoc.id,
+            });
+            return;
+          }
+
           const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
           if (
             !arrivalDateFromKey ||
             arrivalDateFromKey < rangeStart ||
             arrivalDateFromKey > rangeEnd
           ) {
-            console.info("ArrivalConverter: Skipping arrival date.", {
+            console.info("ArrivalConverter: Skipping arrival date from reservation.", {
               arrivalDateKey,
               arrivalDateFromKey,
             });
             return;
           }
 
-          console.info("ArrivalConverter: Using arrival date.", {
-            arrivalDateKey,
-            arrivalDateFromKey,
+          processReservations(arrivalDateKey, {
+            size: 1,
+            forEach: (callback) => callback(reservationDoc),
           });
-          console.info("ArrivalConverter: Fetching reservations.", {
-            arrivalDateKey,
-          });
-          const reservationsRef = collection(
-            db,
-            `hotels/${hotelUid}/arrivalsDetailedPackages`,
-            arrivalDateKey,
-            "reservations"
-          );
-          const reservationsSnapshot = await getDocs(reservationsRef);
-          console.info("ArrivalConverter: Reservations loaded.", {
-            arrivalDateKey,
-            count: reservationsSnapshot.size,
-          });
-          let includedReservations = 0;
-          let excludedReservations = 0;
-          let productsCounted = 0;
-          reservationsSnapshot.forEach((reservationDoc) => {
-            const data = reservationDoc.data();
-            const arrivalDateValue = parseArrivalDate(data.arrivalDate);
-            if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
-              excludedReservations += 1;
-              console.info("ArrivalConverter: Skipping reservation.", {
-                arrivalDateKey,
-                reservationId: reservationDoc.id,
-                arrivalDateValue,
-              });
-              return;
-            }
-
-            includedReservations += 1;
-            (data.products || []).forEach((product) => {
-              const label = String(product || "").trim();
-              if (!label) return;
-              totals.set(label, (totals.get(label) || 0) + 1);
-              productsCounted += 1;
-            });
-          });
-          console.info("ArrivalConverter: Reservations processed.", {
-            arrivalDateKey,
-            includedReservations,
-            excludedReservations,
-            productsCounted,
-          });
-        })
-      );
+        });
+      }
 
       const summaryItems = Array.from(totals.entries())
         .map(([product, count]) => ({ product, count }))
