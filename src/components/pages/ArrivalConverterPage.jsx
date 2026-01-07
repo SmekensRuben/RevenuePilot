@@ -34,6 +34,19 @@ const normalizeArrivalFile = (rawText) => {
     return normalizedColumns;
   };
 
+  const sanitizeBillToAddress = (columns) => {
+    if (billToIndex < 0) {
+      return columns;
+    }
+
+    const sanitized = [...columns];
+    sanitized[billToIndex] = String(sanitized[billToIndex] ?? "").replace(
+      /[\r\n]+/g,
+      " "
+    );
+    return sanitized;
+  };
+
   const appendContinuation = (line) => {
     if (!currentColumns) {
       return;
@@ -56,7 +69,7 @@ const normalizeArrivalFile = (rawText) => {
 
     if (line.includes("\t")) {
       if (currentColumns) {
-        rows.push(normalizeColumns(currentColumns));
+        rows.push(sanitizeBillToAddress(normalizeColumns(currentColumns)));
       }
       currentColumns = line.split("\t");
       return;
@@ -66,7 +79,7 @@ const normalizeArrivalFile = (rawText) => {
   });
 
   if (currentColumns) {
-    rows.push(normalizeColumns(currentColumns));
+    rows.push(sanitizeBillToAddress(normalizeColumns(currentColumns)));
   }
 
   return { headers, rows };
