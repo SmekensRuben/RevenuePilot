@@ -139,8 +139,9 @@ const buildArrivalRecords = (headers, rows) => {
     .map((row) => {
       const arrivalDate = String(getValue(row, "TRUNC_BEGIN")).trim();
       const dateKey = normalizeDateKey(arrivalDate);
+      const reservationId = String(getValue(row, "RESV_NAME_ID")).trim();
 
-      if (!dateKey) {
+      if (!dateKey || !reservationId) {
         return null;
       }
 
@@ -151,6 +152,7 @@ const buildArrivalRecords = (headers, rows) => {
 
       return {
         dateKey,
+        reservationId,
         data: {
           roomNr: String(getValue(row, "DISP_ROOM_NO")).trim(),
           arrivalDate,
@@ -225,11 +227,13 @@ export default function ArrivalConverterPage() {
         const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
         if (arrivalRecords.length) {
           const batch = writeBatch(db);
-          arrivalRecords.forEach(({ dateKey, data }) => {
+          arrivalRecords.forEach(({ dateKey, reservationId, data }) => {
             const recordRef = doc(
               db,
               `hotels/${hotelUid}/arrivalsDetailedPackages`,
-              dateKey
+              dateKey,
+              "reservations",
+              reservationId
             );
             batch.set(recordRef, data, { merge: true });
           });
