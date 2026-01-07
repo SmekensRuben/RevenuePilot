@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
-import { auth, signOut } from "../../firebaseConfig";
+import { useHotelContext } from "../../contexts/HotelContext";
+import { auth, db, doc, signOut, writeBatch } from "../../firebaseConfig";
 
 const normalizeArrivalFile = (rawText) => {
   const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -115,6 +116,53 @@ const buildCsv = (headers, rows) => {
   return [headerRow, ...dataRows].join("\r\n");
 };
 
+const buildArrivalRecords = (headers, rows) => {
+  const indexMap = headers.reduce((acc, header, index) => {
+    acc[header] = index;
+    return acc;
+  }, {});
+
+  const getValue = (row, header) => {
+    const index = indexMap[header];
+    if (index === undefined) {
+      return "";
+    }
+    return row[index] ?? "";
+  };
+
+  const normalizeDateKey = (value) =>
+    String(value ?? "")
+      .trim()
+      .replace(/[\\/]/g, "-");
+
+  return rows
+    .map((row) => {
+      const arrivalDate = String(getValue(row, "TRUNC_BEGIN")).trim();
+      const dateKey = normalizeDateKey(arrivalDate);
+
+      if (!dateKey) {
+        return null;
+      }
+
+      const products = String(getValue(row, "PRODUCTS"))
+        .split(",")
+        .map((product) => product.trim())
+        .filter(Boolean);
+
+      return {
+        dateKey,
+        data: {
+          roomNr: String(getValue(row, "DISP_ROOM_NO")).trim(),
+          arrivalDate,
+          departureDate: String(getValue(row, "TRUNC_END")).trim(),
+          products,
+          rateCode: String(getValue(row, "RATE_CODE")).trim(),
+        },
+      };
+    })
+    .filter(Boolean);
+};
+
 const downloadFile = (contents, filename) => {
   const blob = new Blob([contents], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -130,6 +178,7 @@ const downloadFile = (contents, filename) => {
 export default function ArrivalConverterPage() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [summary, setSummary] = useState(null);
+  const { hotelUid } = useHotelContext();
 
   const todayLabel = useMemo(
     () =>
@@ -171,6 +220,23 @@ export default function ArrivalConverterPage() {
       const baseName = file.name.replace(/\.[^/.]+$/, "");
       const outputName = `${baseName || "arrival-converter"}-corrected.csv`;
       downloadFile(csvContents, outputName);
+
+      if (hotelUid) {
+        const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
+        if (arrivalRecords.length) {
+          const batch = writeBatch(db);
+          arrivalRecords.forEach(({ dateKey, data }) => {
+            const recordRef = doc(
+              db,
+              `hotels/${hotelUid}/arrivalsDetailedPackages`,
+              dateKey
+            );
+            batch.set(recordRef, data, { merge: true });
+          });
+          await batch.commit();
+        }
+      }
+
       setSummary({ rows: parsed.rows.length, columns: parsed.headers.length });
       setStatus({ type: "success", message: "Bestand is verwerkt en gedownload." });
     } catch (error) {
