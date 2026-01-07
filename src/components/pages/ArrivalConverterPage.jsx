@@ -164,6 +164,44 @@ const buildArrivalRecords = (headers, rows) => {
     .filter(Boolean);
 };
 
+const MONTHS = {
+  JAN: 0,
+  FEB: 1,
+  MAR: 2,
+  APR: 3,
+  MAY: 4,
+  JUN: 5,
+  JUL: 6,
+  AUG: 7,
+  SEP: 8,
+  OCT: 9,
+  NOV: 10,
+  DEC: 11,
+};
+
+const parseArrivalDate = (value) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    const [year, month, day] = normalized.split("-").map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  const parts = normalized.split("-");
+  if (parts.length === 3) {
+    const [dayPart, monthPart, yearPart] = parts;
+    const monthIndex = MONTHS[monthPart?.toUpperCase()];
+    const day = Number(dayPart);
+    const year = Number(yearPart?.length === 2 ? `20${yearPart}` : yearPart);
+    if (Number.isFinite(day) && Number.isFinite(year) && monthIndex !== undefined) {
+      return new Date(year, monthIndex, day);
+    }
+  }
+
+  return null;
+};
+
 export default function ArrivalConverterPage() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [summary, setSummary] = useState(null);
@@ -263,6 +301,17 @@ export default function ArrivalConverterPage() {
       return;
     }
 
+    const rangeStart = parseArrivalDate(startDate);
+    const rangeEnd = parseArrivalDate(endDate);
+    if (!rangeStart || !rangeEnd) {
+      setSearchStatus({
+        type: "error",
+        message: "De datums konden niet worden gelezen.",
+      });
+      return;
+    }
+    rangeEnd.setHours(23, 59, 59, 999);
+
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
 
@@ -278,7 +327,12 @@ export default function ArrivalConverterPage() {
       await Promise.all(
         arrivalsSnapshot.docs.map(async (arrivalDoc) => {
           const arrivalDateKey = arrivalDoc.id;
-          if (arrivalDateKey < startDate || arrivalDateKey > endDate) {
+          const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
+          if (
+            !arrivalDateFromKey ||
+            arrivalDateFromKey < rangeStart ||
+            arrivalDateFromKey > rangeEnd
+          ) {
             return;
           }
 
@@ -291,12 +345,8 @@ export default function ArrivalConverterPage() {
           const reservationsSnapshot = await getDocs(reservationsRef);
           reservationsSnapshot.forEach((reservationDoc) => {
             const data = reservationDoc.data();
-            const arrivalDateValue = String(data.arrivalDate ?? "").trim();
-            if (
-              !arrivalDateValue ||
-              arrivalDateValue < startDate ||
-              arrivalDateValue > endDate
-            ) {
+            const arrivalDateValue = parseArrivalDate(data.arrivalDate);
+            if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
               return;
             }
 
