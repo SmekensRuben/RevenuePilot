@@ -59,6 +59,19 @@ const normalizeArrivalFile = (rawText) => {
       currentColumns.push("");
     }
 
+    if (line.includes("\t")) {
+      const [addressPart, ...rest] = line.split("\t");
+      currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${addressPart}`.trim();
+      if (rest.length) {
+        const startIndex = targetIndex + 1;
+        while (currentColumns.length < startIndex) {
+          currentColumns.push("");
+        }
+        currentColumns.push(...rest);
+      }
+      return;
+    }
+
     currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${line}`.trim();
   };
 
@@ -67,7 +80,13 @@ const normalizeArrivalFile = (rawText) => {
       return;
     }
 
-    if (line.includes("\t")) {
+    const isRecordStart = line.startsWith("\t");
+    if (!currentColumns) {
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    if (isRecordStart) {
       if (currentColumns) {
         rows.push(sanitizeBillToAddress(normalizeColumns(currentColumns)));
       }
