@@ -588,6 +588,26 @@ export default function WeeklyForecastToolPage() {
     return total / validAdrs.length;
   }, [overviewRows]);
 
+  const segmentAverageAdrs = useMemo(() => {
+    return SEGMENT_OVERVIEW_FIELDS.reduce((acc, { roomsSoldField, adrField }) => {
+      const totals = overviewRows.reduce(
+        (sum, row) => {
+          const rooms = Number(row[roomsSoldField] || 0);
+          const adr = Number(row[adrField] || 0);
+          if (rooms > 0 && adr > 0) {
+            sum.rooms += rooms;
+            sum.revenue += rooms * adr;
+          }
+          return sum;
+        },
+        { rooms: 0, revenue: 0 }
+      );
+
+      acc[roomsSoldField] = totals.rooms > 0 ? totals.revenue / totals.rooms : null;
+      return acc;
+    }, {});
+  }, [overviewRows]);
+
   const monthlyOverviewTotals = useMemo(() => {
     return overviewRows.reduce(
       (acc, row) => {
@@ -630,6 +650,19 @@ export default function WeeklyForecastToolPage() {
     );
   }, [forecastedRooms]);
 
+  const getAdjustedAdr = (day, roomsSoldField, adrField) => {
+    const baseAdr = overviewByDay[day]?.[adrField];
+    const baseRooms = Number(overviewByDay[day]?.[roomsSoldField] || 0);
+    const forecastRooms = Number(forecastedRooms[day]?.[roomsSoldField] || 0);
+    const hasBaseAdr = baseAdr !== null && baseAdr !== undefined && Number(baseAdr) > 0;
+
+    if (forecastRooms > 0 && (!baseRooms || !hasBaseAdr)) {
+      return segmentAverageAdrs[roomsSoldField] ?? averageTotalAdr ?? 0;
+    }
+
+    return baseAdr ?? null;
+  };
+
   const forecastSummaryByDay = useMemo(() => {
     return dayNumbers.map((day) => {
       const forecastForDay = forecastedRooms[day] || {};
@@ -639,7 +672,7 @@ export default function WeeklyForecastToolPage() {
       const addedRevenue = SEGMENT_OVERVIEW_FIELDS.reduce((sum, { roomsSoldField, adrField }) => {
         const rooms = Number(forecastForDay[roomsSoldField] || 0);
         if (!rooms) return sum;
-        const adr = overviewByDay[day]?.[adrField] ?? baseAdr;
+        const adr = getAdjustedAdr(day, roomsSoldField, adrField) ?? baseAdr;
         return sum + rooms * (adr || 0);
       }, 0);
 
@@ -971,13 +1004,24 @@ export default function WeeklyForecastToolPage() {
         }),
       ];
 
-      const adrRow = [label, "ADR", ...dayNumbers.map((day) => roundExportValue(overviewByDay[day]?.[adrField]))];
+      const adrRow = [
+        label,
+        "ADR",
+        ...dayNumbers.map((day) => {
+          const adrValue = includeForecastedRooms
+            ? getAdjustedAdr(day, roomsSoldField, adrField)
+            : overviewByDay[day]?.[adrField];
+          return roundExportValue(adrValue);
+        }),
+      ];
 
       const revenueRow = [
         label,
         "Revenue",
         ...dayNumbers.map((day) => {
-          const adr = overviewByDay[day]?.[adrField];
+          const adr = includeForecastedRooms
+            ? getAdjustedAdr(day, roomsSoldField, adrField)
+            : overviewByDay[day]?.[adrField];
           if (adr === null || adr === undefined) return "";
 
           const baseRooms = Number(overviewByDay[day]?.[roomsSoldField] || 0);
@@ -1403,7 +1447,7 @@ export default function WeeklyForecastToolPage() {
                         {dayNumbers.map((day) => {
                           const roomsSold = overviewByDay[day]?.[roomsSoldField] ?? null;
                           const forecastAddition = forecastedRooms[day]?.[roomsSoldField];
-                              return (
+                          return (
                             <td key={`${label}-roomsSold-${day}`} className="px-4 py-2">
                               {forecastAddition !== undefined ? (
                                 <div className="text-xs text-green-700 font-semibold leading-tight">
@@ -1418,7 +1462,7 @@ export default function WeeklyForecastToolPage() {
                       <tr className="hover:bg-gray-50">
                         <td className="px-4 py-2 font-semibold text-left sticky left-0 bg-gray-50">ADR</td>
                         {dayNumbers.map((day) => {
-                          const adr = overviewByDay[day]?.[adrField] ?? null;
+                          const adr = getAdjustedAdr(day, roomsSoldField, adrField);
                           return (
                             <td key={`${label}-adr-${day}`} className="px-4 py-2">
                               {formatEuro(adr)}
