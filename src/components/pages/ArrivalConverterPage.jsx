@@ -5,11 +5,10 @@ import { useHotelContext } from "../../contexts/HotelContext";
 import {
   auth,
   collection,
+  collectionGroup,
   db,
   doc,
   getDocs,
-  orderBy,
-  query,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -179,6 +178,8 @@ const MONTHS = {
   DEC: 11,
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 const parseArrivalDate = (value) => {
   const normalized = String(value ?? "").trim();
   if (!normalized) return null;
@@ -235,6 +236,7 @@ export default function ArrivalConverterPage() {
     event.target.value = "";
 
     if (!file) {
+      console.debug("ArrivalConverter: No file selected.");
       return;
     }
 
@@ -243,22 +245,44 @@ export default function ArrivalConverterPage() {
 
     try {
       if (!hotelUid) {
+        console.debug("ArrivalConverter: Missing hotelUid.");
         setStatus({ type: "error", message: "Selecteer eerst een hotel." });
         return;
       }
 
+      console.debug("ArrivalConverter: Processing file.", {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        hotelUid,
+      });
       const rawText = await file.text();
+      console.debug("ArrivalConverter: File loaded.", {
+        characters: rawText.length,
+      });
       const parsed = normalizeArrivalFile(rawText);
 
       if (!parsed) {
+        console.debug("ArrivalConverter: No parsed data from file.");
         setStatus({ type: "error", message: "Het bestand bevat geen data." });
         return;
       }
 
       const arrivalRecords = buildArrivalRecords(parsed.headers, parsed.rows);
+      console.debug("ArrivalConverter: Parsed records.", {
+        headers: parsed.headers,
+        rows: parsed.rows.length,
+        records: arrivalRecords.length,
+      });
       if (arrivalRecords.length) {
         const batch = writeBatch(db);
         arrivalRecords.forEach(({ dateKey, reservationId, data }) => {
+          console.debug("ArrivalConverter: Writing record.", {
+            dateKey,
+            reservationId,
+            arrivalDate: data.arrivalDate,
+            products: data.products?.length || 0,
+          });
           const recordRef = doc(
             db,
             `hotels/${hotelUid}/arrivalsDetailedPackages`,
@@ -269,6 +293,9 @@ export default function ArrivalConverterPage() {
           batch.set(recordRef, data, { merge: true });
         });
         await batch.commit();
+        console.debug("ArrivalConverter: Batch write committed.", {
+          records: arrivalRecords.length,
+        });
       }
 
       setSummary({ rows: parsed.rows.length, columns: parsed.headers.length });
@@ -281,11 +308,16 @@ export default function ArrivalConverterPage() {
 
   const handleSearch = async () => {
     if (!hotelUid) {
+      console.debug("ArrivalConverter: Missing hotelUid on search.");
       setSearchStatus({ type: "error", message: "Selecteer eerst een hotel." });
       return;
     }
 
     if (!startDate || !endDate) {
+      console.debug("ArrivalConverter: Missing date range.", {
+        startDate,
+        endDate,
+      });
       setSearchStatus({
         type: "error",
         message: "Vul een begin- en einddatum in.",
@@ -294,6 +326,10 @@ export default function ArrivalConverterPage() {
     }
 
     if (startDate > endDate) {
+      console.debug("ArrivalConverter: Invalid date range.", {
+        startDate,
+        endDate,
+      });
       setSearchStatus({
         type: "error",
         message: "De begindatum moet vóór de einddatum liggen.",
@@ -304,6 +340,12 @@ export default function ArrivalConverterPage() {
     const rangeStart = parseArrivalDate(startDate);
     const rangeEnd = parseArrivalDate(endDate);
     if (!rangeStart || !rangeEnd) {
+      console.debug("ArrivalConverter: Unable to parse date range.", {
+        startDate,
+        endDate,
+        rangeStart,
+        rangeEnd,
+      });
       setSearchStatus({
         type: "error",
         message: "De datums konden niet worden gelezen.",
@@ -311,7 +353,18 @@ export default function ArrivalConverterPage() {
       return;
     }
     rangeEnd.setHours(23, 59, 59, 999);
+    const rangeEndExclusive = new Date(rangeEnd);
+    rangeEndExclusive.setHours(0, 0, 0, 0);
+    rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
 
+    console.info("ArrivalConverter: Searching product overview.", {
+      hotelUid,
+      startDate,
+      endDate,
+      rangeStart,
+      rangeEnd,
+      rangeEndExclusive,
+    });
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
 
@@ -320,49 +373,140 @@ export default function ArrivalConverterPage() {
         db,
         `hotels/${hotelUid}/arrivalsDetailedPackages`
       );
-      const arrivalsQuery = query(arrivalsRef, orderBy("__name__"));
-      const arrivalsSnapshot = await getDocs(arrivalsQuery);
+      const arrivalsSnapshot = await getDocs(arrivalsRef);
+      console.info("ArrivalConverter: Loaded arrival date documents.", {
+        total: arrivalsSnapshot.size,
+      });
       const totals = new Map();
 
-      await Promise.all(
-        arrivalsSnapshot.docs.map(async (arrivalDoc) => {
-          const arrivalDateKey = arrivalDoc.id;
-          const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
-          if (
-            !arrivalDateFromKey ||
-            arrivalDateFromKey < rangeStart ||
-            arrivalDateFromKey > rangeEnd
-          ) {
+      const processReservations = (arrivalDateKey, reservationsSnapshot) => {
+        console.info("ArrivalConverter: Reservations loaded.", {
+          arrivalDateKey,
+          count: reservationsSnapshot.size,
+        });
+        let includedReservations = 0;
+        let excludedReservations = 0;
+        let productsCounted = 0;
+        reservationsSnapshot.forEach((reservationDoc) => {
+          const data = reservationDoc.data();
+          const arrivalDateValue = parseArrivalDate(data.arrivalDate);
+          const departureDateValue = parseArrivalDate(data.departureDate);
+          if (!arrivalDateValue || !departureDateValue) {
+            excludedReservations += 1;
+            console.info("ArrivalConverter: Skipping reservation.", {
+              arrivalDateKey,
+              reservationId: reservationDoc.id,
+              arrivalDateValue,
+              departureDateValue,
+            });
             return;
           }
 
-          const reservationsRef = collection(
-            db,
-            `hotels/${hotelUid}/arrivalsDetailedPackages`,
-            arrivalDateKey,
-            "reservations"
+          const overlapStart = arrivalDateValue > rangeStart ? arrivalDateValue : rangeStart;
+          const overlapEnd =
+            departureDateValue < rangeEndExclusive ? departureDateValue : rangeEndExclusive;
+          const overlapDays = Math.max(
+            0,
+            Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / MS_PER_DAY)
           );
-          const reservationsSnapshot = await getDocs(reservationsRef);
-          reservationsSnapshot.forEach((reservationDoc) => {
-            const data = reservationDoc.data();
-            const arrivalDateValue = parseArrivalDate(data.arrivalDate);
-            if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
+          if (!overlapDays) {
+            excludedReservations += 1;
+            console.info("ArrivalConverter: Skipping reservation (no overlap).", {
+              arrivalDateKey,
+              reservationId: reservationDoc.id,
+              overlapStart,
+              overlapEnd,
+            });
+            return;
+          }
+
+          includedReservations += 1;
+          (data.products || []).forEach((product) => {
+            const label = String(product || "").trim();
+            if (!label) return;
+            totals.set(label, (totals.get(label) || 0) + overlapDays);
+            productsCounted += overlapDays;
+          });
+        });
+        console.info("ArrivalConverter: Reservations processed.", {
+          arrivalDateKey,
+          includedReservations,
+          excludedReservations,
+          productsCounted,
+        });
+      };
+
+      if (arrivalsSnapshot.size) {
+        await Promise.all(
+          arrivalsSnapshot.docs.map(async (arrivalDoc) => {
+            const arrivalDateKey = arrivalDoc.id;
+            const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
+            if (!arrivalDateFromKey || arrivalDateFromKey > rangeEnd) {
+              console.info("ArrivalConverter: Skipping arrival date.", {
+                arrivalDateKey,
+                arrivalDateFromKey,
+              });
               return;
             }
 
-            (data.products || []).forEach((product) => {
-              const label = String(product || "").trim();
-              if (!label) return;
-              totals.set(label, (totals.get(label) || 0) + 1);
+            console.info("ArrivalConverter: Using arrival date.", {
+              arrivalDateKey,
+              arrivalDateFromKey,
             });
+            console.info("ArrivalConverter: Fetching reservations.", {
+              arrivalDateKey,
+            });
+            const reservationsRef = collection(
+              db,
+              `hotels/${hotelUid}/arrivalsDetailedPackages`,
+              arrivalDateKey,
+              "reservations"
+            );
+            const reservationsSnapshot = await getDocs(reservationsRef);
+            processReservations(arrivalDateKey, reservationsSnapshot);
+          })
+        );
+      } else {
+        console.info("ArrivalConverter: Falling back to reservations collectionGroup.", {
+          hotelUid,
+        });
+        const reservationsGroup = collectionGroup(db, "reservations");
+        const reservationsSnapshot = await getDocs(reservationsGroup);
+        console.info("ArrivalConverter: CollectionGroup reservations loaded.", {
+          total: reservationsSnapshot.size,
+        });
+
+        reservationsSnapshot.forEach((reservationDoc) => {
+          const reservationPath = reservationDoc.ref.path;
+          const expectedPrefix = `hotels/${hotelUid}/arrivalsDetailedPackages/`;
+          if (!reservationPath.startsWith(expectedPrefix)) {
+            return;
+          }
+
+          const arrivalDateKey = reservationDoc.ref.parent.parent?.id;
+          if (!arrivalDateKey) {
+            console.info("ArrivalConverter: Reservation missing arrival date key.", {
+              reservationId: reservationDoc.id,
+            });
+            return;
+          }
+
+          const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
+          processReservations(arrivalDateKey, {
+            size: 1,
+            forEach: (callback) => callback(reservationDoc),
           });
-        })
-      );
+        });
+      }
 
       const summaryItems = Array.from(totals.entries())
         .map(([product, count]) => ({ product, count }))
         .sort((a, b) => b.count - a.count);
 
+      console.info("ArrivalConverter: Product summary built.", {
+        items: summaryItems.length,
+        totals: summaryItems,
+      });
       setProductSummary(summaryItems);
       setSearchStatus({
         type: "success",
