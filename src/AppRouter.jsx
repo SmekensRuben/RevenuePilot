@@ -15,6 +15,7 @@ import HistoricalForecastPacePage from "./components/pages/HistoricalForecastPac
 import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 import CompsetPage from "./components/pages/CompsetPage.jsx";
 import ArrivalConverterPage from "./components/pages/ArrivalConverterPage.jsx";
+import ArrivalConverterProductDetailPage from "./components/pages/ArrivalConverterProductDetailPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -114,6 +115,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <ArrivalConverterPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tools/arrival-converter/product/:productName"
+        element={
+          <ProtectedRoute>
+            <ArrivalConverterProductDetailPage />
           </ProtectedRoute>
         }
       />

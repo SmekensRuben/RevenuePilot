@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
@@ -227,6 +228,9 @@ export default function ArrivalConverterPage() {
   const [endDate, setEndDate] = useState("");
   const [packages, setPackages] = useState([]);
   const { hotelUid } = useHotelContext();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lastSearchRef = useRef("");
 
   const createPackage = () => ({
     id: `package-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -391,17 +395,20 @@ export default function ArrivalConverterPage() {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async ({ nextStartDate, nextEndDate, syncParams = true } = {}) => {
+    const resolvedStartDate = nextStartDate ?? startDate;
+    const resolvedEndDate = nextEndDate ?? endDate;
+
     if (!hotelUid) {
       console.debug("ArrivalConverter: Missing hotelUid on search.");
       setSearchStatus({ type: "error", message: "Selecteer eerst een hotel." });
       return;
     }
 
-    if (!startDate || !endDate) {
+    if (!resolvedStartDate || !resolvedEndDate) {
       console.debug("ArrivalConverter: Missing date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
       });
       setSearchStatus({
         type: "error",
@@ -410,10 +417,10 @@ export default function ArrivalConverterPage() {
       return;
     }
 
-    if (startDate > endDate) {
+    if (resolvedStartDate > resolvedEndDate) {
       console.debug("ArrivalConverter: Invalid date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
       });
       setSearchStatus({
         type: "error",
@@ -422,12 +429,12 @@ export default function ArrivalConverterPage() {
       return;
     }
 
-    const rangeStart = parseArrivalDate(startDate);
-    const rangeEnd = parseArrivalDate(endDate);
+    const rangeStart = parseArrivalDate(resolvedStartDate);
+    const rangeEnd = parseArrivalDate(resolvedEndDate);
     if (!rangeStart || !rangeEnd) {
       console.debug("ArrivalConverter: Unable to parse date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
         rangeStart,
         rangeEnd,
       });
@@ -444,14 +451,23 @@ export default function ArrivalConverterPage() {
 
     console.info("ArrivalConverter: Searching product overview.", {
       hotelUid,
-      startDate,
-      endDate,
+      startDate: resolvedStartDate,
+      endDate: resolvedEndDate,
       rangeStart,
       rangeEnd,
       rangeEndExclusive,
     });
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
+
+    if (syncParams) {
+      setSearchParams((prev) => {
+        const nextParams = new URLSearchParams(prev);
+        nextParams.set("start", resolvedStartDate);
+        nextParams.set("end", resolvedEndDate);
+        return nextParams;
+      });
+    }
 
     try {
       const arrivalsRef = collection(
@@ -617,6 +633,35 @@ export default function ArrivalConverterPage() {
     }
   };
 
+  useEffect(() => {
+    const queryStart = searchParams.get("start") || "";
+    const queryEnd = searchParams.get("end") || "";
+    if (queryStart && queryStart !== startDate) {
+      setStartDate(queryStart);
+    }
+    if (queryEnd && queryEnd !== endDate) {
+      setEndDate(queryEnd);
+    }
+    if (!queryStart || !queryEnd || !hotelUid) return;
+    const searchKey = `${hotelUid}-${queryStart}-${queryEnd}`;
+    if (lastSearchRef.current === searchKey) return;
+    lastSearchRef.current = searchKey;
+    handleSearch({
+      nextStartDate: queryStart,
+      nextEndDate: queryEnd,
+      syncParams: false,
+    });
+  }, [searchParams, hotelUid]);
+
+  const handleProductClick = (product) => {
+    const nextParams = new URLSearchParams();
+    if (startDate) nextParams.set("start", startDate);
+    if (endDate) nextParams.set("end", endDate);
+    navigate(
+      `/tools/arrival-converter/product/${encodeURIComponent(product)}?${nextParams.toString()}`
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -761,7 +806,15 @@ export default function ArrivalConverterPage() {
                       <tbody className="divide-y divide-gray-100">
                         {productSummary.map((item) => (
                           <tr key={item.product}>
-                            <td className="px-4 py-2 text-gray-900">{item.product}</td>
+                            <td className="px-4 py-2 text-gray-900">
+                              <button
+                                type="button"
+                                onClick={() => handleProductClick(item.product)}
+                                className="font-semibold text-[#b41f1f] hover:underline"
+                              >
+                                {item.product}
+                              </button>
+                            </td>
                             <td className="px-4 py-2 text-right text-gray-900">
                               {item.count}
                             </td>
