@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
@@ -8,7 +9,9 @@ import {
   collectionGroup,
   db,
   doc,
+  getDoc,
   getDocs,
+  setDoc,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -133,6 +136,11 @@ const buildArrivalRecords = (headers, rows) => {
       .trim()
       .replace(/[\\/]/g, "-");
 
+  const parseAdults = (value) => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   return rows
     .map((row) => {
       const arrivalDate = String(getValue(row, "TRUNC_BEGIN")).trim();
@@ -143,6 +151,7 @@ const buildArrivalRecords = (headers, rows) => {
         return null;
       }
 
+      const adults = parseAdults(getValue(row, "ADULTS"));
       const products = String(getValue(row, "PRODUCTS"))
         .split(",")
         .map((product) => product.trim())
@@ -155,6 +164,7 @@ const buildArrivalRecords = (headers, rows) => {
           roomNr: String(getValue(row, "DISP_ROOM_NO")).trim(),
           arrivalDate,
           departureDate: String(getValue(row, "TRUNC_END")).trim(),
+          adults,
           products,
           rateCode: String(getValue(row, "RATE_CODE")).trim(),
         },
@@ -203,7 +213,10 @@ const parseArrivalDate = (value) => {
   return null;
 };
 
+const normalizePackageName = (value) => String(value || "").trim().toLowerCase();
+
 export default function ArrivalConverterPage() {
+  const [activeTab, setActiveTab] = useState("converter");
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [summary, setSummary] = useState(null);
   const [searchStatus, setSearchStatus] = useState({
@@ -213,7 +226,17 @@ export default function ArrivalConverterPage() {
   const [productSummary, setProductSummary] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [packages, setPackages] = useState([]);
   const { hotelUid } = useHotelContext();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const lastSearchRef = useRef("");
+
+  const createPackage = () => ({
+    id: `package-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name: "",
+    perAdult: false,
+  });
 
   const todayLabel = useMemo(
     () =>
@@ -230,6 +253,72 @@ export default function ArrivalConverterPage() {
     sessionStorage.clear();
     window.location.href = "/login";
   };
+
+  const loadPackages = async () => {
+    if (!hotelUid) {
+      setPackages([]);
+      return;
+    }
+
+    try {
+      const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+      const settingsSnap = await getDoc(settingsRef);
+      const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+      const storedPackages = Array.isArray(settings?.packages) ? settings.packages : [];
+      setPackages(
+        storedPackages.map((pkg) => ({
+          id: `package-${
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(16).slice(2)
+          }`,
+          name: String(pkg?.name || ""),
+          perAdult: Boolean(pkg?.perAdult),
+        }))
+      );
+    } catch (error) {
+      console.error("ArrivalConverter: Unable to load packages.", error);
+      setPackages([]);
+    }
+  };
+
+  const persistPackages = async (nextPackages) => {
+    if (!hotelUid) return;
+    const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+    const payload = nextPackages.map((pkg) => ({
+      name: String(pkg.name || "").trim(),
+      perAdult: Boolean(pkg.perAdult),
+    }));
+    await setDoc(settingsRef, { packages: payload }, { merge: true });
+  };
+
+  const updatePackages = (updater) => {
+    setPackages((prev) => {
+      const nextPackages = typeof updater === "function" ? updater(prev) : updater;
+      persistPackages(nextPackages).catch((error) => {
+        console.error("ArrivalConverter: Unable to save packages.", error);
+      });
+      return nextPackages;
+    });
+  };
+
+  const handleAddPackage = () => {
+    updatePackages((prev) => [...prev, createPackage()]);
+  };
+
+  const handleUpdatePackage = (packageId, updates) => {
+    updatePackages((prev) =>
+      prev.map((pkg) => (pkg.id === packageId ? { ...pkg, ...updates } : pkg))
+    );
+  };
+
+  const handleRemovePackage = (packageId) => {
+    updatePackages((prev) => prev.filter((pkg) => pkg.id !== packageId));
+  };
+
+  useEffect(() => {
+    loadPackages();
+  }, [hotelUid]);
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -306,17 +395,20 @@ export default function ArrivalConverterPage() {
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async ({ nextStartDate, nextEndDate, syncParams = true } = {}) => {
+    const resolvedStartDate = nextStartDate ?? startDate;
+    const resolvedEndDate = nextEndDate ?? endDate;
+
     if (!hotelUid) {
       console.debug("ArrivalConverter: Missing hotelUid on search.");
       setSearchStatus({ type: "error", message: "Selecteer eerst een hotel." });
       return;
     }
 
-    if (!startDate || !endDate) {
+    if (!resolvedStartDate || !resolvedEndDate) {
       console.debug("ArrivalConverter: Missing date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
       });
       setSearchStatus({
         type: "error",
@@ -325,10 +417,10 @@ export default function ArrivalConverterPage() {
       return;
     }
 
-    if (startDate > endDate) {
+    if (resolvedStartDate > resolvedEndDate) {
       console.debug("ArrivalConverter: Invalid date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
       });
       setSearchStatus({
         type: "error",
@@ -337,12 +429,12 @@ export default function ArrivalConverterPage() {
       return;
     }
 
-    const rangeStart = parseArrivalDate(startDate);
-    const rangeEnd = parseArrivalDate(endDate);
+    const rangeStart = parseArrivalDate(resolvedStartDate);
+    const rangeEnd = parseArrivalDate(resolvedEndDate);
     if (!rangeStart || !rangeEnd) {
       console.debug("ArrivalConverter: Unable to parse date range.", {
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
         rangeStart,
         rangeEnd,
       });
@@ -359,14 +451,23 @@ export default function ArrivalConverterPage() {
 
     console.info("ArrivalConverter: Searching product overview.", {
       hotelUid,
-      startDate,
-      endDate,
+      startDate: resolvedStartDate,
+      endDate: resolvedEndDate,
       rangeStart,
       rangeEnd,
       rangeEndExclusive,
     });
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
+
+    if (syncParams) {
+      setSearchParams((prev) => {
+        const nextParams = new URLSearchParams(prev);
+        nextParams.set("start", resolvedStartDate);
+        nextParams.set("end", resolvedEndDate);
+        return nextParams;
+      });
+    }
 
     try {
       const arrivalsRef = collection(
@@ -378,6 +479,11 @@ export default function ArrivalConverterPage() {
         total: arrivalsSnapshot.size,
       });
       const totals = new Map();
+      const packageSettings = new Map(
+        packages
+          .filter((pkg) => normalizePackageName(pkg.name))
+          .map((pkg) => [normalizePackageName(pkg.name), pkg])
+      );
 
       const processReservations = (arrivalDateKey, reservationsSnapshot) => {
         console.info("ArrivalConverter: Reservations loaded.", {
@@ -421,11 +527,17 @@ export default function ArrivalConverterPage() {
           }
 
           includedReservations += 1;
+          const adultsCount = Number.isFinite(Number(data.adults))
+            ? Number(data.adults)
+            : 0;
           (data.products || []).forEach((product) => {
             const label = String(product || "").trim();
             if (!label) return;
-            totals.set(label, (totals.get(label) || 0) + overlapDays);
-            productsCounted += overlapDays;
+            const setting = packageSettings.get(normalizePackageName(label));
+            const multiplier = setting?.perAdult ? adultsCount : 1;
+            const increment = overlapDays * multiplier;
+            totals.set(label, (totals.get(label) || 0) + increment);
+            productsCounted += increment;
           });
         });
         console.info("ArrivalConverter: Reservations processed.", {
@@ -521,6 +633,35 @@ export default function ArrivalConverterPage() {
     }
   };
 
+  useEffect(() => {
+    const queryStart = searchParams.get("start") || "";
+    const queryEnd = searchParams.get("end") || "";
+    if (queryStart && queryStart !== startDate) {
+      setStartDate(queryStart);
+    }
+    if (queryEnd && queryEnd !== endDate) {
+      setEndDate(queryEnd);
+    }
+    if (!queryStart || !queryEnd || !hotelUid) return;
+    const searchKey = `${hotelUid}-${queryStart}-${queryEnd}`;
+    if (lastSearchRef.current === searchKey) return;
+    lastSearchRef.current = searchKey;
+    handleSearch({
+      nextStartDate: queryStart,
+      nextEndDate: queryEnd,
+      syncParams: false,
+    });
+  }, [searchParams, hotelUid]);
+
+  const handleProductClick = (product) => {
+    const nextParams = new URLSearchParams();
+    if (startDate) nextParams.set("start", startDate);
+    if (endDate) nextParams.set("end", endDate);
+    navigate(
+      `/tools/arrival-converter/product/${encodeURIComponent(product)}?${nextParams.toString()}`
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -535,127 +676,242 @@ export default function ArrivalConverterPage() {
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Bestand uploaden</h2>
-              <p className="text-sm text-gray-600">
-                Kies het originele exportbestand (tab-gescheiden). Na upload wordt het opgeslagen.
-              </p>
-            </div>
-            <label className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold cursor-pointer hover:bg-[#9c1a1a]">
-              CSV uploaden
-              <input
-                type="file"
-                accept=".csv,.tsv,text/plain"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-          </div>
-
-          {status.type !== "idle" && (
-            <div
-              className={`text-sm rounded-md px-3 py-2 border ${
-                status.type === "error"
-                  ? "bg-red-50 border-red-200 text-red-700"
-                  : status.type === "success"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
-            >
-              {status.message}
-            </div>
-          )}
-
-          {summary && (
-            <div className="text-sm text-gray-600">
-              Verwerkte rijen: <span className="font-semibold">{summary.rows}</span> · Kolommen:
-              <span className="font-semibold"> {summary.columns}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Productoverzicht</h2>
-            <p className="text-sm text-gray-600">
-              Kies een periode om alle producten te tellen op basis van de arrivalDate.
-              Vertrekdagen worden niet meegeteld.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <label className="flex flex-col text-sm text-gray-600">
-              Begindatum
-              <input
-                type="date"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
-              />
-            </label>
-            <label className="flex flex-col text-sm text-gray-600">
-              Einddatum
-              <input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
-              />
-            </label>
-            <div className="flex items-end">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-2">
+          <div className="flex flex-wrap gap-2 border-b border-gray-200 px-4 pt-4 pb-3">
+            {[
+              { id: "converter", label: "Converter" },
+              { id: "packages", label: "Packages" },
+            ].map((tab) => (
               <button
+                key={tab.id}
                 type="button"
-                onClick={handleSearch}
-                className="px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-md text-sm font-semibold ${
+                  activeTab === tab.id
+                    ? "bg-[#b41f1f] text-white"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
-                Search
+                {tab.label}
               </button>
-            </div>
+            ))}
           </div>
 
-          {searchStatus.type !== "idle" && (
-            <div
-              className={`text-sm rounded-md px-3 py-2 border ${
-                searchStatus.type === "error"
-                  ? "bg-red-50 border-red-200 text-red-700"
-                  : searchStatus.type === "success"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
-            >
-              {searchStatus.message}
+          {activeTab === "converter" && (
+            <div className="space-y-6 p-4 pt-6">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Bestand uploaden</h2>
+                    <p className="text-sm text-gray-600">
+                      Kies het originele exportbestand (tab-gescheiden). Na upload wordt het
+                      opgeslagen.
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold cursor-pointer hover:bg-[#9c1a1a]">
+                    CSV uploaden
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,text/plain"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+
+                {status.type !== "idle" && (
+                  <div
+                    className={`text-sm rounded-md px-3 py-2 border ${
+                      status.type === "error"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : status.type === "success"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                    }`}
+                  >
+                    {status.message}
+                  </div>
+                )}
+
+                {summary && (
+                  <div className="text-sm text-gray-600">
+                    Verwerkte rijen: <span className="font-semibold">{summary.rows}</span> ·
+                    Kolommen:<span className="font-semibold"> {summary.columns}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Productoverzicht</h2>
+                  <p className="text-sm text-gray-600">
+                    Kies een periode om alle producten te tellen op basis van de arrivalDate.
+                    Vertrekdagen worden niet meegeteld.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <label className="flex flex-col text-sm text-gray-600">
+                    Begindatum
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                    />
+                  </label>
+                  <label className="flex flex-col text-sm text-gray-600">
+                    Einddatum
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleSearch}
+                      className="px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                    >
+                      Search
+                    </button>
+                  </div>
+                </div>
+
+                {searchStatus.type !== "idle" && (
+                  <div
+                    className={`text-sm rounded-md px-3 py-2 border ${
+                      searchStatus.type === "error"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : searchStatus.type === "success"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                    }`}
+                  >
+                    {searchStatus.message}
+                  </div>
+                )}
+
+                {productSummary.length ? (
+                  <div className="overflow-hidden border border-gray-200 rounded-md">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Product</th>
+                          <th className="text-right px-4 py-2 font-semibold">Aantal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {productSummary.map((item) => (
+                          <tr key={item.product}>
+                            <td className="px-4 py-2 text-gray-900">
+                              <button
+                                type="button"
+                                onClick={() => handleProductClick(item.product)}
+                                className="font-semibold text-[#b41f1f] hover:underline"
+                              >
+                                {item.product}
+                              </button>
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              {item.count}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  searchStatus.type === "success" && (
+                    <div className="text-sm text-gray-600">
+                      Geen producten gevonden binnen deze periode.
+                    </div>
+                  )
+                )}
+              </div>
             </div>
           )}
 
-          {productSummary.length ? (
-            <div className="overflow-hidden border border-gray-200 rounded-md">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-semibold">Product</th>
-                    <th className="text-right px-4 py-2 font-semibold">Aantal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {productSummary.map((item) => (
-                    <tr key={item.product}>
-                      <td className="px-4 py-2 text-gray-900">{item.product}</td>
-                      <td className="px-4 py-2 text-right text-gray-900">
-                        {item.count}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            searchStatus.type === "success" && (
-              <div className="text-sm text-gray-600">
-                Geen producten gevonden binnen deze periode.
+          {activeTab === "packages" && (
+            <div className="space-y-6 p-4 pt-6">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Packages definiëren</h2>
+                    <p className="text-sm text-gray-600">
+                      Voeg hier producten toe en geef aan of ze per volwassene worden gerekend.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddPackage}
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                  >
+                    Package toevoegen
+                  </button>
+                </div>
+
+                {packages.length ? (
+                  <div className="overflow-hidden border border-gray-200 rounded-md">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Package</th>
+                          <th className="text-center px-4 py-2 font-semibold">Per adult</th>
+                          <th className="text-right px-4 py-2 font-semibold">Acties</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {packages.map((pkg) => (
+                          <tr key={pkg.id}>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={pkg.name}
+                                onChange={(event) =>
+                                  handleUpdatePackage(pkg.id, {
+                                    name: event.target.value,
+                                  })
+                                }
+                                placeholder="Naam van het package"
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={pkg.perAdult}
+                                onChange={(event) =>
+                                  handleUpdatePackage(pkg.id, {
+                                    perAdult: event.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 text-[#b41f1f] border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePackage(pkg.id)}
+                                className="text-sm font-semibold text-red-600 hover:text-red-700"
+                              >
+                                Verwijderen
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">
+                    Nog geen packages toegevoegd. Klik op “Package toevoegen” om te starten.
+                  </div>
+                )}
               </div>
-            )
+            </div>
           )}
         </div>
       </PageContainer>
