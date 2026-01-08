@@ -178,6 +178,8 @@ const MONTHS = {
   DEC: 11,
 };
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 const parseArrivalDate = (value) => {
   const normalized = String(value ?? "").trim();
   if (!normalized) return null;
@@ -351,6 +353,9 @@ export default function ArrivalConverterPage() {
       return;
     }
     rangeEnd.setHours(23, 59, 59, 999);
+    const rangeEndExclusive = new Date(rangeEnd);
+    rangeEndExclusive.setHours(0, 0, 0, 0);
+    rangeEndExclusive.setDate(rangeEndExclusive.getDate() + 1);
 
     console.info("ArrivalConverter: Searching product overview.", {
       hotelUid,
@@ -358,6 +363,7 @@ export default function ArrivalConverterPage() {
       endDate,
       rangeStart,
       rangeEnd,
+      rangeEndExclusive,
     });
     setSearchStatus({ type: "loading", message: "Overzicht ophalen..." });
     setProductSummary([]);
@@ -384,12 +390,32 @@ export default function ArrivalConverterPage() {
         reservationsSnapshot.forEach((reservationDoc) => {
           const data = reservationDoc.data();
           const arrivalDateValue = parseArrivalDate(data.arrivalDate);
-          if (!arrivalDateValue || arrivalDateValue < rangeStart || arrivalDateValue > rangeEnd) {
+          const departureDateValue = parseArrivalDate(data.departureDate);
+          if (!arrivalDateValue || !departureDateValue) {
             excludedReservations += 1;
             console.info("ArrivalConverter: Skipping reservation.", {
               arrivalDateKey,
               reservationId: reservationDoc.id,
               arrivalDateValue,
+              departureDateValue,
+            });
+            return;
+          }
+
+          const overlapStart = arrivalDateValue > rangeStart ? arrivalDateValue : rangeStart;
+          const overlapEnd =
+            departureDateValue < rangeEndExclusive ? departureDateValue : rangeEndExclusive;
+          const overlapDays = Math.max(
+            0,
+            Math.floor((overlapEnd.getTime() - overlapStart.getTime()) / MS_PER_DAY)
+          );
+          if (!overlapDays) {
+            excludedReservations += 1;
+            console.info("ArrivalConverter: Skipping reservation (no overlap).", {
+              arrivalDateKey,
+              reservationId: reservationDoc.id,
+              overlapStart,
+              overlapEnd,
             });
             return;
           }
@@ -398,8 +424,8 @@ export default function ArrivalConverterPage() {
           (data.products || []).forEach((product) => {
             const label = String(product || "").trim();
             if (!label) return;
-            totals.set(label, (totals.get(label) || 0) + 1);
-            productsCounted += 1;
+            totals.set(label, (totals.get(label) || 0) + overlapDays);
+            productsCounted += overlapDays;
           });
         });
         console.info("ArrivalConverter: Reservations processed.", {
@@ -415,11 +441,7 @@ export default function ArrivalConverterPage() {
           arrivalsSnapshot.docs.map(async (arrivalDoc) => {
             const arrivalDateKey = arrivalDoc.id;
             const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
-            if (
-              !arrivalDateFromKey ||
-              arrivalDateFromKey < rangeStart ||
-              arrivalDateFromKey > rangeEnd
-            ) {
+            if (!arrivalDateFromKey || arrivalDateFromKey > rangeEnd) {
               console.info("ArrivalConverter: Skipping arrival date.", {
                 arrivalDateKey,
                 arrivalDateFromKey,
@@ -470,18 +492,6 @@ export default function ArrivalConverterPage() {
           }
 
           const arrivalDateFromKey = parseArrivalDate(arrivalDateKey);
-          if (
-            !arrivalDateFromKey ||
-            arrivalDateFromKey < rangeStart ||
-            arrivalDateFromKey > rangeEnd
-          ) {
-            console.info("ArrivalConverter: Skipping arrival date from reservation.", {
-              arrivalDateKey,
-              arrivalDateFromKey,
-            });
-            return;
-          }
-
           processReservations(arrivalDateKey, {
             size: 1,
             forEach: (callback) => callback(reservationDoc),
