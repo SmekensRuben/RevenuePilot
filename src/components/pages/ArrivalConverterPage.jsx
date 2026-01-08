@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
@@ -8,7 +8,9 @@ import {
   collectionGroup,
   db,
   doc,
+  getDoc,
   getDocs,
+  setDoc,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -133,6 +135,11 @@ const buildArrivalRecords = (headers, rows) => {
       .trim()
       .replace(/[\\/]/g, "-");
 
+  const parseAdults = (value) => {
+    const parsed = Number(String(value ?? "").trim().replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   return rows
     .map((row) => {
       const arrivalDate = String(getValue(row, "TRUNC_BEGIN")).trim();
@@ -143,6 +150,7 @@ const buildArrivalRecords = (headers, rows) => {
         return null;
       }
 
+      const adults = parseAdults(getValue(row, "ADULTS"));
       const products = String(getValue(row, "PRODUCTS"))
         .split(",")
         .map((product) => product.trim())
@@ -155,6 +163,7 @@ const buildArrivalRecords = (headers, rows) => {
           roomNr: String(getValue(row, "DISP_ROOM_NO")).trim(),
           arrivalDate,
           departureDate: String(getValue(row, "TRUNC_END")).trim(),
+          adults,
           products,
           rateCode: String(getValue(row, "RATE_CODE")).trim(),
         },
@@ -203,6 +212,8 @@ const parseArrivalDate = (value) => {
   return null;
 };
 
+const normalizePackageName = (value) => String(value || "").trim().toLowerCase();
+
 export default function ArrivalConverterPage() {
   const [activeTab, setActiveTab] = useState("converter");
   const [status, setStatus] = useState({ type: "idle", message: "" });
@@ -239,19 +250,71 @@ export default function ArrivalConverterPage() {
     window.location.href = "/login";
   };
 
+  const loadPackages = async () => {
+    if (!hotelUid) {
+      setPackages([]);
+      return;
+    }
+
+    try {
+      const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+      const settingsSnap = await getDoc(settingsRef);
+      const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+      const storedPackages = Array.isArray(settings?.packages) ? settings.packages : [];
+      setPackages(
+        storedPackages.map((pkg) => ({
+          id: `package-${
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : Math.random().toString(16).slice(2)
+          }`,
+          name: String(pkg?.name || ""),
+          perAdult: Boolean(pkg?.perAdult),
+        }))
+      );
+    } catch (error) {
+      console.error("ArrivalConverter: Unable to load packages.", error);
+      setPackages([]);
+    }
+  };
+
+  const persistPackages = async (nextPackages) => {
+    if (!hotelUid) return;
+    const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+    const payload = nextPackages.map((pkg) => ({
+      name: String(pkg.name || "").trim(),
+      perAdult: Boolean(pkg.perAdult),
+    }));
+    await setDoc(settingsRef, { packages: payload }, { merge: true });
+  };
+
+  const updatePackages = (updater) => {
+    setPackages((prev) => {
+      const nextPackages = typeof updater === "function" ? updater(prev) : updater;
+      persistPackages(nextPackages).catch((error) => {
+        console.error("ArrivalConverter: Unable to save packages.", error);
+      });
+      return nextPackages;
+    });
+  };
+
   const handleAddPackage = () => {
-    setPackages((prev) => [...prev, createPackage()]);
+    updatePackages((prev) => [...prev, createPackage()]);
   };
 
   const handleUpdatePackage = (packageId, updates) => {
-    setPackages((prev) =>
+    updatePackages((prev) =>
       prev.map((pkg) => (pkg.id === packageId ? { ...pkg, ...updates } : pkg))
     );
   };
 
   const handleRemovePackage = (packageId) => {
-    setPackages((prev) => prev.filter((pkg) => pkg.id !== packageId));
+    updatePackages((prev) => prev.filter((pkg) => pkg.id !== packageId));
   };
+
+  useEffect(() => {
+    loadPackages();
+  }, [hotelUid]);
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -400,6 +463,11 @@ export default function ArrivalConverterPage() {
         total: arrivalsSnapshot.size,
       });
       const totals = new Map();
+      const packageSettings = new Map(
+        packages
+          .filter((pkg) => normalizePackageName(pkg.name))
+          .map((pkg) => [normalizePackageName(pkg.name), pkg])
+      );
 
       const processReservations = (arrivalDateKey, reservationsSnapshot) => {
         console.info("ArrivalConverter: Reservations loaded.", {
@@ -443,11 +511,17 @@ export default function ArrivalConverterPage() {
           }
 
           includedReservations += 1;
+          const adultsCount = Number.isFinite(Number(data.adults))
+            ? Number(data.adults)
+            : 0;
           (data.products || []).forEach((product) => {
             const label = String(product || "").trim();
             if (!label) return;
-            totals.set(label, (totals.get(label) || 0) + overlapDays);
-            productsCounted += overlapDays;
+            const setting = packageSettings.get(normalizePackageName(label));
+            const multiplier = setting?.perAdult ? adultsCount : 1;
+            const increment = overlapDays * multiplier;
+            totals.set(label, (totals.get(label) || 0) + increment);
+            productsCounted += increment;
           });
         });
         console.info("ArrivalConverter: Reservations processed.", {
