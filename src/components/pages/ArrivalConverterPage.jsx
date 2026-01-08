@@ -204,6 +204,7 @@ const parseArrivalDate = (value) => {
 };
 
 export default function ArrivalConverterPage() {
+  const [activeTab, setActiveTab] = useState("converter");
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [summary, setSummary] = useState(null);
   const [searchStatus, setSearchStatus] = useState({
@@ -213,7 +214,14 @@ export default function ArrivalConverterPage() {
   const [productSummary, setProductSummary] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [packages, setPackages] = useState([]);
   const { hotelUid } = useHotelContext();
+
+  const createPackage = () => ({
+    id: `package-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name: "",
+    perAdult: false,
+  });
 
   const todayLabel = useMemo(
     () =>
@@ -229,6 +237,20 @@ export default function ArrivalConverterPage() {
     await signOut(auth);
     sessionStorage.clear();
     window.location.href = "/login";
+  };
+
+  const handleAddPackage = () => {
+    setPackages((prev) => [...prev, createPackage()]);
+  };
+
+  const handleUpdatePackage = (packageId, updates) => {
+    setPackages((prev) =>
+      prev.map((pkg) => (pkg.id === packageId ? { ...pkg, ...updates } : pkg))
+    );
+  };
+
+  const handleRemovePackage = (packageId) => {
+    setPackages((prev) => prev.filter((pkg) => pkg.id !== packageId));
   };
 
   const handleFileChange = async (event) => {
@@ -535,127 +557,234 @@ export default function ArrivalConverterPage() {
           </p>
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Bestand uploaden</h2>
-              <p className="text-sm text-gray-600">
-                Kies het originele exportbestand (tab-gescheiden). Na upload wordt het opgeslagen.
-              </p>
-            </div>
-            <label className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold cursor-pointer hover:bg-[#9c1a1a]">
-              CSV uploaden
-              <input
-                type="file"
-                accept=".csv,.tsv,text/plain"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
-          </div>
-
-          {status.type !== "idle" && (
-            <div
-              className={`text-sm rounded-md px-3 py-2 border ${
-                status.type === "error"
-                  ? "bg-red-50 border-red-200 text-red-700"
-                  : status.type === "success"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
-            >
-              {status.message}
-            </div>
-          )}
-
-          {summary && (
-            <div className="text-sm text-gray-600">
-              Verwerkte rijen: <span className="font-semibold">{summary.rows}</span> · Kolommen:
-              <span className="font-semibold"> {summary.columns}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Productoverzicht</h2>
-            <p className="text-sm text-gray-600">
-              Kies een periode om alle producten te tellen op basis van de arrivalDate.
-              Vertrekdagen worden niet meegeteld.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4">
-            <label className="flex flex-col text-sm text-gray-600">
-              Begindatum
-              <input
-                type="date"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
-              />
-            </label>
-            <label className="flex flex-col text-sm text-gray-600">
-              Einddatum
-              <input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
-              />
-            </label>
-            <div className="flex items-end">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-2">
+          <div className="flex flex-wrap gap-2 border-b border-gray-200 px-4 pt-4 pb-3">
+            {[
+              { id: "converter", label: "Converter" },
+              { id: "packages", label: "Packages" },
+            ].map((tab) => (
               <button
+                key={tab.id}
                 type="button"
-                onClick={handleSearch}
-                className="px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-2 rounded-md text-sm font-semibold ${
+                  activeTab === tab.id
+                    ? "bg-[#b41f1f] text-white"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
               >
-                Search
+                {tab.label}
               </button>
-            </div>
+            ))}
           </div>
 
-          {searchStatus.type !== "idle" && (
-            <div
-              className={`text-sm rounded-md px-3 py-2 border ${
-                searchStatus.type === "error"
-                  ? "bg-red-50 border-red-200 text-red-700"
-                  : searchStatus.type === "success"
-                  ? "bg-green-50 border-green-200 text-green-700"
-                  : "bg-blue-50 border-blue-200 text-blue-700"
-              }`}
-            >
-              {searchStatus.message}
+          {activeTab === "converter" && (
+            <div className="space-y-6 p-4 pt-6">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Bestand uploaden</h2>
+                    <p className="text-sm text-gray-600">
+                      Kies het originele exportbestand (tab-gescheiden). Na upload wordt het
+                      opgeslagen.
+                    </p>
+                  </div>
+                  <label className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold cursor-pointer hover:bg-[#9c1a1a]">
+                    CSV uploaden
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,text/plain"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                </div>
+
+                {status.type !== "idle" && (
+                  <div
+                    className={`text-sm rounded-md px-3 py-2 border ${
+                      status.type === "error"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : status.type === "success"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                    }`}
+                  >
+                    {status.message}
+                  </div>
+                )}
+
+                {summary && (
+                  <div className="text-sm text-gray-600">
+                    Verwerkte rijen: <span className="font-semibold">{summary.rows}</span> ·
+                    Kolommen:<span className="font-semibold"> {summary.columns}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Productoverzicht</h2>
+                  <p className="text-sm text-gray-600">
+                    Kies een periode om alle producten te tellen op basis van de arrivalDate.
+                    Vertrekdagen worden niet meegeteld.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <label className="flex flex-col text-sm text-gray-600">
+                    Begindatum
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                    />
+                  </label>
+                  <label className="flex flex-col text-sm text-gray-600">
+                    Einddatum
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={handleSearch}
+                      className="px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                    >
+                      Search
+                    </button>
+                  </div>
+                </div>
+
+                {searchStatus.type !== "idle" && (
+                  <div
+                    className={`text-sm rounded-md px-3 py-2 border ${
+                      searchStatus.type === "error"
+                        ? "bg-red-50 border-red-200 text-red-700"
+                        : searchStatus.type === "success"
+                        ? "bg-green-50 border-green-200 text-green-700"
+                        : "bg-blue-50 border-blue-200 text-blue-700"
+                    }`}
+                  >
+                    {searchStatus.message}
+                  </div>
+                )}
+
+                {productSummary.length ? (
+                  <div className="overflow-hidden border border-gray-200 rounded-md">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Product</th>
+                          <th className="text-right px-4 py-2 font-semibold">Aantal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {productSummary.map((item) => (
+                          <tr key={item.product}>
+                            <td className="px-4 py-2 text-gray-900">{item.product}</td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              {item.count}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  searchStatus.type === "success" && (
+                    <div className="text-sm text-gray-600">
+                      Geen producten gevonden binnen deze periode.
+                    </div>
+                  )
+                )}
+              </div>
             </div>
           )}
 
-          {productSummary.length ? (
-            <div className="overflow-hidden border border-gray-200 rounded-md">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="text-left px-4 py-2 font-semibold">Product</th>
-                    <th className="text-right px-4 py-2 font-semibold">Aantal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {productSummary.map((item) => (
-                    <tr key={item.product}>
-                      <td className="px-4 py-2 text-gray-900">{item.product}</td>
-                      <td className="px-4 py-2 text-right text-gray-900">
-                        {item.count}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            searchStatus.type === "success" && (
-              <div className="text-sm text-gray-600">
-                Geen producten gevonden binnen deze periode.
+          {activeTab === "packages" && (
+            <div className="space-y-6 p-4 pt-6">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Packages definiëren</h2>
+                    <p className="text-sm text-gray-600">
+                      Voeg hier producten toe en geef aan of ze per volwassene worden gerekend.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddPackage}
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-md bg-[#b41f1f] text-white font-semibold hover:bg-[#9c1a1a]"
+                  >
+                    Package toevoegen
+                  </button>
+                </div>
+
+                {packages.length ? (
+                  <div className="overflow-hidden border border-gray-200 rounded-md">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-50 text-gray-600">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-semibold">Package</th>
+                          <th className="text-center px-4 py-2 font-semibold">Per adult</th>
+                          <th className="text-right px-4 py-2 font-semibold">Acties</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {packages.map((pkg) => (
+                          <tr key={pkg.id}>
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={pkg.name}
+                                onChange={(event) =>
+                                  handleUpdatePackage(pkg.id, {
+                                    name: event.target.value,
+                                  })
+                                }
+                                placeholder="Naam van het package"
+                                className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={pkg.perAdult}
+                                onChange={(event) =>
+                                  handleUpdatePackage(pkg.id, {
+                                    perAdult: event.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 text-[#b41f1f] border-gray-300 rounded"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleRemovePackage(pkg.id)}
+                                className="text-sm font-semibold text-red-600 hover:text-red-700"
+                              >
+                                Verwijderen
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">
+                    Nog geen packages toegevoegd. Klik op “Package toevoegen” om te starten.
+                  </div>
+                )}
               </div>
-            )
+            </div>
           )}
         </div>
       </PageContainer>
