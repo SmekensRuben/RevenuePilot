@@ -588,6 +588,21 @@ export default function WeeklyForecastToolPage() {
     return total / validAdrs.length;
   }, [overviewRows]);
 
+  const monthlyOverviewTotals = useMemo(() => {
+    return overviewRows.reduce(
+      (acc, row) => {
+        const roomsSold = Number(row.totalRoomsSold || 0);
+        const adr = Number(row.totalAdr || 0);
+
+        acc.totalRoomNights += roomsSold;
+        acc.totalRevenue += roomsSold * adr;
+
+        return acc;
+      },
+      { totalRoomNights: 0, totalRevenue: 0 }
+    );
+  }, [overviewRows]);
+
   const roomsToForecast = useMemo(() => {
     const revenueValue = Number(revenueToForecast);
     if (!Number.isFinite(revenueValue) || revenueValue <= 0 || !averageTotalAdr || averageTotalAdr <= 0) {
@@ -1074,6 +1089,22 @@ export default function WeeklyForecastToolPage() {
               <div className="text-right text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
                 <p className="font-semibold">Average Total ADR</p>
                 <p>{averageTotalAdr ? formatEuro(averageTotalAdr) : "No ADR available"}</p>
+              </div>
+              <div className="text-right text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
+                <p className="font-semibold">Total Revenue</p>
+                <p>
+                  {monthlyOverviewTotals.totalRevenue
+                    ? formatEuro(monthlyOverviewTotals.totalRevenue)
+                    : "No revenue available"}
+                </p>
+              </div>
+              <div className="text-right text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-2">
+                <p className="font-semibold">Total Room Nights</p>
+                <p>
+                  {monthlyOverviewTotals.totalRoomNights
+                    ? formatNumber(monthlyOverviewTotals.totalRoomNights)
+                    : "No room nights available"}
+                </p>
               </div>
               <Button
                 onClick={saveForecastSettings}
