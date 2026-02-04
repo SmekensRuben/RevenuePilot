@@ -18,6 +18,8 @@ import ArrivalConverterPage from "./components/pages/ArrivalConverterPage.jsx";
 import ArrivalConverterProductDetailPage from "./components/pages/ArrivalConverterProductDetailPage.jsx";
 import QuotesPage from "./components/pages/QuotesPage.jsx";
 import QuoteCreatePage from "./components/pages/QuoteCreatePage.jsx";
+import RoomTypesPage from "./components/pages/RoomTypesPage.jsx";
+import RoomTypeCreatePage from "./components/pages/RoomTypeCreatePage.jsx";
 
 export default function AppRouter() {
   return (
@@ -141,6 +143,22 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <QuoteCreatePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/room-types"
+        element={
+          <ProtectedRoute>
+            <RoomTypesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/room-types/new"
+        element={
+          <ProtectedRoute>
+            <RoomTypeCreatePage />
           </ProtectedRoute>
         }
       />
