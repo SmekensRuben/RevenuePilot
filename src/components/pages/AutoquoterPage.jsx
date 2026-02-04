@@ -3,7 +3,8 @@ import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { Button } from "../layout/Button";
-import { auth, signOut } from "../../firebaseConfig";
+import { auth, db, doc, getDoc, signOut } from "../../firebaseConfig";
+import { useHotelContext } from "../../contexts/HotelContext";
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -28,6 +29,7 @@ const buildCompareDate = (dateString, compareYear) => {
 };
 
 export default function AutoquoterPage() {
+  const { hotelUid } = useHotelContext();
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
       weekday: "long",
@@ -45,7 +47,9 @@ export default function AutoquoterPage() {
   const [rooms, setRooms] = useState("10");
   const [compareYear, setCompareYear] = useState(String(currentYear - 1));
   const [generatedDates, setGeneratedDates] = useState([]);
+  const [marketOverview, setMarketOverview] = useState([]);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const compareStartDate = useMemo(
     () => buildCompareDate(startDate, Number(compareYear)),
     [compareYear, startDate]
@@ -61,8 +65,9 @@ export default function AutoquoterPage() {
     window.location.href = "/login";
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setError("");
+    setMarketOverview([]);
     if (!startDate || !endDate) {
       setGeneratedDates([]);
       setError("Vul een start- en einddatum in om een quote te genereren.");
@@ -98,6 +103,40 @@ export default function AutoquoterPage() {
     }
 
     setGeneratedDates(days);
+
+    if (!hotelUid) {
+      setError("Geen hotel geselecteerd om data op te halen.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const overview = await Promise.all(
+        days.map(async (date) => {
+          const dateKey = formatDateInput(date);
+          const docRef = doc(db, `hotels/${hotelUid}/reservationStatistics`, dateKey);
+          const snap = await getDoc(docRef);
+          const data = snap.exists() ? snap.data() : {};
+          const marketStats = data?.reservationsStatisticsByMarketCode || {};
+          const rows = Object.entries(marketStats).map(([marketCode, value]) => ({
+            marketCode,
+            roomsSold: Number(value?.roomsSold ?? 0),
+          }));
+          rows.sort((a, b) => a.marketCode.localeCompare(b.marketCode));
+          return {
+            dateKey,
+            displayDate: formatDisplayDate(date),
+            rows,
+          };
+        })
+      );
+      setMarketOverview(overview);
+    } catch (fetchError) {
+      console.error("Fout bij ophalen van reservation statistics:", fetchError);
+      setError("Er ging iets mis bij het ophalen van de reservation statistics.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -159,7 +198,7 @@ export default function AutoquoterPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={handleGenerate}>
+            <Button type="button" onClick={handleGenerate} disabled={isLoading}>
               Generate quote
             </Button>
             {error ? <span className="text-sm text-red-600">{error}</span> : null}
@@ -183,7 +222,11 @@ export default function AutoquoterPage() {
             ) : null}
           </div>
 
-          {generatedDates.length ? (
+          {isLoading ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
+              Reservation statistics worden geladen...
+            </div>
+          ) : generatedDates.length ? (
             <div className="overflow-hidden rounded-lg border border-gray-200">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-left text-gray-600">
@@ -205,6 +248,59 @@ export default function AutoquoterPage() {
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
               Klik op &quot;Generate quote&quot; om het overzicht te vullen.
+            </div>
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              ReservationsStatisticsByMarketCode
+            </h3>
+            <p className="text-sm text-gray-600">
+              Overzicht per dag van rooms sold per market code.
+            </p>
+          </div>
+
+          {marketOverview.length ? (
+            <div className="space-y-6">
+              {marketOverview.map((day) => (
+                <div key={day.dateKey} className="rounded-lg border border-gray-200">
+                  <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
+                    {day.displayDate}
+                  </div>
+                  {day.rows.length ? (
+                    <table className="min-w-full text-sm">
+                      <thead className="text-left text-gray-600">
+                        <tr>
+                          <th className="px-4 py-2 font-semibold">Market code</th>
+                          <th className="px-4 py-2 font-semibold">Rooms sold</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {day.rows.map((row) => (
+                          <tr key={`${day.dateKey}-${row.marketCode}`}>
+                            <td className="border-t border-gray-100 px-4 py-2 text-gray-700">
+                              {row.marketCode}
+                            </td>
+                            <td className="border-t border-gray-100 px-4 py-2 text-gray-700">
+                              {row.roomsSold}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-gray-500">
+                      Geen market code data gevonden voor deze dag.
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
+              Nog geen reservation statistics opgehaald.
             </div>
           )}
         </Card>
