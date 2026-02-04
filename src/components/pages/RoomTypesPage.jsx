@@ -1,35 +1,25 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
-
-const STORAGE_KEY = "revenue-pilot-room-types";
+import { useHotelContext } from "../../contexts/HotelContext";
+import { deleteRoomType, subscribeRoomTypes } from "../../services/firebaseRoomTypes";
 
 const columns = [
   { key: "name", label: "Room Type Name", isNumeric: false },
   { key: "operaCode", label: "Opera Code", isNumeric: false },
   { key: "marshaCode", label: "Marsha Code", isNumeric: false },
   { key: "rooms", label: "Rooms", isNumeric: true },
+  { key: "actions", label: "Acties", isNumeric: false },
 ];
-
-function loadRoomTypes() {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 export default function RoomTypesPage() {
   const navigate = useNavigate();
-  const [roomTypes] = useState(() => loadRoomTypes());
+  const { hotelUid } = useHotelContext();
+  const [roomTypes, setRoomTypes] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: "name", direction: "asc" });
 
   const todayLabel = useMemo(() => {
@@ -45,6 +35,15 @@ export default function RoomTypesPage() {
     sessionStorage.clear();
     window.location.href = "/login";
   };
+
+  useEffect(() => {
+    if (!hotelUid) {
+      setRoomTypes([]);
+      return undefined;
+    }
+    const unsubscribe = subscribeRoomTypes(hotelUid, setRoomTypes);
+    return () => unsubscribe();
+  }, [hotelUid]);
 
   const sortedRoomTypes = useMemo(() => {
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -73,6 +72,7 @@ export default function RoomTypesPage() {
   }, [roomTypes, sortConfig]);
 
   const handleSort = (columnKey) => {
+    if (columnKey === "actions") return;
     setSortConfig((current) => {
       if (current.key === columnKey) {
         return {
@@ -82,6 +82,12 @@ export default function RoomTypesPage() {
       }
       return { key: columnKey, direction: "asc" };
     });
+  };
+
+  const handleDelete = async (roomTypeId) => {
+    if (!hotelUid || !roomTypeId) return;
+    if (!window.confirm("Weet je zeker dat je dit room type wilt verwijderen?")) return;
+    await deleteRoomType(hotelUid, roomTypeId);
   };
 
   return (
@@ -126,6 +132,17 @@ export default function RoomTypesPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     {columns.map((column) => {
+                      if (column.key === "actions") {
+                        return (
+                          <th
+                            key={column.key}
+                            scope="col"
+                            className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                          >
+                            {column.label}
+                          </th>
+                        );
+                      }
                       const isActiveSort = sortConfig.key === column.key;
                       const sortIndicator = isActiveSort
                         ? sortConfig.direction === "asc"
@@ -165,6 +182,28 @@ export default function RoomTypesPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomType.rooms || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/settings/room-types/${roomType.id}`)}
+                            className="inline-flex items-center justify-center rounded-full border border-gray-200 p-2 text-gray-600 hover:bg-gray-100"
+                            aria-label="Room type bewerken"
+                            title="Room type bewerken"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(roomType.id)}
+                            className="inline-flex items-center justify-center rounded-full border border-gray-200 p-2 text-gray-600 hover:bg-gray-100"
+                            aria-label="Room type verwijderen"
+                            title="Room type verwijderen"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
