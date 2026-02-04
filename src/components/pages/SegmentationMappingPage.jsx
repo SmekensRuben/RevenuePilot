@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { auth, signOut } from "../../firebaseConfig";
@@ -11,6 +11,7 @@ import {
 
 export default function SegmentationMappingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { hotelUid } = useHotelContext();
   const [activeTab, setActiveTab] = useState("market");
   const [marketSegments, setMarketSegments] = useState([]);
@@ -49,6 +50,12 @@ export default function SegmentationMappingPage() {
       unsubscribeSubs();
     };
   }, [hotelUid]);
+
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
