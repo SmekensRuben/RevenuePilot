@@ -23,7 +23,7 @@ export async function getSettings(hotelUid) {
 export async function setSettings(hotelUid, settingsObj) {
   if (!hotelUid) return;
   const settingsDoc = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
-  await updateDoc(settingsDoc, settingsObj);
+  await setDoc(settingsDoc, settingsObj, { merge: true });
 }
 
 // *** OUTLETS ***

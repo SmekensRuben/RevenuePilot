@@ -6,6 +6,7 @@ import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { getQuote, updateQuote } from "../../services/firebaseQuotes";
+import { getSettings } from "../../services/firebaseSettings";
 
 export default function QuoteEditPage() {
   const navigate = useNavigate();
@@ -17,6 +18,9 @@ export default function QuoteEditPage() {
   const [rooms, setRooms] = useState("");
   const [quotedPrice, setQuotedPrice] = useState("");
   const [quoteDate, setQuoteDate] = useState("");
+  const [breakfastIncluded, setBreakfastIncluded] = useState(false);
+  const [breakfastPrice, setBreakfastPrice] = useState(0);
+  const [roomVatPercent, setRoomVatPercent] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -35,6 +39,18 @@ export default function QuoteEditPage() {
   };
 
   useEffect(() => {
+    if (!hotelUid) return;
+
+    const loadSettings = async () => {
+      const settings = await getSettings(hotelUid);
+      setBreakfastPrice(Number(settings?.breakfastPrice) || 0);
+      setRoomVatPercent(Number(settings?.roomVatPercent) || 0);
+    };
+
+    loadSettings();
+  }, [hotelUid]);
+
+  useEffect(() => {
     if (!hotelUid || !quoteId) return;
 
     const loadQuote = async () => {
@@ -51,11 +67,20 @@ export default function QuoteEditPage() {
       setRooms(quote.rooms ? String(quote.rooms) : "");
       setQuotedPrice(quote.quotedPrice ? String(quote.quotedPrice) : "");
       setQuoteDate(quote.quoteDate || "");
+      setBreakfastIncluded(Boolean(quote.breakfastIncluded));
       setLoading(false);
     };
 
     loadQuote();
   }, [hotelUid, quoteId]);
+
+  const quotedNetRate = useMemo(() => {
+    const priceValue = Number(quotedPrice) || 0;
+    const breakfastValue = breakfastIncluded ? breakfastPrice : 0;
+    const vatMultiplier = 1 + (Number(roomVatPercent) || 0) / 100;
+    if (!vatMultiplier) return 0;
+    return (priceValue - breakfastValue) / vatMultiplier;
+  }, [quotedPrice, breakfastIncluded, breakfastPrice, roomVatPercent]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -66,6 +91,7 @@ export default function QuoteEditPage() {
       endDate,
       rooms: Number(rooms) || 0,
       quotedPrice: Number(quotedPrice) || 0,
+      breakfastIncluded,
       quoteDate,
     });
     navigate("/quotes");
@@ -173,6 +199,24 @@ export default function QuoteEditPage() {
                 onChange={(event) => setQuoteDate(event.target.value)}
                 className="rounded border border-gray-300 px-3 py-2 text-sm"
                 required
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                checked={breakfastIncluded}
+                onChange={(event) => setBreakfastIncluded(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              Breakfast Included
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700 sm:col-span-2">
+              Quoted Net Rate
+              <input
+                type="text"
+                value={quotedNetRate.toFixed(2)}
+                readOnly
+                className="rounded border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-gray-700"
               />
             </label>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
