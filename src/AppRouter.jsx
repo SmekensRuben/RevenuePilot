@@ -22,6 +22,7 @@ import QuoteEditPage from "./components/pages/QuoteEditPage.jsx";
 import RoomTypesPage from "./components/pages/RoomTypesPage.jsx";
 import RoomTypeCreatePage from "./components/pages/RoomTypeCreatePage.jsx";
 import RoomTypeEditPage from "./components/pages/RoomTypeEditPage.jsx";
+import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -49,6 +50,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <SegmentationMappingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/general"
+        element={
+          <ProtectedRoute>
+            <GeneralSettingsPage />
           </ProtectedRoute>
         }
       />

@@ -49,6 +49,11 @@ export default function HeaderBar({ today, onLogout }) {
 
   const settingsMenuItems = [
     {
+      label: "General Settings",
+      action: () => navigate("/settings/general"),
+      icon: Settings2,
+    },
+    {
       label: "Segmentation Mapping",
       action: () => navigate("/settings/segmentation-mapping"),
       icon: Settings2,
