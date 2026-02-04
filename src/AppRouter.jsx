@@ -19,6 +19,7 @@ import ArrivalConverterProductDetailPage from "./components/pages/ArrivalConvert
 import QuotesPage from "./components/pages/QuotesPage.jsx";
 import QuoteCreatePage from "./components/pages/QuoteCreatePage.jsx";
 import QuoteEditPage from "./components/pages/QuoteEditPage.jsx";
+import AutoquoterPage from "./components/pages/AutoquoterPage.jsx";
 import RoomTypesPage from "./components/pages/RoomTypesPage.jsx";
 import RoomTypeCreatePage from "./components/pages/RoomTypeCreatePage.jsx";
 import RoomTypeEditPage from "./components/pages/RoomTypeEditPage.jsx";
@@ -162,6 +163,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <QuoteEditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/quotes/autoquoter"
+        element={
+          <ProtectedRoute>
+            <AutoquoterPage />
           </ProtectedRoute>
         }
       />
