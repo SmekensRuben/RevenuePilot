@@ -69,6 +69,8 @@ export const saveMarketSegment = async (hotelUid, segmentId, data) => {
   const payload = {
     name: data.name || "",
     type,
+    rateCategoryCode: data.rateCategoryCode || "",
+    marketSegmentCode: data.marketSegmentCode || "",
     updatedAt: serverTimestamp(),
   };
 
@@ -91,10 +93,8 @@ export const saveSubSegment = async (hotelUid, subSegmentId, data) => {
     prefix: data.prefix || "",
     rateType: data.rateType || "",
     description: data.description || "",
-    rateCategory: data.rateCategory || "",
     marketSegmentId: data.marketSegmentId || "",
     marketSegmentName: data.marketSegmentName || "",
-    transactionCode: data.transactionCode || "",
     updatedAt: serverTimestamp(),
   };
 
