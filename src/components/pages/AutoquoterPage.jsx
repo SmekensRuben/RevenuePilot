@@ -58,6 +58,13 @@ export default function AutoquoterPage() {
     () => buildCompareDate(endDate, Number(compareYear)),
     [compareYear, endDate]
   );
+  const marketCodes = useMemo(() => {
+    const codes = new Set();
+    marketOverview.forEach((day) => {
+      day.rows.forEach((row) => codes.add(row.marketCode));
+    });
+    return Array.from(codes).sort((a, b) => a.localeCompare(b));
+  }, [marketOverview]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -231,76 +238,51 @@ export default function AutoquoterPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-left text-gray-600">
                   <tr>
-                    <th className="px-4 py-3 font-semibold">Datum (compare year)</th>
+                    <th className="px-4 py-3 font-semibold">Market segment</th>
+                    {generatedDates.map((date) => (
+                      <th key={date.toISOString()} className="px-4 py-3 font-semibold">
+                        {formatDisplayDate(date)}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {generatedDates.map((date) => (
-                    <tr key={date.toISOString()} className="border-t border-gray-100">
-                      <td className="px-4 py-3 text-gray-700">
-                        {formatDisplayDate(date)}
+                  {marketCodes.map((marketCode) => (
+                    <tr key={marketCode} className="border-t border-gray-100">
+                      <td className="px-4 py-3 font-semibold text-gray-700">
+                        {marketCode}
                       </td>
+                      {marketOverview.map((day) => {
+                        const match = day.rows.find(
+                          (row) => row.marketCode === marketCode
+                        );
+                        return (
+                          <td
+                            key={`${day.dateKey}-${marketCode}`}
+                            className="px-4 py-3 text-gray-700"
+                          >
+                            {match ? match.roomsSold : "—"}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
+                  {!marketCodes.length ? (
+                    <tr className="border-t border-gray-100">
+                      <td
+                        className="px-4 py-3 text-gray-500"
+                        colSpan={generatedDates.length + 1}
+                      >
+                        Geen market codes gevonden voor deze periode.
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
               Klik op &quot;Generate quote&quot; om het overzicht te vullen.
-            </div>
-          )}
-        </Card>
-
-        <Card className="space-y-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              ReservationsStatisticsByMarketCode
-            </h3>
-            <p className="text-sm text-gray-600">
-              Overzicht per dag van rooms sold per market code.
-            </p>
-          </div>
-
-          {marketOverview.length ? (
-            <div className="space-y-6">
-              {marketOverview.map((day) => (
-                <div key={day.dateKey} className="rounded-lg border border-gray-200">
-                  <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
-                    {day.displayDate}
-                  </div>
-                  {day.rows.length ? (
-                    <table className="min-w-full text-sm">
-                      <thead className="text-left text-gray-600">
-                        <tr>
-                          <th className="px-4 py-2 font-semibold">Market code</th>
-                          <th className="px-4 py-2 font-semibold">Rooms sold</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {day.rows.map((row) => (
-                          <tr key={`${day.dateKey}-${row.marketCode}`}>
-                            <td className="border-t border-gray-100 px-4 py-2 text-gray-700">
-                              {row.marketCode}
-                            </td>
-                            <td className="border-t border-gray-100 px-4 py-2 text-gray-700">
-                              {row.roomsSold}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-gray-500">
-                      Geen market code data gevonden voor deze dag.
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-sm text-gray-500">
-              Nog geen reservation statistics opgehaald.
             </div>
           )}
         </Card>
