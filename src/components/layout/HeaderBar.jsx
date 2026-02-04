@@ -11,6 +11,7 @@ import {
   LineChart,
   FileSpreadsheet,
   FileText,
+  Quote,
 } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
@@ -19,10 +20,12 @@ export default function HeaderBar({ today, onLogout }) {
   const { hotelUid, hotelUids = [], selectHotel } = useHotelContext();
   const [hotels, setHotels] = useState([]);
   const [isReservationsOpen, setIsReservationsOpen] = useState(false);
+  const [isQuotesOpen, setIsQuotesOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isForecastOpen, setIsForecastOpen] = useState(false);
   const reservationsMenuRef = useRef(null);
+  const quotesMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
   const calendarMenuRef = useRef(null);
   const forecastMenuRef = useRef(null);
@@ -32,6 +35,14 @@ export default function HeaderBar({ today, onLogout }) {
       label: t("header.madeReservationsLabel", { ns: "reservations" }),
       action: () => navigate("/reservations/made"),
       icon: ClipboardList,
+    },
+  ];
+
+  const quotesMenuItems = [
+    {
+      label: "Quotes overzicht",
+      action: () => navigate("/quotes"),
+      icon: Quote,
     },
   ];
 
@@ -106,6 +117,10 @@ export default function HeaderBar({ today, onLogout }) {
         !reservationsMenuRef.current.contains(event.target)
       ) {
         setIsReservationsOpen(false);
+      }
+
+      if (quotesMenuRef.current && !quotesMenuRef.current.contains(event.target)) {
+        setIsQuotesOpen(false);
       }
 
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
@@ -185,6 +200,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsForecastOpen((prev) => !prev);
                   setIsCalendarOpen(false);
                   setIsReservationsOpen(false);
+                  setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
@@ -229,6 +245,7 @@ export default function HeaderBar({ today, onLogout }) {
                 onClick={() => {
                   setIsCalendarOpen((prev) => !prev);
                   setIsReservationsOpen(false);
+                  setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
@@ -271,6 +288,7 @@ export default function HeaderBar({ today, onLogout }) {
               <button
                 onClick={() => {
                   setIsReservationsOpen((prev) => !prev);
+                  setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
                   setIsCalendarOpen(false);
                 }}
@@ -311,11 +329,56 @@ export default function HeaderBar({ today, onLogout }) {
             </div>
           </div>
 
+          <div ref={quotesMenuRef} className="flex justify-end w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setIsQuotesOpen((prev) => !prev);
+                  setIsSettingsOpen(false);
+                  setIsReservationsOpen(false);
+                  setIsCalendarOpen(false);
+                }}
+                className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
+                style={{ minHeight: 44 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-wide">Quotes</span>
+                </div>
+                <span className="ml-3 text-base">▾</span>
+              </button>
+              {isQuotesOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="py-2">
+                    {quotesMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            item.action();
+                            setIsQuotesOpen(false);
+                          }}
+                          className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
+                        >
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                            {Icon && <Icon className="h-4 w-4" />}
+                          </span>
+                          <span className="text-sm font-semibold">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div ref={settingsMenuRef} className="flex justify-end w-full sm:w-auto">
             <div className="relative w-full sm:w-auto">
               <button
                 onClick={() => {
                   setIsSettingsOpen((prev) => !prev);
+                  setIsQuotesOpen(false);
                   setIsReservationsOpen(false);
                   setIsCalendarOpen(false);
                 }}

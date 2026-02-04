@@ -16,6 +16,8 @@ import ProtectedRoute from "./components/shared/ProtectedRoute.jsx";
 import CompsetPage from "./components/pages/CompsetPage.jsx";
 import ArrivalConverterPage from "./components/pages/ArrivalConverterPage.jsx";
 import ArrivalConverterProductDetailPage from "./components/pages/ArrivalConverterProductDetailPage.jsx";
+import QuotesPage from "./components/pages/QuotesPage.jsx";
+import QuoteCreatePage from "./components/pages/QuoteCreatePage.jsx";
 
 export default function AppRouter() {
   return (
@@ -123,6 +125,22 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <ArrivalConverterProductDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/quotes"
+        element={
+          <ProtectedRoute>
+            <QuotesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/quotes/new"
+        element={
+          <ProtectedRoute>
+            <QuoteCreatePage />
           </ProtectedRoute>
         }
       />
