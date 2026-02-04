@@ -77,9 +77,10 @@ export default function QuoteEditPage() {
   const quotedNetRate = useMemo(() => {
     const priceValue = Number(quotedPrice) || 0;
     const breakfastValue = breakfastIncluded ? breakfastPrice : 0;
+    const taxableRoomPrice = Math.max(priceValue - breakfastValue, 0);
     const vatMultiplier = 1 + (Number(roomVatPercent) || 0) / 100;
     if (!vatMultiplier) return 0;
-    return (priceValue - breakfastValue) / vatMultiplier;
+    return taxableRoomPrice / vatMultiplier;
   }, [quotedPrice, breakfastIncluded, breakfastPrice, roomVatPercent]);
 
   const handleSubmit = async (event) => {
