@@ -11,6 +11,7 @@ import {
   LineChart,
   FileSpreadsheet,
   FileText,
+  Quote,
 } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
@@ -50,6 +51,11 @@ export default function HeaderBar({ today, onLogout }) {
       label: "Arrival converter",
       action: () => navigate("/tools/arrival-converter"),
       icon: FileText,
+    },
+    {
+      label: "Quotes",
+      action: () => navigate("/quotes"),
+      icon: Quote,
     },
   ];
 
