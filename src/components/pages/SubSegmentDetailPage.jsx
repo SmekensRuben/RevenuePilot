@@ -107,10 +107,10 @@ export default function SubSegmentDetailPage() {
         payload
       );
       setStatusMessage("Sub segment opgeslagen.");
-      if (isNew && savedId) {
-        navigate(`/settings/segmentation-mapping/sub-segments/${savedId}`, {
+      if (savedId) {
+        navigate("/settings/segmentation-mapping", {
           replace: true,
-          state: { subSegment: { id: savedId, ...payload } },
+          state: { activeTab: "sub" },
         });
       }
     } catch (error) {
