@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   FileText,
   Quote,
+  BedDouble,
 } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
@@ -51,6 +52,11 @@ export default function HeaderBar({ today, onLogout }) {
       label: "Segmentation Mapping",
       action: () => navigate("/settings/segmentation-mapping"),
       icon: Settings2,
+    },
+    {
+      label: "Room Types",
+      action: () => navigate("/settings/room-types"),
+      icon: BedDouble,
     },
     {
       label: "Compset",
