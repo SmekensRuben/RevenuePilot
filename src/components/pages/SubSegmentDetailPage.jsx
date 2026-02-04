@@ -23,11 +23,9 @@ export default function SubSegmentDetailPage() {
     prefix: initialSubSegment?.prefix || "",
     rateType: initialSubSegment?.rateType || "",
     description: initialSubSegment?.description || "",
-    rateCategory: initialSubSegment?.rateCategory || "",
     marketSegmentId: initialSubSegment?.marketSegmentId || "",
     marketSegmentName:
       initialSubSegment?.marketSegmentName || initialSubSegment?.marketSegment || "",
-    transactionCode: initialSubSegment?.transactionCode || "",
   });
   const [marketSegments, setMarketSegments] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
@@ -61,10 +59,8 @@ export default function SubSegmentDetailPage() {
           prefix: subSegment.prefix || "",
           rateType: subSegment.rateType || "",
           description: subSegment.description || "",
-          rateCategory: subSegment.rateCategory || "",
           marketSegmentId: subSegment.marketSegmentId || "",
           marketSegmentName: subSegment.marketSegmentName || "",
-          transactionCode: subSegment.transactionCode || "",
         });
         setStatusMessage("");
       } else {
@@ -187,16 +183,6 @@ export default function SubSegmentDetailPage() {
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-              Rate Category
-              <input
-                type="text"
-                value={formData.rateCategory}
-                onChange={handleChange("rateCategory")}
-                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-                placeholder="Retail, Negotiated, ..."
-              />
-            </label>
           </div>
 
           <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
@@ -227,16 +213,6 @@ export default function SubSegmentDetailPage() {
               </select>
             </label>
 
-            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-              Transaction Code
-              <input
-                type="text"
-                value={formData.transactionCode}
-                onChange={handleChange("transactionCode")}
-                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-                placeholder="Interne boekhoudcode"
-              />
-            </label>
           </div>
 
           <div className="flex items-center justify-between pt-2">

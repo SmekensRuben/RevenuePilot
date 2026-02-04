@@ -21,6 +21,8 @@ export default function MarketSegmentDetailPage() {
   const [formData, setFormData] = useState({
     name: initialSegment?.name || "",
     type: initialSegment?.type || "Transient",
+    rateCategoryCode: initialSegment?.rateCategoryCode || "",
+    marketSegmentCode: initialSegment?.marketSegmentCode || "",
   });
   const [subSegments, setSubSegments] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
@@ -52,6 +54,8 @@ export default function MarketSegmentDetailPage() {
         setFormData({
           name: segment.name || "",
           type: segment.type || "Transient",
+          rateCategoryCode: segment.rateCategoryCode || "",
+          marketSegmentCode: segment.marketSegmentCode || "",
         });
         setStatusMessage("");
       } else {
@@ -96,7 +100,12 @@ export default function MarketSegmentDetailPage() {
       const savedId = await saveMarketSegment(
         hotelUid,
         isNew ? null : segmentId,
-        { name: formData.name.trim(), type: formData.type }
+        {
+          name: formData.name.trim(),
+          type: formData.type,
+          rateCategoryCode: formData.rateCategoryCode,
+          marketSegmentCode: formData.marketSegmentCode,
+        }
       );
       setStatusMessage("Market segment opgeslagen.");
       if (isNew && savedId) {
@@ -107,6 +116,8 @@ export default function MarketSegmentDetailPage() {
               id: savedId,
               name: formData.name.trim(),
               type: formData.type,
+              rateCategoryCode: formData.rateCategoryCode,
+              marketSegmentCode: formData.marketSegmentCode,
             },
           },
         });
@@ -146,32 +157,58 @@ export default function MarketSegmentDetailPage() {
           onSubmit={handleSubmit}
           className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4"
         >
-          <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-            Naam
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-              placeholder="bv. Corporate"
-              required
-            />
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+              Naam
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
+                placeholder="bv. Corporate"
+                required
+              />
+            </label>
 
-          <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-            Type
-            <select
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-              required
-            >
-              <option value="Transient">Transient</option>
-              <option value="Group">Group</option>
-            </select>
-          </label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+              Type
+              <select
+                name="type"
+                value={formData.type}
+                onChange={handleChange}
+                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
+                required
+              >
+                <option value="Transient">Transient</option>
+                <option value="Group">Group</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+              Rate Category Code
+              <input
+                type="text"
+                name="rateCategoryCode"
+                value={formData.rateCategoryCode}
+                onChange={handleChange}
+                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
+                placeholder="bv. RAC"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+              Market Segment Code
+              <input
+                type="text"
+                name="marketSegmentCode"
+                value={formData.marketSegmentCode}
+                onChange={handleChange}
+                className="border border-gray-300 rounded px-3 py-2 text-gray-900"
+                placeholder="bv. MSC"
+              />
+            </label>
+          </div>
 
           <div className="flex items-center justify-between pt-2">
             <div className="text-sm text-gray-600">
