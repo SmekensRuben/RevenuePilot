@@ -163,11 +163,16 @@ export default function AutoquoterPage() {
           const docRef = doc(db, `hotels/${hotelUid}/reservationStatistics`, dateKey);
           const snap = await getDoc(docRef);
           const data = snap.exists() ? snap.data() : {};
-          const marketStats = data?.reservationsStatisticsByMarketCode || {};
-          const rows = Object.entries(marketStats).map(([marketCode, value]) => ({
-            marketCode,
-            roomsSold: Number(value?.roomsSold ?? 0),
-          }));
+          const marketStats = data?.reservationsStatisticsByMarketCode || [];
+          const rows = Array.isArray(marketStats)
+            ? marketStats.map((item) => ({
+                marketCode: String(item?.marketCode || "").trim(),
+                roomsSold: Number(item?.roomsSold ?? 0),
+              }))
+            : Object.entries(marketStats).map(([marketCode, value]) => ({
+                marketCode: String(marketCode || "").trim(),
+                roomsSold: Number(value?.roomsSold ?? 0),
+              }));
           rows.sort((a, b) => a.marketCode.localeCompare(b.marketCode));
           return {
             dateKey,
@@ -293,7 +298,11 @@ export default function AutoquoterPage() {
                       </td>
                       {marketOverview.map((day) => {
                         const match = day.rows.find(
-                          (row) => row.marketCode === segment.marketSegmentCode
+                          (row) =>
+                            row.marketCode &&
+                            segment.marketSegmentCode &&
+                            row.marketCode.toUpperCase() ===
+                              segment.marketSegmentCode.toUpperCase()
                         );
                         return (
                           <td
