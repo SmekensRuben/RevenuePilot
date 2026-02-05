@@ -15,6 +15,7 @@ import {
   signOut,
 } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
+import { getSettings } from "../../services/firebaseSettings";
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -69,6 +70,7 @@ export default function AutoquoterPage() {
   const [marketSegments, setMarketSegments] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [hotelRoomCount, setHotelRoomCount] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState({
     Transient: true,
     Group: true,
@@ -117,6 +119,35 @@ export default function AutoquoterPage() {
       ),
     [marketOverview]
   );
+  const groupTotals = useMemo(() => {
+    const totalsByGroup = { Transient: [], Group: [] };
+    const groupEntries = Object.entries(groupedMarketSegments);
+    marketOverview.forEach((day, dayIndex) => {
+      groupEntries.forEach(([groupName, segments]) => {
+        const segmentCodes = segments
+          .map((segment) => segment?.marketSegmentCode)
+          .filter(Boolean)
+          .map((code) => String(code).toUpperCase());
+        const total = day.rows.reduce((sum, row) => {
+          if (!row.marketCode) return sum;
+          return segmentCodes.includes(String(row.marketCode).toUpperCase())
+            ? sum + (Number(row.roomsSold) || 0)
+            : sum;
+        }, 0);
+        if (!totalsByGroup[groupName]) {
+          totalsByGroup[groupName] = [];
+        }
+        totalsByGroup[groupName][dayIndex] = total;
+      });
+    });
+    return totalsByGroup;
+  }, [groupedMarketSegments, marketOverview]);
+
+  const formatTotalWithPercent = (total) => {
+    if (!hotelRoomCount) return total;
+    const percentage = (total / hotelRoomCount) * 100;
+    return `${total} (${percentage.toFixed(1)}%)`;
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -143,6 +174,31 @@ export default function AutoquoterPage() {
       }
     };
     loadSegments();
+    return () => {
+      isActive = false;
+    };
+  }, [hotelUid]);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadSettings = async () => {
+      if (!hotelUid) {
+        setHotelRoomCount(0);
+        return;
+      }
+      try {
+        const settings = await getSettings(hotelUid);
+        if (isActive) {
+          setHotelRoomCount(Number(settings?.hotelRoomCount) || 0);
+        }
+      } catch (loadError) {
+        console.error("Fout bij ophalen van settings:", loadError);
+        if (isActive) {
+          setHotelRoomCount(0);
+        }
+      }
+    };
+    loadSettings();
     return () => {
       isActive = false;
     };
@@ -346,81 +402,101 @@ export default function AutoquoterPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {["Transient", "Group"].map((groupName) => {
-                    const segments = groupedMarketSegments[groupName] || [];
-                    const isCollapsed = collapsedGroups[groupName];
-                    return (
-                      <React.Fragment key={groupName}>
-                        <tr className="border-t border-gray-200 bg-gray-50">
-                          <td className="px-4 py-3 font-semibold text-gray-700">
-                            <button
-                              type="button"
-                              onClick={() => toggleGroup(groupName)}
-                              className="flex items-center gap-2 text-left"
-                            >
-                              <span
-                                className={`text-xs transition-transform ${
-                                  isCollapsed ? "" : "rotate-90"
-                                }`}
-                              >
-                                ▶
-                              </span>
-                              {groupName} market segments
-                            </button>
-                          </td>
-                          {generatedDates.map((date, index) => (
-                            <td
-                              key={`${groupName}-${date.toISOString()}`}
-                              className={`px-4 py-3 ${
-                                weekdayMatches[index] ? "bg-emerald-50" : ""
-                              }`}
-                            />
-                          ))}
-                        </tr>
-                        {!isCollapsed && segments.length
-                          ? segments.map((segment) => (
-                              <tr
-                                key={segment.id || segment.marketSegmentCode}
-                                className="border-t border-gray-100"
-                              >
-                                <td className="px-4 py-3 font-semibold text-gray-700">
-                                  {segment.name || segment.marketSegmentCode || "Onbekend"}
+                  {sortedMarketSegments.length
+                    ? ["Transient", "Group"].map((groupName) => {
+                        const segments = groupedMarketSegments[groupName] || [];
+                        const isCollapsed = collapsedGroups[groupName];
+                        const groupTotalsForDays = groupTotals[groupName] || [];
+                        return (
+                          <React.Fragment key={groupName}>
+                            <tr className="border-t border-gray-200 bg-gray-50">
+                              <td className="px-4 py-3 font-semibold text-gray-700">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleGroup(groupName)}
+                                  className="flex items-center gap-2 text-left"
+                                >
+                                  <span
+                                    className={`text-xs transition-transform ${
+                                      isCollapsed ? "" : "rotate-90"
+                                    }`}
+                                  >
+                                    ▶
+                                  </span>
+                                  {groupName} market segments
+                                </button>
+                              </td>
+                              {generatedDates.map((date, index) => (
+                                <td
+                                  key={`${groupName}-${date.toISOString()}`}
+                                  className={`px-4 py-3 ${
+                                    weekdayMatches[index] ? "bg-emerald-50" : ""
+                                  }`}
+                                />
+                              ))}
+                            </tr>
+                            <tr className="border-t border-gray-100 bg-gray-50/60">
+                              <td className="px-4 py-3 text-sm font-semibold text-gray-600">
+                                Totaal roomsSold ({groupName.toLowerCase()})
+                              </td>
+                              {marketOverview.map((day, index) => (
+                                <td
+                                  key={`${day.dateKey}-${groupName}-total`}
+                                  className={`px-4 py-3 text-sm font-semibold text-gray-700 ${
+                                    weekdayMatches[index] ? "bg-emerald-50" : ""
+                                  }`}
+                                >
+                                  {groupTotalsForDays[index] ?? 0}
                                 </td>
-                                {marketOverview.map((day, index) => {
-                                  const match = day.rows.find(
-                                    (row) =>
-                                      row.marketCode &&
-                                      segment.marketSegmentCode &&
-                                      row.marketCode.toUpperCase() ===
-                                        segment.marketSegmentCode.toUpperCase()
-                                  );
-                                  return (
-                                    <td
-                                      key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
-                                      className={`px-4 py-3 text-gray-700 ${
-                                        weekdayMatches[index] ? "bg-emerald-50" : ""
-                                      }`}
-                                    >
-                                      {match ? match.roomsSold : "—"}
+                              ))}
+                            </tr>
+                            {!isCollapsed && segments.length
+                              ? segments.map((segment) => (
+                                  <tr
+                                    key={segment.id || segment.marketSegmentCode}
+                                    className="border-t border-gray-100"
+                                  >
+                                    <td className="px-4 py-3 font-semibold text-gray-700">
+                                      {segment.name ||
+                                        segment.marketSegmentCode ||
+                                        "Onbekend"}
                                     </td>
-                                  );
-                                })}
+                                    {marketOverview.map((day, index) => {
+                                      const match = day.rows.find(
+                                        (row) =>
+                                          row.marketCode &&
+                                          segment.marketSegmentCode &&
+                                          row.marketCode.toUpperCase() ===
+                                            segment.marketSegmentCode.toUpperCase()
+                                      );
+                                      return (
+                                        <td
+                                          key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
+                                          className={`px-4 py-3 text-gray-700 ${
+                                            weekdayMatches[index] ? "bg-emerald-50" : ""
+                                          }`}
+                                        >
+                                          {match ? match.roomsSold : "—"}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                ))
+                              : null}
+                            {!isCollapsed && !segments.length ? (
+                              <tr className="border-t border-gray-100">
+                                <td
+                                  className="px-4 py-3 text-gray-500"
+                                  colSpan={generatedDates.length + 1}
+                                >
+                                  Geen {groupName.toLowerCase()} market segments gevonden.
+                                </td>
                               </tr>
-                            ))
-                          : null}
-                        {!isCollapsed && !segments.length ? (
-                          <tr className="border-t border-gray-100">
-                            <td
-                              className="px-4 py-3 text-gray-500"
-                              colSpan={generatedDates.length + 1}
-                            >
-                              Geen {groupName.toLowerCase()} market segments gevonden.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </React.Fragment>
-                    );
-                  })}
+                            ) : null}
+                          </React.Fragment>
+                        );
+                      })
+                    : null}
                   {sortedMarketSegments.length ? (
                     <tr className="border-t border-gray-200 bg-gray-50">
                       <td className="px-4 py-3 font-semibold text-gray-700">
@@ -433,7 +509,7 @@ export default function AutoquoterPage() {
                             weekdayMatches[index] ? "bg-emerald-50" : ""
                           }`}
                         >
-                          {totalRoomsSold[index] ?? 0}
+                          {formatTotalWithPercent(totalRoomsSold[index] ?? 0)}
                         </td>
                       ))}
                     </tr>
