@@ -38,6 +38,14 @@ const buildCompareDate = (dateString, compareYear) => {
   return new Date(compareYear, month - 1, day);
 };
 
+const parseDateInput = (dateString) => {
+  if (!dateString) return null;
+  const [year, month, day] = dateString.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 export default function AutoquoterPage() {
   const { hotelUid } = useHotelContext();
   const todayLabel = useMemo(() => {
@@ -61,6 +69,10 @@ export default function AutoquoterPage() {
   const [marketSegments, setMarketSegments] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState({
+    Transient: true,
+    Group: true,
+  });
   const compareStartDate = useMemo(
     () => buildCompareDate(startDate, Number(compareYear)),
     [compareYear, startDate]
@@ -74,6 +86,37 @@ export default function AutoquoterPage() {
       (a?.name || "").localeCompare(b?.name || "", undefined, { sensitivity: "base" })
     );
   }, [marketSegments]);
+  const groupedMarketSegments = useMemo(() => {
+    const grouped = { Transient: [], Group: [] };
+    sortedMarketSegments.forEach((segment) => {
+      const typeLabel = segment?.type?.toLowerCase() === "group" ? "Group" : "Transient";
+      grouped[typeLabel].push(segment);
+    });
+    return grouped;
+  }, [sortedMarketSegments]);
+  const requestedWeekdays = useMemo(() => {
+    const start = parseDateInput(startDate);
+    const end = parseDateInput(endDate);
+    if (!start || !end || start > end) return new Set();
+    const days = new Set();
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      days.add(cursor.getDay());
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }, [startDate, endDate]);
+  const weekdayMatches = useMemo(
+    () => generatedDates.map((date) => requestedWeekdays.has(date.getDay())),
+    [generatedDates, requestedWeekdays]
+  );
+  const totalRoomsSold = useMemo(
+    () =>
+      marketOverview.map((day) =>
+        day.rows.reduce((sum, row) => sum + (Number(row.roomsSold) || 0), 0)
+      ),
+    [marketOverview]
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -109,6 +152,13 @@ export default function AutoquoterPage() {
     await signOut(auth);
     sessionStorage.clear();
     window.location.href = "/login";
+  };
+
+  const toggleGroup = (groupName) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName],
+    }));
   };
 
   const handleGenerate = async () => {
@@ -283,39 +333,111 @@ export default function AutoquoterPage() {
                 <thead className="bg-gray-50 text-left text-gray-600">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Market segment</th>
-                    {generatedDates.map((date) => (
-                      <th key={date.toISOString()} className="px-4 py-3 font-semibold">
+                    {generatedDates.map((date, index) => (
+                      <th
+                        key={date.toISOString()}
+                        className={`px-4 py-3 font-semibold ${
+                          weekdayMatches[index] ? "bg-emerald-50 text-emerald-700" : ""
+                        }`}
+                      >
                         {formatDisplayDate(date)}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedMarketSegments.map((segment) => (
-                    <tr key={segment.id || segment.marketSegmentCode} className="border-t border-gray-100">
-                      <td className="px-4 py-3 font-semibold text-gray-700">
-                        {segment.name || segment.marketSegmentCode || "Onbekend"}
-                      </td>
-                      {marketOverview.map((day) => {
-                        const match = day.rows.find(
-                          (row) =>
-                            row.marketCode &&
-                            segment.marketSegmentCode &&
-                            row.marketCode.toUpperCase() ===
-                              segment.marketSegmentCode.toUpperCase()
-                        );
-                        return (
-                          <td
-                            key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
-                            className="px-4 py-3 text-gray-700"
-                          >
-                            {match ? match.roomsSold : "—"}
+                  {["Transient", "Group"].map((groupName) => {
+                    const segments = groupedMarketSegments[groupName] || [];
+                    const isCollapsed = collapsedGroups[groupName];
+                    return (
+                      <React.Fragment key={groupName}>
+                        <tr className="border-t border-gray-200 bg-gray-50">
+                          <td className="px-4 py-3 font-semibold text-gray-700">
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(groupName)}
+                              className="flex items-center gap-2 text-left"
+                            >
+                              <span
+                                className={`text-xs transition-transform ${
+                                  isCollapsed ? "" : "rotate-90"
+                                }`}
+                              >
+                                ▶
+                              </span>
+                              {groupName} market segments
+                            </button>
                           </td>
-                        );
-                      })}
+                          {generatedDates.map((date, index) => (
+                            <td
+                              key={`${groupName}-${date.toISOString()}`}
+                              className={`px-4 py-3 ${
+                                weekdayMatches[index] ? "bg-emerald-50" : ""
+                              }`}
+                            />
+                          ))}
+                        </tr>
+                        {!isCollapsed && segments.length
+                          ? segments.map((segment) => (
+                              <tr
+                                key={segment.id || segment.marketSegmentCode}
+                                className="border-t border-gray-100"
+                              >
+                                <td className="px-4 py-3 font-semibold text-gray-700">
+                                  {segment.name || segment.marketSegmentCode || "Onbekend"}
+                                </td>
+                                {marketOverview.map((day, index) => {
+                                  const match = day.rows.find(
+                                    (row) =>
+                                      row.marketCode &&
+                                      segment.marketSegmentCode &&
+                                      row.marketCode.toUpperCase() ===
+                                        segment.marketSegmentCode.toUpperCase()
+                                  );
+                                  return (
+                                    <td
+                                      key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
+                                      className={`px-4 py-3 text-gray-700 ${
+                                        weekdayMatches[index] ? "bg-emerald-50" : ""
+                                      }`}
+                                    >
+                                      {match ? match.roomsSold : "—"}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          : null}
+                        {!isCollapsed && !segments.length ? (
+                          <tr className="border-t border-gray-100">
+                            <td
+                              className="px-4 py-3 text-gray-500"
+                              colSpan={generatedDates.length + 1}
+                            >
+                              Geen {groupName.toLowerCase()} market segments gevonden.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
+                  {sortedMarketSegments.length ? (
+                    <tr className="border-t border-gray-200 bg-gray-50">
+                      <td className="px-4 py-3 font-semibold text-gray-700">
+                        Totaal roomsSold
+                      </td>
+                      {marketOverview.map((day, index) => (
+                        <td
+                          key={`${day.dateKey}-total`}
+                          className={`px-4 py-3 font-semibold text-gray-700 ${
+                            weekdayMatches[index] ? "bg-emerald-50" : ""
+                          }`}
+                        >
+                          {totalRoomsSold[index] ?? 0}
+                        </td>
+                      ))}
                     </tr>
-                  ))}
-                  {!sortedMarketSegments.length ? (
+                  ) : (
                     <tr className="border-t border-gray-100">
                       <td
                         className="px-4 py-3 text-gray-500"
@@ -324,7 +446,7 @@ export default function AutoquoterPage() {
                         Geen market segments gevonden voor deze periode.
                       </td>
                     </tr>
-                  ) : null}
+                  )}
                 </tbody>
               </table>
             </div>
