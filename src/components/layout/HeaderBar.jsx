@@ -45,6 +45,11 @@ export default function HeaderBar({ today, onLogout }) {
       action: () => navigate("/quotes"),
       icon: Quote,
     },
+    {
+      label: "Autoquoter 9000",
+      action: () => navigate("/quotes/autoquoter"),
+      icon: Quote,
+    },
   ];
 
   const settingsMenuItems = [
