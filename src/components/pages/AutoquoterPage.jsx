@@ -1,9 +1,19 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { Button } from "../layout/Button";
-import { auth, db, doc, getDoc, signOut } from "../../firebaseConfig";
+import {
+  auth,
+  collection,
+  db,
+  doc,
+  getDoc,
+  getDocs,
+  orderBy,
+  query,
+  signOut,
+} from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 
 const formatDateInput = (date) => {
@@ -48,6 +58,7 @@ export default function AutoquoterPage() {
   const [compareYear, setCompareYear] = useState(String(currentYear - 1));
   const [generatedDates, setGeneratedDates] = useState([]);
   const [marketOverview, setMarketOverview] = useState([]);
+  const [marketSegments, setMarketSegments] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const compareStartDate = useMemo(
@@ -58,13 +69,41 @@ export default function AutoquoterPage() {
     () => buildCompareDate(endDate, Number(compareYear)),
     [compareYear, endDate]
   );
-  const marketCodes = useMemo(() => {
-    const codes = new Set();
-    marketOverview.forEach((day) => {
-      day.rows.forEach((row) => codes.add(row.marketCode));
-    });
-    return Array.from(codes).sort((a, b) => a.localeCompare(b));
-  }, [marketOverview]);
+  const sortedMarketSegments = useMemo(() => {
+    return [...marketSegments].sort((a, b) =>
+      (a?.name || "").localeCompare(b?.name || "", undefined, { sensitivity: "base" })
+    );
+  }, [marketSegments]);
+
+  useEffect(() => {
+    let isActive = true;
+    const loadSegments = async () => {
+      if (!hotelUid) {
+        setMarketSegments([]);
+        return;
+      }
+      try {
+        const ref = collection(db, `hotels/${hotelUid}/marketSegments`);
+        const snapshot = await getDocs(query(ref, orderBy("name")));
+        const segments = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }));
+        if (isActive) {
+          setMarketSegments(segments);
+        }
+      } catch (loadError) {
+        console.error("Fout bij ophalen van market segments:", loadError);
+        if (isActive) {
+          setMarketSegments([]);
+        }
+      }
+    };
+    loadSegments();
+    return () => {
+      isActive = false;
+    };
+  }, [hotelUid]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -247,18 +286,18 @@ export default function AutoquoterPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {marketCodes.map((marketCode) => (
-                    <tr key={marketCode} className="border-t border-gray-100">
+                  {sortedMarketSegments.map((segment) => (
+                    <tr key={segment.id || segment.marketSegmentCode} className="border-t border-gray-100">
                       <td className="px-4 py-3 font-semibold text-gray-700">
-                        {marketCode}
+                        {segment.name || segment.marketSegmentCode || "Onbekend"}
                       </td>
                       {marketOverview.map((day) => {
                         const match = day.rows.find(
-                          (row) => row.marketCode === marketCode
+                          (row) => row.marketCode === segment.marketSegmentCode
                         );
                         return (
                           <td
-                            key={`${day.dateKey}-${marketCode}`}
+                            key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
                             className="px-4 py-3 text-gray-700"
                           >
                             {match ? match.roomsSold : "—"}
@@ -267,13 +306,13 @@ export default function AutoquoterPage() {
                       })}
                     </tr>
                   ))}
-                  {!marketCodes.length ? (
+                  {!sortedMarketSegments.length ? (
                     <tr className="border-t border-gray-100">
                       <td
                         className="px-4 py-3 text-gray-500"
                         colSpan={generatedDates.length + 1}
                       >
-                        Geen market codes gevonden voor deze periode.
+                        Geen market segments gevonden voor deze periode.
                       </td>
                     </tr>
                   ) : null}
