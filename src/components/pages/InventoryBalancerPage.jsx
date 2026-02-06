@@ -358,7 +358,7 @@ export default function InventoryBalancerPage() {
           const requiredOperaHeaders = [
             "BUSINESS_DATE",
             "MARKET_CODE",
-            "NO_OF_ROOMS",
+            "NO_OF_ROOMS1",
           ];
           const missingHeaders = requiredOperaHeaders.filter(
             (field) => !headers.includes(field)
@@ -384,7 +384,7 @@ export default function InventoryBalancerPage() {
           data.forEach((row) => {
             const dateKey = parseOperaDateKey(row.BUSINESS_DATE);
             const marketCode = normalizeKey(row.MARKET_CODE);
-            const rooms = parseNumber(row.NO_OF_ROOMS);
+            const rooms = parseNumber(row.NO_OF_ROOMS1);
 
             if (!dateKey || !marketCode || rooms === null) {
               skippedRows += 1;
