@@ -160,26 +160,31 @@ export default function RoomClassEditPage() {
                   </p>
                 ) : (
                   <ul className="flex flex-wrap gap-2">
-                    {selectedRoomTypes.map((roomType) => (
+                    {selectedRoomTypes.map((roomTypeId) => {
+                      const roomTypeLabel =
+                        availableRoomTypes.find((roomType) => roomType.id === roomTypeId)
+                          ?.name || roomTypeId;
+                      return (
                       <li
-                        key={roomType}
+                        key={roomTypeId}
                         className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
                       >
-                        <span>{roomType}</span>
+                        <span>{roomTypeLabel}</span>
                         <button
                           type="button"
                           onClick={() =>
                             setSelectedRoomTypes((current) =>
-                              current.filter((item) => item !== roomType)
+                              current.filter((item) => item !== roomTypeId)
                             )
                           }
                           className="text-gray-500 hover:text-gray-700"
-                          aria-label={`Verwijder ${roomType}`}
+                          aria-label={`Verwijder ${roomTypeLabel}`}
                         >
                           ✕
                         </button>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )}
               </div>
@@ -193,12 +198,10 @@ export default function RoomClassEditPage() {
                   >
                     <option value="">Selecteer een room type</option>
                     {availableRoomTypes
-                      .map((roomType) => roomType.name || roomType.id)
-                      .filter(Boolean)
-                      .filter((name) => !selectedRoomTypes.includes(name))
-                      .map((roomTypeName) => (
-                        <option key={roomTypeName} value={roomTypeName}>
-                          {roomTypeName}
+                      .filter((roomType) => !selectedRoomTypes.includes(roomType.id))
+                      .map((roomType) => (
+                        <option key={roomType.id} value={roomType.id}>
+                          {roomType.name || roomType.id}
                         </option>
                       ))}
                   </select>

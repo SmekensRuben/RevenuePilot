@@ -7,6 +7,7 @@ import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { deleteRoomClass, subscribeRoomClasses } from "../../services/firebaseRoomClasses";
+import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
 
 const columns = [
   { key: "code", label: "Room Class Code", isNumeric: false },
@@ -20,6 +21,7 @@ export default function RoomClassesPage() {
   const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
   const [roomClasses, setRoomClasses] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: "code", direction: "asc" });
 
   const todayLabel = useMemo(() => {
@@ -39,11 +41,23 @@ export default function RoomClassesPage() {
   useEffect(() => {
     if (!hotelUid) {
       setRoomClasses([]);
+      setRoomTypes([]);
       return undefined;
     }
     const unsubscribe = subscribeRoomClasses(hotelUid, setRoomClasses);
-    return () => unsubscribe();
+    const unsubscribeRoomTypes = subscribeRoomTypes(hotelUid, setRoomTypes);
+    return () => {
+      unsubscribe();
+      unsubscribeRoomTypes();
+    };
   }, [hotelUid]);
+
+  const roomTypeLabelById = useMemo(() => {
+    return roomTypes.reduce((acc, roomType) => {
+      acc[roomType.id] = roomType.name || roomType.id;
+      return acc;
+    }, {});
+  }, [roomTypes]);
 
   const sortedRoomClasses = useMemo(() => {
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -184,7 +198,9 @@ export default function RoomClassesPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomClass.roomTypes?.length
-                          ? roomClass.roomTypes.join(", ")
+                          ? roomClass.roomTypes
+                              .map((roomTypeId) => roomTypeLabelById[roomTypeId] || roomTypeId)
+                              .join(", ")
                           : "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
