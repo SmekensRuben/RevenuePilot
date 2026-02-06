@@ -23,6 +23,7 @@ export default function MarketSegmentDetailPage() {
     type: initialSegment?.type || "Transient",
     rateCategoryCode: initialSegment?.rateCategoryCode || "",
     marketSegmentCode: initialSegment?.marketSegmentCode || "",
+    countTowardsAdr: initialSegment?.countTowardsAdr ?? true,
   });
   const [subSegments, setSubSegments] = useState([]);
   const [statusMessage, setStatusMessage] = useState("");
@@ -56,6 +57,7 @@ export default function MarketSegmentDetailPage() {
           type: segment.type || "Transient",
           rateCategoryCode: segment.rateCategoryCode || "",
           marketSegmentCode: segment.marketSegmentCode || "",
+          countTowardsAdr: segment.countTowardsAdr ?? true,
         });
         setStatusMessage("");
       } else {
@@ -79,8 +81,11 @@ export default function MarketSegmentDetailPage() {
   }, [hotelUid, isNew, segmentId]);
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const handleSubmit = async (event) => {
@@ -105,6 +110,7 @@ export default function MarketSegmentDetailPage() {
           type: formData.type,
           rateCategoryCode: formData.rateCategoryCode,
           marketSegmentCode: formData.marketSegmentCode,
+          countTowardsAdr: formData.countTowardsAdr,
         }
       );
       setStatusMessage("Market segment opgeslagen.");
@@ -118,6 +124,7 @@ export default function MarketSegmentDetailPage() {
               type: formData.type,
               rateCategoryCode: formData.rateCategoryCode,
               marketSegmentCode: formData.marketSegmentCode,
+              countTowardsAdr: formData.countTowardsAdr,
             },
           },
         });
@@ -207,6 +214,17 @@ export default function MarketSegmentDetailPage() {
                 className="border border-gray-300 rounded px-3 py-2 text-gray-900"
                 placeholder="bv. MSC"
               />
+            </label>
+
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <input
+                type="checkbox"
+                name="countTowardsAdr"
+                checked={formData.countTowardsAdr}
+                onChange={handleChange}
+                className="h-4 w-4 rounded border-gray-300 text-[#b41f1f] focus:ring-[#b41f1f]"
+              />
+              Count towards ADR
             </label>
           </div>
 

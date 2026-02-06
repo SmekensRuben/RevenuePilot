@@ -106,6 +106,15 @@ export default function AutoquoterPage() {
     });
     return grouped;
   }, [sortedMarketSegments]);
+  const adrEligibleMarketCodes = useMemo(() => {
+    const codes = new Set();
+    sortedMarketSegments.forEach((segment) => {
+      if (!segment?.marketSegmentCode) return;
+      if (segment.countTowardsAdr === false) return;
+      codes.add(String(segment.marketSegmentCode).toUpperCase());
+    });
+    return codes;
+  }, [sortedMarketSegments]);
   const requestedWeekdays = useMemo(() => {
     const start = parseDateInput(startDate);
     const end = parseDateInput(endDate);
@@ -129,12 +138,15 @@ export default function AutoquoterPage() {
       ),
     [marketOverview]
   );
-  const calculateWeightedAdr = (rows) => {
+  const calculateWeightedAdr = (rows, eligibleCodes = null) => {
     let rooms = 0;
     let revenue = 0;
     rows.forEach((row) => {
       const roomsSold = Number(row.roomsSold) || 0;
       const adrValue = Number(row.adr);
+      if (eligibleCodes && (!row.marketCode || !eligibleCodes.has(row.marketCode.toUpperCase()))) {
+        return;
+      }
       if (!Number.isFinite(adrValue) || roomsSold <= 0) return;
       rooms += roomsSold;
       revenue += roomsSold * adrValue;
@@ -142,8 +154,8 @@ export default function AutoquoterPage() {
     return rooms > 0 ? revenue / rooms : null;
   };
   const totalAdrByDay = useMemo(
-    () => marketOverview.map((day) => calculateWeightedAdr(day.rows)),
-    [marketOverview]
+    () => marketOverview.map((day) => calculateWeightedAdr(day.rows, adrEligibleMarketCodes)),
+    [adrEligibleMarketCodes, marketOverview]
   );
   const groupTotals = useMemo(() => {
     const totalsByGroup = { Transient: [], Group: [] };
@@ -162,7 +174,12 @@ export default function AutoquoterPage() {
           (sum, row) => sum + (Number(row.roomsSold) || 0),
           0
         );
-        const adr = calculateWeightedAdr(groupRows);
+        const eligibleGroupCodes = new Set(
+          segments
+            .filter((segment) => segment?.marketSegmentCode && segment.countTowardsAdr !== false)
+            .map((segment) => String(segment.marketSegmentCode).toUpperCase())
+        );
+        const adr = calculateWeightedAdr(groupRows, eligibleGroupCodes);
         if (!totalsByGroup[groupName]) {
           totalsByGroup[groupName] = [];
         }
