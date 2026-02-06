@@ -9,6 +9,7 @@ import { getSettings, setSettings } from "../../services/firebaseSettings";
 export default function GeneralSettingsPage() {
   const { hotelUid } = useHotelContext();
   const [breakfastPrice, setBreakfastPrice] = useState("");
+  const [hotelRoomCount, setHotelRoomCount] = useState("");
   const [roomVatPercent, setRoomVatPercent] = useState("");
   const [expectedRoomRateYoYIncrease, setExpectedRoomRateYoYIncrease] = useState("");
   const [saving, setSaving] = useState(false);
@@ -39,6 +40,9 @@ export default function GeneralSettingsPage() {
       setBreakfastPrice(
         settings?.breakfastPrice !== undefined ? String(settings.breakfastPrice) : ""
       );
+      setHotelRoomCount(
+        settings?.hotelRoomCount !== undefined ? String(settings.hotelRoomCount) : ""
+      );
       setRoomVatPercent(
         settings?.roomVatPercent !== undefined ? String(settings.roomVatPercent) : ""
       );
@@ -58,6 +62,7 @@ export default function GeneralSettingsPage() {
     setMessage("");
     await setSettings(hotelUid, {
       breakfastPrice: Number(breakfastPrice) || 0,
+      hotelRoomCount: Number(hotelRoomCount) || 0,
       roomVatPercent: Number(roomVatPercent) || 0,
       expectedRoomRateYoYIncrease: Number(expectedRoomRateYoYIncrease) || 0,
     });
@@ -101,6 +106,17 @@ export default function GeneralSettingsPage() {
                   step="0.01"
                   value={roomVatPercent}
                   onChange={(event) => setRoomVatPercent(event.target.value)}
+                  className="rounded border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+                Amount of Hotel Rooms
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={hotelRoomCount}
+                  onChange={(event) => setHotelRoomCount(event.target.value)}
                   className="rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </label>
