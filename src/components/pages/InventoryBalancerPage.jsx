@@ -172,6 +172,7 @@ export default function InventoryBalancerPage() {
 
           const batch = writeBatch(db);
           const dateSet = new Set();
+          const inventoryByDate = {};
           let importedRows = 0;
           let skippedRows = 0;
 
@@ -207,21 +208,17 @@ export default function InventoryBalancerPage() {
 
             dateSet.add(dateKey);
             const roomTypeKey = roomtype.replace(/\//g, "-");
-            const inventoryRef = doc(
-              db,
-              `hotels/${hotelUid}/marshaData/${dateKey}/marshaInventory`,
-              roomTypeKey
-            );
-            batch.set(inventoryRef, {
-              date: dateKey,
+            if (!inventoryByDate[dateKey]) {
+              inventoryByDate[dateKey] = {};
+            }
+            inventoryByDate[dateKey][roomTypeKey] = {
               roomtype,
               AC: parseNumber(row.AC),
               AU: parseNumber(row.AU),
               RS: parseNumber(row.RS),
               RA: parseNumber(row.RA),
               AA: parseNumber(row.AA),
-              updatedAt: serverTimestamp(),
-            });
+            };
             importedRows += 1;
           });
 
@@ -232,6 +229,7 @@ export default function InventoryBalancerPage() {
               {
                 date: dateKey,
                 updatedAt: serverTimestamp(),
+                marshaInventory: inventoryByDate[dateKey] || {},
               },
               { merge: true }
             );
