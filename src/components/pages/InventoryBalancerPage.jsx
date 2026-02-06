@@ -6,7 +6,17 @@ import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { Button } from "../layout/Button";
-import { auth, db, doc, getDoc, serverTimestamp, signOut, writeBatch } from "../../firebaseConfig";
+import {
+  auth,
+  collection,
+  db,
+  doc,
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  signOut,
+  writeBatch,
+} from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { subscribeRoomClasses } from "../../services/firebaseRoomClasses";
 import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
@@ -111,6 +121,20 @@ const parseNumber = (value) => {
   const normalized = String(value).trim().replace(",", ".");
   const num = Number(normalized);
   return Number.isFinite(num) ? num : null;
+};
+
+const clearCollection = async (path) => {
+  const snapshot = await getDocs(collection(db, path));
+  if (snapshot.empty) return;
+  const docs = snapshot.docs;
+  const chunkSize = 450;
+  for (let i = 0; i < docs.length; i += chunkSize) {
+    const batch = writeBatch(db);
+    docs.slice(i, i + chunkSize).forEach((docSnap) => {
+      batch.delete(docSnap.ref);
+    });
+    await batch.commit();
+  }
 };
 
 export default function InventoryBalancerPage() {
@@ -276,6 +300,8 @@ export default function InventoryBalancerPage() {
             return;
           }
 
+          await clearCollection(`hotels/${hotelUid}/marshaData`);
+
           if (errors?.length) {
             console.warn("CSV parse warnings", errors);
           }
@@ -406,6 +432,8 @@ export default function InventoryBalancerPage() {
             setOperaUploading(false);
             return;
           }
+
+          await clearCollection(`hotels/${hotelUid}/operaInventory`);
 
           if (errors?.length) {
             console.warn("CSV parse warnings", errors);
