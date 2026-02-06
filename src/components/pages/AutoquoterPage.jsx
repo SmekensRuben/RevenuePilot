@@ -417,27 +417,25 @@ export default function AutoquoterPage() {
                                   className="flex items-center gap-2 text-left"
                                 >
                                   <span
-                                    className={`text-xs transition-transform ${
+                                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-gray-600 transition-transform ${
                                       isCollapsed ? "" : "rotate-90"
                                     }`}
+                                    aria-hidden="true"
                                   >
-                                    ▶
+                                    <svg
+                                      viewBox="0 0 20 20"
+                                      className="h-3 w-3"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M7.22 14.78a.75.75 0 0 1 0-1.06L10.94 10 7.22 6.28a.75.75 0 1 1 1.06-1.06l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0Z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
                                   </span>
                                   {groupName} market segments
                                 </button>
-                              </td>
-                              {generatedDates.map((date, index) => (
-                                <td
-                                  key={`${groupName}-${date.toISOString()}`}
-                                  className={`px-4 py-3 ${
-                                    weekdayMatches[index] ? "bg-emerald-50" : ""
-                                  }`}
-                                />
-                              ))}
-                            </tr>
-                            <tr className="border-t border-gray-100 bg-gray-50/60">
-                              <td className="px-4 py-3 text-sm font-semibold text-gray-600">
-                                Totaal roomsSold ({groupName.toLowerCase()})
                               </td>
                               {marketOverview.map((day, index) => (
                                 <td
