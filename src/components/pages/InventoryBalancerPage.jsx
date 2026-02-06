@@ -326,6 +326,11 @@ export default function InventoryBalancerPage() {
     return isMatch ? "bg-emerald-100" : "bg-red-100";
   };
 
+  const getInterchangeableTone = (value) => {
+    if (!Number.isFinite(value)) return "";
+    return value < 0 ? "bg-red-100" : "bg-emerald-100";
+  };
+
   const handleBalancedSave = async () => {
     if (!hotelUid || !selectedDate) return;
     setBalancedSaving(true);
@@ -780,18 +785,20 @@ export default function InventoryBalancerPage() {
                           ? balancedValue === operaValue
                           : false;
 
-                      const operaTone = getComparisonTone(
-                        operaMatchesMarsha,
-                        comparisonApplicable
-                      );
-                      const marshaTone = getComparisonTone(
-                        operaMatchesMarsha,
-                        comparisonApplicable
-                      );
-                      const balancedTone = getComparisonTone(
-                        balancedMatchesOpera,
-                        !isInterchangeable && Number.isFinite(operaValue) && balancedValue !== null
-                      );
+                      const operaTone = isInterchangeable
+                        ? getInterchangeableTone(operaValue)
+                        : getComparisonTone(operaMatchesMarsha, comparisonApplicable);
+                      const marshaTone = isInterchangeable
+                        ? getInterchangeableTone(marshaValue)
+                        : getComparisonTone(operaMatchesMarsha, comparisonApplicable);
+                      const balancedTone = isInterchangeable
+                        ? getInterchangeableTone(balancedValue)
+                        : getComparisonTone(
+                            balancedMatchesOpera,
+                            !isInterchangeable &&
+                              Number.isFinite(operaValue) &&
+                              balancedValue !== null
+                          );
 
                       return (
                       <tr key={roomClass.id}>
@@ -844,7 +851,17 @@ export default function InventoryBalancerPage() {
                         <td className="px-4 py-2">Totaal</td>
                         <td className="px-4 py-2">{totals.opera}</td>
                         <td className="px-4 py-2">{totals.marsha}</td>
-                        <td className="px-4 py-2">{totals.balanced}</td>
+                        <td
+                          className={`px-4 py-2 ${
+                            totals.opera !== totals.marsha
+                              ? "bg-red-100"
+                              : totals.opera === totals.balanced
+                                ? "bg-emerald-100"
+                                : "bg-red-100"
+                          }`}
+                        >
+                          {totals.balanced}
+                        </td>
                       </tr>
                     )}
                   </tbody>
