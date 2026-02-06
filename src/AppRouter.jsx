@@ -24,6 +24,8 @@ import AutoquoterPage from "./components/pages/AutoquoterPage.jsx";
 import RoomTypesPage from "./components/pages/RoomTypesPage.jsx";
 import RoomTypeCreatePage from "./components/pages/RoomTypeCreatePage.jsx";
 import RoomTypeEditPage from "./components/pages/RoomTypeEditPage.jsx";
+import RoomClassesPage from "./components/pages/RoomClassesPage.jsx";
+import RoomClassCreatePage from "./components/pages/RoomClassCreatePage.jsx";
 import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
 
 export default function AppRouter() {
@@ -204,6 +206,22 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <RoomTypeEditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/room-classes"
+        element={
+          <ProtectedRoute>
+            <RoomClassesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/room-classes/new"
+        element={
+          <ProtectedRoute>
+            <RoomClassCreatePage />
           </ProtectedRoute>
         }
       />
