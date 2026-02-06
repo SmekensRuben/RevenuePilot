@@ -327,10 +327,6 @@ export default function InventoryBalancerPage() {
             <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">
               Inventory Balancer
             </p>
-            <h1 className="text-2xl sm:text-3xl font-bold">Marsha Inventory import</h1>
-            <p className="text-gray-600 mt-1">
-              Upload een Marsha Inventory CSV om de inventaris per datum en roomtype op te slaan.
-            </p>
           </div>
           <div className="flex items-center gap-2 self-start">
             <Button
@@ -352,34 +348,25 @@ export default function InventoryBalancerPage() {
           </div>
         </div>
 
-        <Card>
-          <div className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold">CSV formaat</h2>
-              <p className="text-gray-600">
-                Gebruik een CSV met kolommen: {requiredHeaders.join(", ")}. De waarden worden per
-                datum en roomtype opgeslagen onder marshaInventory.
-              </p>
+        {lastImport && (
+          <Card>
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+              <p className="font-semibold">Laatste import</p>
+              <ul className="mt-2 space-y-1">
+                <li>Bestand: {lastImport.fileName}</li>
+                <li>Rijen geïmporteerd: {lastImport.total}</li>
+                <li>Rijen overgeslagen: {lastImport.skipped}</li>
+                <li>Aantal datums: {lastImport.dates}</li>
+              </ul>
             </div>
-            {lastImport && (
-              <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-                <p className="font-semibold">Laatste import</p>
-                <ul className="mt-2 space-y-1">
-                  <li>Bestand: {lastImport.fileName}</li>
-                  <li>Rijen geïmporteerd: {lastImport.total}</li>
-                  <li>Rijen overgeslagen: {lastImport.skipped}</li>
-                  <li>Aantal datums: {lastImport.dates}</li>
-                </ul>
-              </div>
-            )}
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <Card>
           <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Room class overzicht</h2>
+                <h2 className="text-lg font-semibold">Availability Overview</h2>
                 <p className="text-gray-600">
                   Kies een datum om de RA-waarde per room class te bekijken.
                 </p>
@@ -407,9 +394,11 @@ export default function InventoryBalancerPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                        Room class code
+                        Room Class
                       </th>
-                      <th className="px-4 py-2 text-left font-semibold text-gray-700">RA</th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                        MARSHA
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
