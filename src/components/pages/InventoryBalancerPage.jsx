@@ -321,6 +321,11 @@ export default function InventoryBalancerPage() {
     }));
   };
 
+  const getComparisonTone = (isMatch, isApplicable) => {
+    if (!isApplicable) return "";
+    return isMatch ? "text-emerald-700" : "text-red-600";
+  };
+
   const handleBalancedSave = async () => {
     if (!hotelUid || !selectedDate) return;
     setBalancedSaving(true);
@@ -755,20 +760,53 @@ export default function InventoryBalancerPage() {
                         </td>
                       </tr>
                     )}
-                    {inventoryByRoom.map((roomClass) => (
+                    {inventoryByRoom.map((roomClass) => {
+                      const isInterchangeable = Boolean(roomClass.inventoryInterchangeable);
+                      const operaValue = roomClass.operaValue;
+                      const marshaValue = roomClass.raValue;
+                      const balancedValue =
+                        Number.isFinite(operaValue)
+                          ? operaValue + (balancedAdjustments[roomClass.id] || 0)
+                          : null;
+                      const comparisonApplicable =
+                        !isInterchangeable &&
+                        Number.isFinite(operaValue) &&
+                        Number.isFinite(marshaValue);
+                      const operaMatchesMarsha = comparisonApplicable
+                        ? operaValue === marshaValue
+                        : false;
+                      const balancedMatchesOpera =
+                        !isInterchangeable && Number.isFinite(operaValue) && balancedValue !== null
+                          ? balancedValue === operaValue
+                          : false;
+
+                      const operaTone = getComparisonTone(
+                        operaMatchesMarsha,
+                        comparisonApplicable
+                      );
+                      const marshaTone = getComparisonTone(
+                        operaMatchesMarsha,
+                        comparisonApplicable
+                      );
+                      const balancedTone = getComparisonTone(
+                        balancedMatchesOpera,
+                        !isInterchangeable && Number.isFinite(operaValue) && balancedValue !== null
+                      );
+
+                      return (
                       <tr key={roomClass.id}>
                         <td className="px-4 py-2 text-gray-900">{roomClass.code}</td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${operaTone || "text-gray-900"}`}>
                           {inventoryLoading
                             ? "Laden..."
                             : roomClass.operaValue ?? "—"}
                         </td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${marshaTone || "text-gray-900"}`}>
                           {inventoryLoading
                             ? "Laden..."
                             : roomClass.raValue ?? "—"}
                         </td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${balancedTone || "text-gray-900"}`}>
                           {inventoryLoading ? (
                             "Laden..."
                           ) : roomClass.operaValue === null ? (
@@ -799,7 +837,8 @@ export default function InventoryBalancerPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                     {inventoryByRoom.length > 0 && (
                       <tr className="bg-gray-50 font-semibold text-gray-700">
                         <td className="px-4 py-2">Totaal</td>
