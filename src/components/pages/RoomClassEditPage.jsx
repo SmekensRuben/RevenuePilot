@@ -15,6 +15,8 @@ export default function RoomClassEditPage() {
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [rooms, setRooms] = useState("");
+  const [sequenceNumber, setSequenceNumber] = useState("");
+  const [inventoryInterchangeable, setInventoryInterchangeable] = useState(false);
   const [selectedRoomTypes, setSelectedRoomTypes] = useState([]);
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
   const [roomTypeToAdd, setRoomTypeToAdd] = useState("");
@@ -49,6 +51,12 @@ export default function RoomClassEditPage() {
       setCode(roomClass.code || "");
       setDescription(roomClass.description || "");
       setRooms(roomClass.rooms ? String(roomClass.rooms) : "");
+      setSequenceNumber(
+        Number.isFinite(roomClass.sequenceNumber)
+          ? String(roomClass.sequenceNumber)
+          : ""
+      );
+      setInventoryInterchangeable(Boolean(roomClass.inventoryInterchangeable));
       setSelectedRoomTypes(Array.isArray(roomClass.roomTypes) ? roomClass.roomTypes : []);
       setLoading(false);
     };
@@ -68,10 +76,14 @@ export default function RoomClassEditPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!hotelUid || !roomClassId) return;
+    const parsedSequenceNumber =
+      sequenceNumber === "" ? null : Number(sequenceNumber);
     await updateRoomClass(hotelUid, roomClassId, {
       code: code.trim(),
       description: description.trim(),
       rooms: Number(rooms) || 0,
+      sequenceNumber: Number.isFinite(parsedSequenceNumber) ? parsedSequenceNumber : null,
+      inventoryInterchangeable,
       roomTypes: selectedRoomTypes,
     });
     navigate("/settings/room-classes");
@@ -150,6 +162,25 @@ export default function RoomClassEditPage() {
                 className="rounded border border-gray-300 px-3 py-2 text-sm"
                 required
               />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+              Sequence Number
+              <input
+                type="number"
+                min="0"
+                value={sequenceNumber}
+                onChange={(event) => setSequenceNumber(event.target.value)}
+                className="rounded border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={inventoryInterchangeable}
+                onChange={(event) => setInventoryInterchangeable(event.target.checked)}
+                className="h-4 w-4 rounded border border-gray-300 text-[#b41f1f] focus:ring-[#b41f1f]"
+              />
+              Inventory interchangeable
             </label>
             <div className="flex flex-col gap-3 sm:col-span-2">
               <div className="flex flex-col gap-1 text-sm font-semibold text-gray-700">

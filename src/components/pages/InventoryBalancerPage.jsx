@@ -14,6 +14,7 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  setDoc,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -154,6 +155,8 @@ export default function InventoryBalancerPage() {
   const [operaInventoryData, setOperaInventoryData] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [balancedAdjustments, setBalancedAdjustments] = useState({});
+  const [balancedByCode, setBalancedByCode] = useState({});
+  const [balancedSaving, setBalancedSaving] = useState(false);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -215,6 +218,51 @@ export default function InventoryBalancerPage() {
     };
   }, [hotelUid, selectedDate]);
 
+  useEffect(() => {
+    if (!hotelUid || !selectedDate) {
+      setBalancedByCode({});
+      return;
+    }
+    let isActive = true;
+    const fetchBalanced = async () => {
+      try {
+        const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, selectedDate);
+        const snapshot = await getDoc(balancedRef);
+        if (!isActive) return;
+        setBalancedByCode(snapshot.exists() ? snapshot.data() : {});
+      } catch (error) {
+        console.error("Balanced inventory load error", error);
+        toast.error("Balanced inventory kon niet geladen worden.");
+      }
+    };
+    fetchBalanced();
+    return () => {
+      isActive = false;
+    };
+  }, [hotelUid, selectedDate]);
+
+  const sortedRoomClasses = useMemo(() => {
+    return [...roomClasses].sort((a, b) => {
+      const aSequence = Number(a?.sequenceNumber);
+      const bSequence = Number(b?.sequenceNumber);
+      const aHasSequence = Number.isFinite(aSequence);
+      const bHasSequence = Number.isFinite(bSequence);
+
+      if (aHasSequence && bHasSequence) {
+        if (aSequence !== bSequence) return aSequence - bSequence;
+      } else if (aHasSequence) {
+        return -1;
+      } else if (bHasSequence) {
+        return 1;
+      }
+
+      return String(a?.code || "").localeCompare(String(b?.code || ""), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+  }, [roomClasses]);
+
   const inventoryByRoom = useMemo(() => {
     const marshaInventory = inventoryData?.marshaInventory || {};
     const operaInventory = operaInventoryData?.marketInventory || {};
@@ -223,7 +271,7 @@ export default function InventoryBalancerPage() {
       return acc;
     }, {});
 
-    return roomClasses.map((roomClass) => {
+    return sortedRoomClasses.map((roomClass) => {
       const normalizedCode = normalizeKey(roomClass.code).replace(/\//g, "-");
       const inventory = normalizedCode ? marshaInventory[normalizedCode] : null;
       const operaCodes = (roomClass.roomTypes || [])
@@ -247,13 +295,62 @@ export default function InventoryBalancerPage() {
         operaValue: resolvedOperaValue,
       };
     });
-  }, [inventoryData, operaInventoryData, roomClasses, roomTypes]);
+  }, [inventoryData, operaInventoryData, sortedRoomClasses, roomTypes]);
+
+  useEffect(() => {
+    if (inventoryByRoom.length === 0) {
+      setBalancedAdjustments({});
+      return;
+    }
+    const nextAdjustments = {};
+    inventoryByRoom.forEach((roomClass) => {
+      const storedBalanced = balancedByCode?.[roomClass.code];
+      if (Number.isFinite(storedBalanced) && Number.isFinite(roomClass.operaValue)) {
+        nextAdjustments[roomClass.id] = storedBalanced - roomClass.operaValue;
+      } else {
+        nextAdjustments[roomClass.id] = 0;
+      }
+    });
+    setBalancedAdjustments(nextAdjustments);
+  }, [balancedByCode, inventoryByRoom]);
 
   const handleBalancedAdjust = (roomClassId, delta) => {
     setBalancedAdjustments((current) => ({
       ...current,
       [roomClassId]: (current[roomClassId] || 0) + delta,
     }));
+  };
+
+  const getComparisonTone = (isMatch, isApplicable) => {
+    if (!isApplicable) return "";
+    return isMatch ? "bg-emerald-100" : "bg-red-100";
+  };
+
+  const getInterchangeableTone = (value) => {
+    if (!Number.isFinite(value)) return "";
+    return value < 0 ? "bg-red-100" : "bg-emerald-100";
+  };
+
+  const handleBalancedSave = async () => {
+    if (!hotelUid || !selectedDate) return;
+    setBalancedSaving(true);
+    try {
+      const balancedMap = {};
+      inventoryByRoom.forEach((roomClass) => {
+        if (!Number.isFinite(roomClass.operaValue)) return;
+        const adjustment = balancedAdjustments[roomClass.id] || 0;
+        balancedMap[roomClass.code] = roomClass.operaValue + adjustment;
+      });
+      const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, selectedDate);
+      await setDoc(balancedRef, balancedMap);
+      setBalancedByCode(balancedMap);
+      toast.success("Balanced waarden opgeslagen.");
+    } catch (error) {
+      console.error("Balanced save error", error);
+      toast.error("Balanced waarden opslaan mislukt.");
+    } finally {
+      setBalancedSaving(false);
+    }
   };
 
   const totals = useMemo(() => {
@@ -668,20 +765,55 @@ export default function InventoryBalancerPage() {
                         </td>
                       </tr>
                     )}
-                    {inventoryByRoom.map((roomClass) => (
+                    {inventoryByRoom.map((roomClass) => {
+                      const isInterchangeable = Boolean(roomClass.inventoryInterchangeable);
+                      const operaValue = roomClass.operaValue;
+                      const marshaValue = roomClass.raValue;
+                      const balancedValue =
+                        Number.isFinite(operaValue)
+                          ? operaValue + (balancedAdjustments[roomClass.id] || 0)
+                          : null;
+                      const comparisonApplicable =
+                        !isInterchangeable &&
+                        Number.isFinite(operaValue) &&
+                        Number.isFinite(marshaValue);
+                      const operaMatchesMarsha = comparisonApplicable
+                        ? operaValue === marshaValue
+                        : false;
+                      const balancedMatchesOpera =
+                        !isInterchangeable && Number.isFinite(operaValue) && balancedValue !== null
+                          ? balancedValue === operaValue
+                          : false;
+
+                      const operaTone = isInterchangeable
+                        ? getInterchangeableTone(operaValue)
+                        : getComparisonTone(operaMatchesMarsha, comparisonApplicable);
+                      const marshaTone = isInterchangeable
+                        ? getInterchangeableTone(marshaValue)
+                        : getComparisonTone(operaMatchesMarsha, comparisonApplicable);
+                      const balancedTone = isInterchangeable
+                        ? getInterchangeableTone(balancedValue)
+                        : getComparisonTone(
+                            balancedMatchesOpera,
+                            !isInterchangeable &&
+                              Number.isFinite(operaValue) &&
+                              balancedValue !== null
+                          );
+
+                      return (
                       <tr key={roomClass.id}>
                         <td className="px-4 py-2 text-gray-900">{roomClass.code}</td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${operaTone || "text-gray-900"}`}>
                           {inventoryLoading
                             ? "Laden..."
                             : roomClass.operaValue ?? "—"}
                         </td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${marshaTone || "text-gray-900"}`}>
                           {inventoryLoading
                             ? "Laden..."
                             : roomClass.raValue ?? "—"}
                         </td>
-                        <td className="px-4 py-2 text-gray-900">
+                        <td className={`px-4 py-2 ${balancedTone || "text-gray-900"}`}>
                           {inventoryLoading ? (
                             "Laden..."
                           ) : roomClass.operaValue === null ? (
@@ -712,17 +844,43 @@ export default function InventoryBalancerPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                     {inventoryByRoom.length > 0 && (
                       <tr className="bg-gray-50 font-semibold text-gray-700">
                         <td className="px-4 py-2">Totaal</td>
                         <td className="px-4 py-2">{totals.opera}</td>
                         <td className="px-4 py-2">{totals.marsha}</td>
-                        <td className="px-4 py-2">{totals.balanced}</td>
+                        <td
+                          className={`px-4 py-2 ${
+                            totals.opera !== totals.marsha
+                              ? "bg-red-100"
+                              : totals.opera === totals.balanced
+                                ? "bg-emerald-100"
+                                : "bg-red-100"
+                          }`}
+                        >
+                          {totals.balanced}
+                        </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                <div className="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3">
+                  <Button
+                    type="button"
+                    onClick={handleBalancedSave}
+                    className="bg-[#b41f1f] hover:bg-[#961919]"
+                    disabled={
+                      balancedSaving ||
+                      inventoryLoading ||
+                      inventoryByRoom.length === 0 ||
+                      !hotelUid
+                    }
+                  >
+                    {balancedSaving ? "Opslaan..." : "Balanced opslaan"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
