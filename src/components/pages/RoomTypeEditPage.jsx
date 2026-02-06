@@ -13,7 +13,6 @@ export default function RoomTypeEditPage() {
   const { hotelUid } = useHotelContext();
   const [name, setName] = useState("");
   const [operaCode, setOperaCode] = useState("");
-  const [marshaCode, setMarshaCode] = useState("");
   const [rooms, setRooms] = useState("");
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -45,7 +44,6 @@ export default function RoomTypeEditPage() {
       }
       setName(roomType.name || "");
       setOperaCode(roomType.operaCode || "");
-      setMarshaCode(roomType.marshaCode || "");
       setRooms(roomType.rooms ? String(roomType.rooms) : "");
       setLoading(false);
     };
@@ -59,7 +57,6 @@ export default function RoomTypeEditPage() {
     await updateRoomType(hotelUid, roomTypeId, {
       name: name.trim(),
       operaCode: operaCode.trim(),
-      marshaCode: marshaCode.trim(),
       rooms: Number(rooms) || 0,
     });
     navigate("/settings/room-types");
@@ -122,16 +119,6 @@ export default function RoomTypeEditPage() {
                 type="text"
                 value={operaCode}
                 onChange={(event) => setOperaCode(event.target.value)}
-                className="rounded border border-gray-300 px-3 py-2 text-sm"
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-              Marsha Code
-              <input
-                type="text"
-                value={marshaCode}
-                onChange={(event) => setMarshaCode(event.target.value)}
                 className="rounded border border-gray-300 px-3 py-2 text-sm"
                 required
               />

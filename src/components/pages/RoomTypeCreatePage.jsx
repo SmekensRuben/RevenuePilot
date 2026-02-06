@@ -12,7 +12,6 @@ export default function RoomTypeCreatePage() {
   const { hotelUid } = useHotelContext();
   const [name, setName] = useState("");
   const [operaCode, setOperaCode] = useState("");
-  const [marshaCode, setMarshaCode] = useState("");
   const [rooms, setRooms] = useState("");
 
   const todayLabel = useMemo(() => {
@@ -35,7 +34,6 @@ export default function RoomTypeCreatePage() {
     await addRoomType(hotelUid, {
       name: name.trim(),
       operaCode: operaCode.trim(),
-      marshaCode: marshaCode.trim(),
       rooms: Number(rooms) || 0,
     });
     navigate("/settings/room-types");
@@ -71,16 +69,6 @@ export default function RoomTypeCreatePage() {
                 type="text"
                 value={operaCode}
                 onChange={(event) => setOperaCode(event.target.value)}
-                className="rounded border border-gray-300 px-3 py-2 text-sm"
-                required
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-              Marsha Code
-              <input
-                type="text"
-                value={marshaCode}
-                onChange={(event) => setMarshaCode(event.target.value)}
                 className="rounded border border-gray-300 px-3 py-2 text-sm"
                 required
               />

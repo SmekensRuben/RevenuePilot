@@ -6,20 +6,23 @@ import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { deleteRoomType, subscribeRoomTypes } from "../../services/firebaseRoomTypes";
+import { deleteRoomClass, subscribeRoomClasses } from "../../services/firebaseRoomClasses";
+import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
 
 const columns = [
-  { key: "name", label: "Room Type Name", isNumeric: false },
-  { key: "operaCode", label: "Opera Code", isNumeric: false },
-  { key: "rooms", label: "Rooms", isNumeric: true },
+  { key: "code", label: "Room Class Code", isNumeric: false },
+  { key: "description", label: "Description", isNumeric: false },
+  { key: "rooms", label: "Number of Rooms", isNumeric: true },
+  { key: "roomTypes", label: "Room Types", isNumeric: false },
   { key: "actions", label: "Acties", isNumeric: false },
 ];
 
-export default function RoomTypesPage() {
+export default function RoomClassesPage() {
   const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
+  const [roomClasses, setRoomClasses] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
-  const [sortConfig, setSortConfig] = useState({ key: "name", direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({ key: "code", direction: "asc" });
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -37,16 +40,28 @@ export default function RoomTypesPage() {
 
   useEffect(() => {
     if (!hotelUid) {
+      setRoomClasses([]);
       setRoomTypes([]);
       return undefined;
     }
-    const unsubscribe = subscribeRoomTypes(hotelUid, setRoomTypes);
-    return () => unsubscribe();
+    const unsubscribe = subscribeRoomClasses(hotelUid, setRoomClasses);
+    const unsubscribeRoomTypes = subscribeRoomTypes(hotelUid, setRoomTypes);
+    return () => {
+      unsubscribe();
+      unsubscribeRoomTypes();
+    };
   }, [hotelUid]);
 
-  const sortedRoomTypes = useMemo(() => {
+  const roomTypeLabelById = useMemo(() => {
+    return roomTypes.reduce((acc, roomType) => {
+      acc[roomType.id] = roomType.name || roomType.id;
+      return acc;
+    }, {});
+  }, [roomTypes]);
+
+  const sortedRoomClasses = useMemo(() => {
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
-    const sorted = [...roomTypes].sort((a, b) => {
+    const sorted = [...roomClasses].sort((a, b) => {
       const aValue = a?.[sortConfig.key];
       const bValue = b?.[sortConfig.key];
       const numericValue = (value) => {
@@ -68,7 +83,7 @@ export default function RoomTypesPage() {
       );
     });
     return sorted;
-  }, [roomTypes, sortConfig]);
+  }, [roomClasses, sortConfig]);
 
   const handleSort = (columnKey) => {
     if (columnKey === "actions") return;
@@ -83,10 +98,10 @@ export default function RoomTypesPage() {
     });
   };
 
-  const handleDelete = async (roomTypeId) => {
-    if (!hotelUid || !roomTypeId) return;
-    if (!window.confirm("Weet je zeker dat je dit room type wilt verwijderen?")) return;
-    await deleteRoomType(hotelUid, roomTypeId);
+  const handleDelete = async (roomClassId) => {
+    if (!hotelUid || !roomClassId) return;
+    if (!window.confirm("Weet je zeker dat je deze room class wilt verwijderen?")) return;
+    await deleteRoomClass(hotelUid, roomClassId);
   };
 
   return (
@@ -95,21 +110,23 @@ export default function RoomTypesPage() {
       <PageContainer className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
-            <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">Room Types</p>
-            <h1 className="text-2xl sm:text-3xl font-bold">Room Types overzicht</h1>
+            <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">
+              Room Classes
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Room Classes overzicht</h1>
             <p className="text-gray-600 mt-1">
-              Bekijk en beheer alle aangemaakte room types.
+              Bekijk en beheer alle aangemaakte room classes.
             </p>
           </div>
           <div className="flex items-center gap-2 self-start">
             <button
-              onClick={() => navigate("/settings/room-types/new")}
+              onClick={() => navigate("/settings/room-classes/new")}
               className="bg-[#b41f1f] text-white px-3 py-2 rounded-full shadow hover:bg-[#961919] transition-colors"
-              aria-label="Nieuw room type aanmaken"
-              title="Nieuw room type aanmaken"
+              aria-label="Nieuw room class aanmaken"
+              title="Nieuw room class aanmaken"
             >
               <Plus className="h-5 w-5" />
-              <span className="sr-only">Nieuw room type aanmaken</span>
+              <span className="sr-only">Nieuw room class aanmaken</span>
             </button>
           </div>
         </div>
@@ -117,14 +134,14 @@ export default function RoomTypesPage() {
         <Card>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
             <div>
-              <h2 className="text-lg font-semibold">Room Types</h2>
+              <h2 className="text-lg font-semibold">Room Classes</h2>
               <p className="text-sm text-gray-600">
-                {roomTypes.length} room type{roomTypes.length === 1 ? "" : "s"} gevonden
+                {roomClasses.length} room class{roomClasses.length === 1 ? "" : "es"} gevonden
               </p>
             </div>
           </div>
-          {roomTypes.length === 0 ? (
-            <p className="text-gray-600">Nog geen room types aangemaakt.</p>
+          {roomClasses.length === 0 ? (
+            <p className="text-gray-600">Nog geen room classes aangemaakt.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -168,34 +185,41 @@ export default function RoomTypesPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-100">
-                  {sortedRoomTypes.map((roomType) => (
-                    <tr key={roomType.id}>
+                  {sortedRoomClasses.map((roomClass) => (
+                    <tr key={roomClass.id}>
                       <td className="px-4 py-3 text-sm text-gray-800">
-                        {roomType.name || "-"}
+                        {roomClass.code || "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
-                        {roomType.operaCode || "-"}
+                        {roomClass.description || "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
-                        {roomType.rooms || "-"}
+                        {roomClass.rooms || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        {roomClass.roomTypes?.length
+                          ? roomClass.roomTypes
+                              .map((roomTypeId) => roomTypeLabelById[roomTypeId] || roomTypeId)
+                              .join(", ")
+                          : "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={() => navigate(`/settings/room-types/${roomType.id}`)}
+                            onClick={() => navigate(`/settings/room-classes/${roomClass.id}`)}
                             className="inline-flex items-center justify-center rounded-full border border-gray-200 p-2 text-gray-600 hover:bg-gray-100"
-                            aria-label="Room type bewerken"
-                            title="Room type bewerken"
+                            aria-label="Room class bewerken"
+                            title="Room class bewerken"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(roomType.id)}
+                            onClick={() => handleDelete(roomClass.id)}
                             className="inline-flex items-center justify-center rounded-full border border-gray-200 p-2 text-gray-600 hover:bg-gray-100"
-                            aria-label="Room type verwijderen"
-                            title="Room type verwijderen"
+                            aria-label="Room class verwijderen"
+                            title="Room class verwijderen"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

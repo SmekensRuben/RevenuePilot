@@ -74,6 +74,11 @@ export default function HeaderBar({ today, onLogout }) {
       icon: BedDouble,
     },
     {
+      label: "Room Classes",
+      action: () => navigate("/settings/room-classes"),
+      icon: BedDouble,
+    },
+    {
       label: "Compset",
       action: () => navigate("/settings/compset"),
       icon: Building2,
