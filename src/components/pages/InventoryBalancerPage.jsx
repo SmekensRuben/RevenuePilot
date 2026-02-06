@@ -13,7 +13,7 @@ const requiredHeaders = ["date", "roomtype", "AC", "AU", "RS", "RA", "AA"];
 
 const normalizeKey = (value) => String(value || "").trim();
 
-const normalizeDateKey = (value) => {
+const normalizeDateKey = (value, fallbackYear) => {
   const raw = normalizeKey(value);
   if (!raw) return "";
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
@@ -34,6 +34,53 @@ const normalizeDateKey = (value) => {
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const day = String(parsed.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const extractDateParts = (value) => {
+  const raw = normalizeKey(value);
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [year, month, day] = raw.split("-");
+    return { year: Number(year), month: Number(month), day: Number(day), hasYear: true };
+  }
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("-");
+    return { year: Number(year), month: Number(month), day: Number(day), hasYear: true };
+  }
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("/");
+    return { year: Number(year), month: Number(month), day: Number(day), hasYear: true };
+  }
+  if (/^\d{8}$/.test(raw)) {
+    const year = raw.slice(0, 4);
+    const month = raw.slice(4, 6);
+    const day = raw.slice(6, 8);
+    return { year: Number(year), month: Number(month), day: Number(day), hasYear: true };
+  }
+  if (/^\d{1,2}-\d{1,2}$/.test(raw)) {
+    const [day, month] = raw.split("-");
+    return { year: null, month: Number(month), day: Number(day), hasYear: false };
+  }
+  if (/^\d{1,2}\/\d{1,2}$/.test(raw)) {
+    const [day, month] = raw.split("/");
+    return { year: null, month: Number(month), day: Number(day), hasYear: false };
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return {
+    year: parsed.getFullYear(),
+    month: parsed.getMonth() + 1,
+    day: parsed.getDate(),
+    hasYear: !Number.isNaN(parsed.getFullYear()),
+  };
+};
+
+const buildDateKey = ({ year, month, day }, fallbackYear) => {
+  const resolvedYear = Number.isFinite(year) ? year : fallbackYear;
+  if (!resolvedYear || !month || !day) return "";
+  const paddedMonth = String(month).padStart(2, "0");
+  const paddedDay = String(day).padStart(2, "0");
+  return `${resolvedYear}-${paddedMonth}-${paddedDay}`;
 };
 
 const parseNumber = (value) => {
@@ -107,8 +154,30 @@ export default function InventoryBalancerPage() {
           let importedRows = 0;
           let skippedRows = 0;
 
-          data.forEach((row) => {
-            const dateKey = normalizeDateKey(row.date);
+          const currentYear = new Date().getFullYear();
+          const datePartsList = data.map((row) => extractDateParts(row.date));
+          const missingYearMonths = datePartsList
+            .filter((parts) => parts && !parts.hasYear)
+            .map((parts) => parts.month);
+          const hasDecember = missingYearMonths.includes(12);
+          const hasJanuary = missingYearMonths.includes(1);
+          const nextYearFromJanuary = hasDecember && hasJanuary;
+
+          data.forEach((row, index) => {
+            const parts = datePartsList[index];
+            let dateKey = "";
+            if (parts) {
+              const fallbackYear =
+                parts.hasYear
+                  ? parts.year
+                  : parts.month === 1 && nextYearFromJanuary
+                    ? currentYear + 1
+                    : currentYear;
+              dateKey = buildDateKey(parts, fallbackYear);
+            }
+            if (!dateKey) {
+              dateKey = normalizeDateKey(row.date, currentYear);
+            }
             const roomtype = normalizeKey(row.roomtype);
             if (!dateKey || !roomtype) {
               skippedRows += 1;
