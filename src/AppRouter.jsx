@@ -26,6 +26,7 @@ import RoomTypeCreatePage from "./components/pages/RoomTypeCreatePage.jsx";
 import RoomTypeEditPage from "./components/pages/RoomTypeEditPage.jsx";
 import RoomClassesPage from "./components/pages/RoomClassesPage.jsx";
 import RoomClassCreatePage from "./components/pages/RoomClassCreatePage.jsx";
+import RoomClassEditPage from "./components/pages/RoomClassEditPage.jsx";
 import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
 
 export default function AppRouter() {
@@ -222,6 +223,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <RoomClassCreatePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/room-classes/:roomClassId"
+        element={
+          <ProtectedRoute>
+            <RoomClassEditPage />
           </ProtectedRoute>
         }
       />

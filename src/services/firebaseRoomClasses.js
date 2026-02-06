@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   db,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -43,4 +44,10 @@ export const updateRoomClass = async (hotelUid, roomClassId, updates) => {
   if (!hotelUid || !roomClassId) return;
   const ref = doc(db, `${roomClassesPath(hotelUid)}/${roomClassId}`);
   await updateDoc(ref, { ...updates, updatedAt: serverTimestamp() });
+};
+
+export const deleteRoomClass = async (hotelUid, roomClassId) => {
+  if (!hotelUid || !roomClassId) return;
+  const ref = doc(db, `${roomClassesPath(hotelUid)}/${roomClassId}`);
+  await deleteDoc(ref);
 };
