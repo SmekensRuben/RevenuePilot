@@ -323,7 +323,7 @@ export default function InventoryBalancerPage() {
 
   const getComparisonTone = (isMatch, isApplicable) => {
     if (!isApplicable) return "";
-    return isMatch ? "text-emerald-700" : "text-red-600";
+    return isMatch ? "bg-emerald-100" : "bg-red-100";
   };
 
   const handleBalancedSave = async () => {
