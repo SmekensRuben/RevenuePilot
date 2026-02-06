@@ -11,7 +11,6 @@ import { deleteRoomType, subscribeRoomTypes } from "../../services/firebaseRoomT
 const columns = [
   { key: "name", label: "Room Type Name", isNumeric: false },
   { key: "operaCode", label: "Opera Code", isNumeric: false },
-  { key: "marshaCode", label: "Marsha Code", isNumeric: false },
   { key: "rooms", label: "Rooms", isNumeric: true },
   { key: "actions", label: "Acties", isNumeric: false },
 ];
@@ -176,9 +175,6 @@ export default function RoomTypesPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomType.operaCode || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-800">
-                        {roomType.marshaCode || "-"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomType.rooms || "-"}

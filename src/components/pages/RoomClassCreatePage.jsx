@@ -1,16 +1,20 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
+import { useHotelContext } from "../../contexts/HotelContext";
+import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
 
 export default function RoomClassCreatePage() {
   const navigate = useNavigate();
+  const { hotelUid } = useHotelContext();
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [rooms, setRooms] = useState("");
-  const [roomTypes, setRoomTypes] = useState("");
+  const [selectedRoomTypes, setSelectedRoomTypes] = useState([]);
+  const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -30,6 +34,15 @@ export default function RoomClassCreatePage() {
     event.preventDefault();
     navigate("/settings/room-classes");
   };
+
+  useEffect(() => {
+    if (!hotelUid) {
+      setAvailableRoomTypes([]);
+      return undefined;
+    }
+    const unsubscribe = subscribeRoomTypes(hotelUid, setAvailableRoomTypes);
+    return () => unsubscribe();
+  }, [hotelUid]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -79,14 +92,30 @@ export default function RoomClassCreatePage() {
               />
             </label>
             <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700 sm:col-span-2">
-              Room Types (comma separated)
-              <input
-                type="text"
-                value={roomTypes}
-                onChange={(event) => setRoomTypes(event.target.value)}
-                className="rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Classic King, Deluxe Queen"
-              />
+              Room Types
+              <select
+                multiple
+                value={selectedRoomTypes}
+                onChange={(event) => {
+                  const values = Array.from(event.target.selectedOptions).map(
+                    (option) => option.value
+                  );
+                  setSelectedRoomTypes(values);
+                }}
+                className="rounded border border-gray-300 px-3 py-2 text-sm min-h-[120px]"
+              >
+                {availableRoomTypes.length === 0 ? (
+                  <option value="" disabled>
+                    Geen room types beschikbaar
+                  </option>
+                ) : (
+                  availableRoomTypes.map((roomType) => (
+                    <option key={roomType.id} value={roomType.name || roomType.id}>
+                      {roomType.name || roomType.id}
+                    </option>
+                  ))
+                )}
+              </select>
             </label>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <button
