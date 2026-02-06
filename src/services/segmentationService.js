@@ -71,6 +71,7 @@ export const saveMarketSegment = async (hotelUid, segmentId, data) => {
     type,
     rateCategoryCode: data.rateCategoryCode || "",
     marketSegmentCode: data.marketSegmentCode || "",
+    countTowardsAdr: data.countTowardsAdr ?? true,
     updatedAt: serverTimestamp(),
   };
 

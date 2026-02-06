@@ -47,6 +47,16 @@ const parseDateInput = (dateString) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const formatAdr = (value) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return Number(value).toLocaleString("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
+
 export default function AutoquoterPage() {
   const { hotelUid } = useHotelContext();
   const todayLabel = useMemo(() => {
@@ -96,6 +106,15 @@ export default function AutoquoterPage() {
     });
     return grouped;
   }, [sortedMarketSegments]);
+  const adrEligibleMarketCodes = useMemo(() => {
+    const codes = new Set();
+    sortedMarketSegments.forEach((segment) => {
+      if (!segment?.marketSegmentCode) return;
+      if (segment.countTowardsAdr === false) return;
+      codes.add(String(segment.marketSegmentCode).toUpperCase());
+    });
+    return codes;
+  }, [sortedMarketSegments]);
   const requestedWeekdays = useMemo(() => {
     const start = parseDateInput(startDate);
     const end = parseDateInput(endDate);
@@ -119,6 +138,25 @@ export default function AutoquoterPage() {
       ),
     [marketOverview]
   );
+  const calculateWeightedAdr = (rows, eligibleCodes = null) => {
+    let rooms = 0;
+    let revenue = 0;
+    rows.forEach((row) => {
+      const roomsSold = Number(row.roomsSold) || 0;
+      const adrValue = Number(row.adr);
+      if (eligibleCodes && (!row.marketCode || !eligibleCodes.has(row.marketCode.toUpperCase()))) {
+        return;
+      }
+      if (!Number.isFinite(adrValue) || roomsSold <= 0) return;
+      rooms += roomsSold;
+      revenue += roomsSold * adrValue;
+    });
+    return rooms > 0 ? revenue / rooms : null;
+  };
+  const totalAdrByDay = useMemo(
+    () => marketOverview.map((day) => calculateWeightedAdr(day.rows, adrEligibleMarketCodes)),
+    [adrEligibleMarketCodes, marketOverview]
+  );
   const groupTotals = useMemo(() => {
     const totalsByGroup = { Transient: [], Group: [] };
     const groupEntries = Object.entries(groupedMarketSegments);
@@ -128,16 +166,24 @@ export default function AutoquoterPage() {
           .map((segment) => segment?.marketSegmentCode)
           .filter(Boolean)
           .map((code) => String(code).toUpperCase());
-        const total = day.rows.reduce((sum, row) => {
-          if (!row.marketCode) return sum;
-          return segmentCodes.includes(String(row.marketCode).toUpperCase())
-            ? sum + (Number(row.roomsSold) || 0)
-            : sum;
-        }, 0);
+        const groupRows = day.rows.filter((row) => {
+          if (!row.marketCode) return false;
+          return segmentCodes.includes(String(row.marketCode).toUpperCase());
+        });
+        const total = groupRows.reduce(
+          (sum, row) => sum + (Number(row.roomsSold) || 0),
+          0
+        );
+        const eligibleGroupCodes = new Set(
+          segments
+            .filter((segment) => segment?.marketSegmentCode && segment.countTowardsAdr !== false)
+            .map((segment) => String(segment.marketSegmentCode).toUpperCase())
+        );
+        const adr = calculateWeightedAdr(groupRows, eligibleGroupCodes);
         if (!totalsByGroup[groupName]) {
           totalsByGroup[groupName] = [];
         }
-        totalsByGroup[groupName][dayIndex] = total;
+        totalsByGroup[groupName][dayIndex] = { roomsSold: total, adr };
       });
     });
     return totalsByGroup;
@@ -274,10 +320,18 @@ export default function AutoquoterPage() {
             ? marketStats.map((item) => ({
                 marketCode: String(item?.marketCode || "").trim(),
                 roomsSold: Number(item?.roomsSold ?? 0),
+                adr:
+                  item?.adr === null || item?.adr === undefined
+                    ? null
+                    : Number(item?.adr),
               }))
             : Object.entries(marketStats).map(([marketCode, value]) => ({
                 marketCode: String(marketCode || "").trim(),
                 roomsSold: Number(value?.roomsSold ?? 0),
+                adr:
+                  value?.adr === null || value?.adr === undefined
+                    ? null
+                    : Number(value?.adr),
               }));
           rows.sort((a, b) => a.marketCode.localeCompare(b.marketCode));
           return {
@@ -444,7 +498,14 @@ export default function AutoquoterPage() {
                                     weekdayMatches[index] ? "bg-emerald-50" : ""
                                   }`}
                                 >
-                                  {groupTotalsForDays[index] ?? 0}
+                                  <div className="space-y-1">
+                                    <span className="block">
+                                      {groupTotalsForDays[index]?.roomsSold ?? 0}
+                                    </span>
+                                    <span className="block text-xs font-normal text-gray-500">
+                                      {formatAdr(groupTotalsForDays[index]?.adr)}
+                                    </span>
+                                  </div>
                                 </td>
                               ))}
                             </tr>
@@ -474,7 +535,14 @@ export default function AutoquoterPage() {
                                             weekdayMatches[index] ? "bg-emerald-50" : ""
                                           }`}
                                         >
-                                          {match ? match.roomsSold : "—"}
+                                          <div className="space-y-1">
+                                            <span className="block font-medium">
+                                              {match ? match.roomsSold : "—"}
+                                            </span>
+                                            <span className="block text-xs text-gray-500">
+                                              {match ? formatAdr(match.adr) : "—"}
+                                            </span>
+                                          </div>
                                         </td>
                                       );
                                     })}
@@ -507,7 +575,14 @@ export default function AutoquoterPage() {
                             weekdayMatches[index] ? "bg-emerald-50" : ""
                           }`}
                         >
-                          {formatTotalWithPercent(totalRoomsSold[index] ?? 0)}
+                          <div className="space-y-1">
+                            <span className="block">
+                              {formatTotalWithPercent(totalRoomsSold[index] ?? 0)}
+                            </span>
+                            <span className="block text-xs font-normal text-gray-500">
+                              {formatAdr(totalAdrByDay[index])}
+                            </span>
+                          </div>
                         </td>
                       ))}
                     </tr>
