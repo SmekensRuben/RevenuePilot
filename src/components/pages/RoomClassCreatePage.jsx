@@ -15,6 +15,7 @@ export default function RoomClassCreatePage() {
   const [rooms, setRooms] = useState("");
   const [selectedRoomTypes, setSelectedRoomTypes] = useState([]);
   const [availableRoomTypes, setAvailableRoomTypes] = useState([]);
+  const [roomTypeToAdd, setRoomTypeToAdd] = useState("");
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -91,32 +92,71 @@ export default function RoomClassCreatePage() {
                 required
               />
             </label>
-            <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700 sm:col-span-2">
-              Room Types
-              <select
-                multiple
-                value={selectedRoomTypes}
-                onChange={(event) => {
-                  const values = Array.from(event.target.selectedOptions).map(
-                    (option) => option.value
-                  );
-                  setSelectedRoomTypes(values);
-                }}
-                className="rounded border border-gray-300 px-3 py-2 text-sm min-h-[120px]"
-              >
-                {availableRoomTypes.length === 0 ? (
-                  <option value="" disabled>
-                    Geen room types beschikbaar
-                  </option>
+            <div className="flex flex-col gap-3 sm:col-span-2">
+              <div className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+                Gekoppelde room types
+                {selectedRoomTypes.length === 0 ? (
+                  <p className="text-sm text-gray-500 font-normal">
+                    Nog geen room types gekoppeld.
+                  </p>
                 ) : (
-                  availableRoomTypes.map((roomType) => (
-                    <option key={roomType.id} value={roomType.name || roomType.id}>
-                      {roomType.name || roomType.id}
-                    </option>
-                  ))
+                  <ul className="flex flex-wrap gap-2">
+                    {selectedRoomTypes.map((roomType) => (
+                      <li
+                        key={roomType}
+                        className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
+                      >
+                        <span>{roomType}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedRoomTypes((current) =>
+                              current.filter((item) => item !== roomType)
+                            )
+                          }
+                          className="text-gray-500 hover:text-gray-700"
+                          aria-label={`Verwijder ${roomType}`}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </select>
-            </label>
+              </div>
+              <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
+                Room type toevoegen
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={roomTypeToAdd}
+                    onChange={(event) => setRoomTypeToAdd(event.target.value)}
+                    className="rounded border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Selecteer een room type</option>
+                    {availableRoomTypes
+                      .map((roomType) => roomType.name || roomType.id)
+                      .filter(Boolean)
+                      .filter((name) => !selectedRoomTypes.includes(name))
+                      .map((roomTypeName) => (
+                        <option key={roomTypeName} value={roomTypeName}>
+                          {roomTypeName}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!roomTypeToAdd) return;
+                      setSelectedRoomTypes((current) => [...current, roomTypeToAdd]);
+                      setRoomTypeToAdd("");
+                    }}
+                    className="bg-gray-100 text-gray-800 px-4 py-2 rounded font-semibold border border-gray-300 hover:bg-gray-200"
+                  >
+                    Toevoegen
+                  </button>
+                </div>
+              </label>
+            </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2">
               <button
                 type="submit"
