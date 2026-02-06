@@ -9,6 +9,7 @@ import { Button } from "../layout/Button";
 import { auth, db, doc, getDoc, serverTimestamp, signOut, writeBatch } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { subscribeRoomClasses } from "../../services/firebaseRoomClasses";
+import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
 
 const requiredHeaders = ["date", "roomtype", "AC", "AU", "RS", "RA", "AA"];
 
@@ -124,6 +125,7 @@ export default function InventoryBalancerPage() {
     new Date().toISOString().slice(0, 10)
   );
   const [roomClasses, setRoomClasses] = useState([]);
+  const [roomTypes, setRoomTypes] = useState([]);
   const [inventoryData, setInventoryData] = useState(null);
   const [operaInventoryData, setOperaInventoryData] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -145,9 +147,15 @@ export default function InventoryBalancerPage() {
   useEffect(() => {
     if (!hotelUid) {
       setRoomClasses([]);
+      setRoomTypes([]);
       return undefined;
     }
-    return subscribeRoomClasses(hotelUid, setRoomClasses);
+    const unsubscribeRoomClasses = subscribeRoomClasses(hotelUid, setRoomClasses);
+    const unsubscribeRoomTypes = subscribeRoomTypes(hotelUid, setRoomTypes);
+    return () => {
+      unsubscribeRoomClasses();
+      unsubscribeRoomTypes();
+    };
   }, [hotelUid]);
 
   useEffect(() => {
@@ -185,17 +193,36 @@ export default function InventoryBalancerPage() {
   const inventoryByRoom = useMemo(() => {
     const marshaInventory = inventoryData?.marshaInventory || {};
     const operaInventory = operaInventoryData?.marketInventory || {};
+    const roomTypeById = roomTypes.reduce((acc, roomType) => {
+      acc[roomType.id] = roomType;
+      return acc;
+    }, {});
+
     return roomClasses.map((roomClass) => {
       const normalizedCode = normalizeKey(roomClass.code).replace(/\//g, "-");
       const inventory = normalizedCode ? marshaInventory[normalizedCode] : null;
+      const operaCodes = (roomClass.roomTypes || [])
+        .map((roomTypeId) => roomTypeById[roomTypeId]?.operaCode)
+        .filter(Boolean)
+        .map((code) => normalizeKey(code));
+      let hasOperaValue = false;
+      const operaValue = operaCodes.reduce((total, operaCode) => {
+        const value = operaInventory[operaCode];
+        if (Number.isFinite(value)) {
+          hasOperaValue = true;
+          return total + value;
+        }
+        return total;
+      }, 0);
+      const resolvedOperaValue = hasOperaValue ? operaValue : null;
       return {
         ...roomClass,
         normalizedCode,
         raValue: inventory?.RA ?? null,
-        operaValue: normalizedCode ? operaInventory[normalizedCode] ?? null : null,
+        operaValue: resolvedOperaValue,
       };
     });
-  }, [inventoryData, operaInventoryData, roomClasses]);
+  }, [inventoryData, operaInventoryData, roomClasses, roomTypes]);
 
   const handleFileClick = () => {
     if (fileInputRef.current) {
