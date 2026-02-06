@@ -42,9 +42,13 @@ const normalizeDateKey = (value, fallbackYear) => {
       fallbackYear
     );
   }
+  const hasExplicitYear =
+    /\d{4}/.test(raw) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2}$/.test(raw);
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw.replace(/\//g, "-");
-  const year = parsed.getFullYear();
+  const year = hasExplicitYear && Number.isFinite(parsed.getFullYear())
+    ? parsed.getFullYear()
+    : fallbackYear || parsed.getFullYear();
   const month = String(parsed.getMonth() + 1).padStart(2, "0");
   const day = String(parsed.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
@@ -79,6 +83,9 @@ const extractDateParts = (value) => {
     const [day, month] = raw.split("/");
     return { year: null, month: Number(month), day: Number(day), hasYear: false };
   }
+  const hasExplicitYear =
+    /\d{4}/.test(raw) || /^\d{1,2}[/-]\d{1,2}[/-]\d{2}$/.test(raw);
+  if (!hasExplicitYear) return null;
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return null;
   return {
