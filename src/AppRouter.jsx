@@ -4,6 +4,7 @@ import LandingPage from "./components/pages/LandingPage.jsx";
 import LoginPage from "./components/pages/LoginPage.jsx";
 import DashboardPage from "./components/pages/DashboardPage.jsx";
 import MadeReservationsPage from "./components/pages/MadeReservationsPage.jsx";
+import InventoryBalancerPage from "./components/pages/InventoryBalancerPage.jsx";
 import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.jsx";
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
 import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
@@ -43,6 +44,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <MadeReservationsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reservations/inventory-balancer"
+        element={
+          <ProtectedRoute>
+            <InventoryBalancerPage />
           </ProtectedRoute>
         }
       />
