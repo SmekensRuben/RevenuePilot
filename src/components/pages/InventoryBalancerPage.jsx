@@ -153,6 +153,7 @@ export default function InventoryBalancerPage() {
   const [inventoryData, setInventoryData] = useState(null);
   const [operaInventoryData, setOperaInventoryData] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [balancedAdjustments, setBalancedAdjustments] = useState({});
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -247,6 +248,32 @@ export default function InventoryBalancerPage() {
       };
     });
   }, [inventoryData, operaInventoryData, roomClasses, roomTypes]);
+
+  const handleBalancedAdjust = (roomClassId, delta) => {
+    setBalancedAdjustments((current) => ({
+      ...current,
+      [roomClassId]: (current[roomClassId] || 0) + delta,
+    }));
+  };
+
+  const totals = useMemo(() => {
+    return inventoryByRoom.reduce(
+      (acc, roomClass) => {
+        if (Number.isFinite(roomClass.raValue)) {
+          acc.marsha += roomClass.raValue;
+        }
+        if (Number.isFinite(roomClass.operaValue)) {
+          acc.opera += roomClass.operaValue;
+        }
+        const adjustment = balancedAdjustments[roomClass.id] || 0;
+        if (Number.isFinite(roomClass.operaValue)) {
+          acc.balanced += roomClass.operaValue + adjustment;
+        }
+        return acc;
+      },
+      { marsha: 0, opera: 0, balanced: 0 }
+    );
+  }, [inventoryByRoom, balancedAdjustments]);
 
   const handleFileClick = () => {
     if (fileInputRef.current) {
@@ -616,24 +643,27 @@ export default function InventoryBalancerPage() {
                         Room Class
                       </th>
                       <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                        OPERA
+                      </th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
                         MARSHA
                       </th>
                       <th className="px-4 py-2 text-left font-semibold text-gray-700">
-                        OPERA
+                        BALANCED
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {roomClasses.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="px-4 py-3 text-gray-500">
+                        <td colSpan={4} className="px-4 py-3 text-gray-500">
                           Nog geen room classes gevonden.
                         </td>
                       </tr>
                     )}
                     {roomClasses.length > 0 && inventoryByRoom.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="px-4 py-3 text-gray-500">
+                        <td colSpan={4} className="px-4 py-3 text-gray-500">
                           Geen inventory data beschikbaar.
                         </td>
                       </tr>
@@ -644,15 +674,53 @@ export default function InventoryBalancerPage() {
                         <td className="px-4 py-2 text-gray-900">
                           {inventoryLoading
                             ? "Laden..."
-                            : roomClass.raValue ?? "—"}
+                            : roomClass.operaValue ?? "—"}
                         </td>
                         <td className="px-4 py-2 text-gray-900">
                           {inventoryLoading
                             ? "Laden..."
-                            : roomClass.operaValue ?? "—"}
+                            : roomClass.raValue ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {inventoryLoading ? (
+                            "Laden..."
+                          ) : roomClass.operaValue === null ? (
+                            "—"
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleBalancedAdjust(roomClass.id, -1)}
+                                className="h-6 w-6 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                aria-label="Balanced verlagen"
+                              >
+                                -
+                              </button>
+                              <span className="min-w-[2rem] text-center">
+                                {roomClass.operaValue +
+                                  (balancedAdjustments[roomClass.id] || 0)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleBalancedAdjust(roomClass.id, 1)}
+                                className="h-6 w-6 rounded-full border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                aria-label="Balanced verhogen"
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
+                    {inventoryByRoom.length > 0 && (
+                      <tr className="bg-gray-50 font-semibold text-gray-700">
+                        <td className="px-4 py-2">Totaal</td>
+                        <td className="px-4 py-2">{totals.opera}</td>
+                        <td className="px-4 py-2">{totals.marsha}</td>
+                        <td className="px-4 py-2">{totals.balanced}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
