@@ -37,6 +37,11 @@ export default function HeaderBar({ today, onLogout }) {
       action: () => navigate("/reservations/made"),
       icon: ClipboardList,
     },
+    {
+      label: "Inventory Balancer",
+      action: () => navigate("/reservations/inventory-balancer"),
+      icon: FileSpreadsheet,
+    },
   ];
 
   const quotesMenuItems = [
