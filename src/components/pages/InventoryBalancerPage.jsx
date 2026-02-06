@@ -28,6 +28,20 @@ const normalizeDateKey = (value, fallbackYear) => {
   if (/^\d{8}$/.test(raw)) {
     return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
   }
+  if (/^\d{1,2}-\d{1,2}$/.test(raw)) {
+    const [day, month] = raw.split("-");
+    return buildDateKey(
+      { year: null, month: Number(month), day: Number(day) },
+      fallbackYear
+    );
+  }
+  if (/^\d{1,2}\/\d{1,2}$/.test(raw)) {
+    const [day, month] = raw.split("/");
+    return buildDateKey(
+      { year: null, month: Number(month), day: Number(day) },
+      fallbackYear
+    );
+  }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return raw.replace(/\//g, "-");
   const year = parsed.getFullYear();
