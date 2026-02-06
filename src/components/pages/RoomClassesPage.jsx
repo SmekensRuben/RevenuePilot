@@ -5,6 +5,8 @@ import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
+import { useHotelContext } from "../../contexts/HotelContext";
+import { subscribeRoomClasses } from "../../services/firebaseRoomClasses";
 
 const columns = [
   { key: "code", label: "Room Class Code", isNumeric: false },
@@ -15,6 +17,7 @@ const columns = [
 
 export default function RoomClassesPage() {
   const navigate = useNavigate();
+  const { hotelUid } = useHotelContext();
   const [roomClasses, setRoomClasses] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: "code", direction: "asc" });
 
@@ -33,8 +36,13 @@ export default function RoomClassesPage() {
   };
 
   useEffect(() => {
-    setRoomClasses([]);
-  }, []);
+    if (!hotelUid) {
+      setRoomClasses([]);
+      return undefined;
+    }
+    const unsubscribe = subscribeRoomClasses(hotelUid, setRoomClasses);
+    return () => unsubscribe();
+  }, [hotelUid]);
 
   const sortedRoomClasses = useMemo(() => {
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;

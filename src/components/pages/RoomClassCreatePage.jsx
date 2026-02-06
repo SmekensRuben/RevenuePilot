@@ -6,6 +6,7 @@ import { Card } from "../layout/Card";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import { subscribeRoomTypes } from "../../services/firebaseRoomTypes";
+import { addRoomClass } from "../../services/firebaseRoomClasses";
 
 export default function RoomClassCreatePage() {
   const navigate = useNavigate();
@@ -31,8 +32,15 @@ export default function RoomClassCreatePage() {
     window.location.href = "/login";
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    if (!hotelUid) return;
+    await addRoomClass(hotelUid, {
+      code: code.trim(),
+      description: description.trim(),
+      rooms: Number(rooms) || 0,
+      roomTypes: selectedRoomTypes,
+    });
     navigate("/settings/room-classes");
   };
 
