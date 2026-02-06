@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { FileInput } from "lucide-react";
 import { toast } from "react-toastify";
@@ -6,8 +6,9 @@ import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import { Button } from "../layout/Button";
-import { auth, db, doc, serverTimestamp, signOut, writeBatch } from "../../firebaseConfig";
+import { auth, db, doc, getDoc, serverTimestamp, signOut, writeBatch } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
+import { subscribeRoomClasses } from "../../services/firebaseRoomClasses";
 
 const requiredHeaders = ["date", "roomtype", "AC", "AU", "RS", "RA", "AA"];
 
@@ -116,6 +117,12 @@ export default function InventoryBalancerPage() {
   const { hotelUid } = useHotelContext();
   const [uploading, setUploading] = useState(false);
   const [lastImport, setLastImport] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [roomClasses, setRoomClasses] = useState([]);
+  const [inventoryData, setInventoryData] = useState(null);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -130,6 +137,53 @@ export default function InventoryBalancerPage() {
     sessionStorage.clear();
     window.location.href = "/login";
   };
+
+  useEffect(() => {
+    if (!hotelUid) {
+      setRoomClasses([]);
+      return undefined;
+    }
+    return subscribeRoomClasses(hotelUid, setRoomClasses);
+  }, [hotelUid]);
+
+  useEffect(() => {
+    if (!hotelUid || !selectedDate) {
+      setInventoryData(null);
+      return;
+    }
+    let isActive = true;
+    const fetchInventory = async () => {
+      setInventoryLoading(true);
+      try {
+        const dateRef = doc(db, `hotels/${hotelUid}/marshaData`, selectedDate);
+        const snapshot = await getDoc(dateRef);
+        if (!isActive) return;
+        setInventoryData(snapshot.exists() ? snapshot.data() : null);
+      } catch (error) {
+        console.error("Marsha inventory load error", error);
+        toast.error("Marsha Inventory kon niet geladen worden.");
+      } finally {
+        if (isActive) setInventoryLoading(false);
+      }
+    };
+    fetchInventory();
+    return () => {
+      isActive = false;
+    };
+  }, [hotelUid, selectedDate]);
+
+  const inventoryByRoom = useMemo(() => {
+    const marshaInventory = inventoryData?.marshaInventory || {};
+    return roomClasses.map((roomClass) => {
+      const normalizedCode = normalizeKey(roomClass.code).replace(/\//g, "-");
+      const inventory = normalizedCode ? marshaInventory[normalizedCode] : null;
+      return {
+        ...roomClass,
+        normalizedCode,
+        raValue: inventory?.RA ?? null,
+      };
+    });
+  }, [inventoryData, roomClasses]);
 
   const handleFileClick = () => {
     if (fileInputRef.current) {
@@ -316,6 +370,75 @@ export default function InventoryBalancerPage() {
                   <li>Rijen overgeslagen: {lastImport.skipped}</li>
                   <li>Aantal datums: {lastImport.dates}</li>
                 </ul>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Room class overzicht</h2>
+                <p className="text-gray-600">
+                  Kies een datum om de RA-waarde per room class te bekijken.
+                </p>
+              </div>
+              <label className="flex flex-col text-sm font-medium text-gray-700">
+                Datum filter
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
+                  className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#b41f1f] focus:outline-none focus:ring-2 focus:ring-[#b41f1f]/40"
+                />
+              </label>
+            </div>
+
+            {!hotelUid && (
+              <p className="text-sm text-amber-700">
+                Selecteer eerst een hotel om room classes en inventory te zien.
+              </p>
+            )}
+
+            {hotelUid && (
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                        Room class code
+                      </th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">RA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {roomClasses.length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="px-4 py-3 text-gray-500">
+                          Nog geen room classes gevonden.
+                        </td>
+                      </tr>
+                    )}
+                    {roomClasses.length > 0 && inventoryByRoom.length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="px-4 py-3 text-gray-500">
+                          Geen inventory data beschikbaar.
+                        </td>
+                      </tr>
+                    )}
+                    {inventoryByRoom.map((roomClass) => (
+                      <tr key={roomClass.id}>
+                        <td className="px-4 py-2 text-gray-900">{roomClass.code}</td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {inventoryLoading
+                            ? "Laden..."
+                            : roomClass.raValue ?? "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
