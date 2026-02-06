@@ -14,6 +14,7 @@ import {
   getDoc,
   getDocs,
   serverTimestamp,
+  setDoc,
   signOut,
   writeBatch,
 } from "../../firebaseConfig";
@@ -154,6 +155,8 @@ export default function InventoryBalancerPage() {
   const [operaInventoryData, setOperaInventoryData] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [balancedAdjustments, setBalancedAdjustments] = useState({});
+  const [balancedByCode, setBalancedByCode] = useState({});
+  const [balancedSaving, setBalancedSaving] = useState(false);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -215,6 +218,51 @@ export default function InventoryBalancerPage() {
     };
   }, [hotelUid, selectedDate]);
 
+  useEffect(() => {
+    if (!hotelUid || !selectedDate) {
+      setBalancedByCode({});
+      return;
+    }
+    let isActive = true;
+    const fetchBalanced = async () => {
+      try {
+        const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, selectedDate);
+        const snapshot = await getDoc(balancedRef);
+        if (!isActive) return;
+        setBalancedByCode(snapshot.exists() ? snapshot.data() : {});
+      } catch (error) {
+        console.error("Balanced inventory load error", error);
+        toast.error("Balanced inventory kon niet geladen worden.");
+      }
+    };
+    fetchBalanced();
+    return () => {
+      isActive = false;
+    };
+  }, [hotelUid, selectedDate]);
+
+  const sortedRoomClasses = useMemo(() => {
+    return [...roomClasses].sort((a, b) => {
+      const aSequence = Number(a?.sequenceNumber);
+      const bSequence = Number(b?.sequenceNumber);
+      const aHasSequence = Number.isFinite(aSequence);
+      const bHasSequence = Number.isFinite(bSequence);
+
+      if (aHasSequence && bHasSequence) {
+        if (aSequence !== bSequence) return aSequence - bSequence;
+      } else if (aHasSequence) {
+        return -1;
+      } else if (bHasSequence) {
+        return 1;
+      }
+
+      return String(a?.code || "").localeCompare(String(b?.code || ""), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+    });
+  }, [roomClasses]);
+
   const inventoryByRoom = useMemo(() => {
     const marshaInventory = inventoryData?.marshaInventory || {};
     const operaInventory = operaInventoryData?.marketInventory || {};
@@ -223,7 +271,7 @@ export default function InventoryBalancerPage() {
       return acc;
     }, {});
 
-    return roomClasses.map((roomClass) => {
+    return sortedRoomClasses.map((roomClass) => {
       const normalizedCode = normalizeKey(roomClass.code).replace(/\//g, "-");
       const inventory = normalizedCode ? marshaInventory[normalizedCode] : null;
       const operaCodes = (roomClass.roomTypes || [])
@@ -247,13 +295,52 @@ export default function InventoryBalancerPage() {
         operaValue: resolvedOperaValue,
       };
     });
-  }, [inventoryData, operaInventoryData, roomClasses, roomTypes]);
+  }, [inventoryData, operaInventoryData, sortedRoomClasses, roomTypes]);
+
+  useEffect(() => {
+    if (inventoryByRoom.length === 0) {
+      setBalancedAdjustments({});
+      return;
+    }
+    const nextAdjustments = {};
+    inventoryByRoom.forEach((roomClass) => {
+      const storedBalanced = balancedByCode?.[roomClass.code];
+      if (Number.isFinite(storedBalanced) && Number.isFinite(roomClass.operaValue)) {
+        nextAdjustments[roomClass.id] = storedBalanced - roomClass.operaValue;
+      } else {
+        nextAdjustments[roomClass.id] = 0;
+      }
+    });
+    setBalancedAdjustments(nextAdjustments);
+  }, [balancedByCode, inventoryByRoom]);
 
   const handleBalancedAdjust = (roomClassId, delta) => {
     setBalancedAdjustments((current) => ({
       ...current,
       [roomClassId]: (current[roomClassId] || 0) + delta,
     }));
+  };
+
+  const handleBalancedSave = async () => {
+    if (!hotelUid || !selectedDate) return;
+    setBalancedSaving(true);
+    try {
+      const balancedMap = {};
+      inventoryByRoom.forEach((roomClass) => {
+        if (!Number.isFinite(roomClass.operaValue)) return;
+        const adjustment = balancedAdjustments[roomClass.id] || 0;
+        balancedMap[roomClass.code] = roomClass.operaValue + adjustment;
+      });
+      const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, selectedDate);
+      await setDoc(balancedRef, balancedMap);
+      setBalancedByCode(balancedMap);
+      toast.success("Balanced waarden opgeslagen.");
+    } catch (error) {
+      console.error("Balanced save error", error);
+      toast.error("Balanced waarden opslaan mislukt.");
+    } finally {
+      setBalancedSaving(false);
+    }
   };
 
   const totals = useMemo(() => {
@@ -723,6 +810,21 @@ export default function InventoryBalancerPage() {
                     )}
                   </tbody>
                 </table>
+                <div className="flex items-center justify-end gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3">
+                  <Button
+                    type="button"
+                    onClick={handleBalancedSave}
+                    className="bg-[#b41f1f] hover:bg-[#961919]"
+                    disabled={
+                      balancedSaving ||
+                      inventoryLoading ||
+                      inventoryByRoom.length === 0 ||
+                      !hotelUid
+                    }
+                  >
+                    {balancedSaving ? "Opslaan..." : "Balanced opslaan"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>

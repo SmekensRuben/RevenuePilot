@@ -13,6 +13,8 @@ const columns = [
   { key: "code", label: "Room Class Code", isNumeric: false },
   { key: "description", label: "Description", isNumeric: false },
   { key: "rooms", label: "Number of Rooms", isNumeric: true },
+  { key: "sequenceNumber", label: "Sequence Number", isNumeric: true },
+  { key: "inventoryInterchangeable", label: "Inventory interchangeable", isNumeric: false },
   { key: "roomTypes", label: "Room Types", isNumeric: false },
   { key: "actions", label: "Acties", isNumeric: false },
 ];
@@ -195,6 +197,14 @@ export default function RoomClassesPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomClass.rooms || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        {Number.isFinite(roomClass.sequenceNumber)
+                          ? roomClass.sequenceNumber
+                          : "-"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-800">
+                        {roomClass.inventoryInterchangeable ? "Ja" : "Nee"}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800">
                         {roomClass.roomTypes?.length
