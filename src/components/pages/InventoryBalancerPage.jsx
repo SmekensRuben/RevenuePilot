@@ -13,7 +13,28 @@ const requiredHeaders = ["date", "roomtype", "AC", "AU", "RS", "RA", "AA"];
 
 const normalizeKey = (value) => String(value || "").trim();
 
-const normalizeDateKey = (value) => normalizeKey(value).replace(/\//g, "-");
+const normalizeDateKey = (value) => {
+  const raw = normalizeKey(value);
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("-");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+    const [day, month, year] = raw.split("/");
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+  if (/^\d{8}$/.test(raw)) {
+    return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw.replace(/\//g, "-");
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 const parseNumber = (value) => {
   if (value === null || value === undefined || value === "") return null;
