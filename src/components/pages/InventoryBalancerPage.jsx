@@ -114,9 +114,12 @@ const parseNumber = (value) => {
 
 export default function InventoryBalancerPage() {
   const fileInputRef = useRef(null);
+  const operaFileInputRef = useRef(null);
   const { hotelUid } = useHotelContext();
   const [uploading, setUploading] = useState(false);
+  const [operaUploading, setOperaUploading] = useState(false);
   const [lastImport, setLastImport] = useState(null);
+  const [lastOperaImport, setLastOperaImport] = useState(null);
   const [selectedDate, setSelectedDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
@@ -190,6 +193,23 @@ export default function InventoryBalancerPage() {
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     }
+  };
+
+  const handleOperaFileClick = () => {
+    if (operaFileInputRef.current) {
+      operaFileInputRef.current.value = "";
+      operaFileInputRef.current.click();
+    }
+  };
+
+  const parseOperaDateKey = (value) => {
+    const raw = normalizeKey(value);
+    if (!raw) return "";
+    if (/^\d{2}\.\d{2}\.\d{2}$/.test(raw)) {
+      const [day, month, year] = raw.split(".");
+      return `20${year}-${month}-${day}`;
+    }
+    return normalizeDateKey(raw, new Date().getFullYear());
   };
 
   const handleFileChange = (event) => {
@@ -318,6 +338,109 @@ export default function InventoryBalancerPage() {
     });
   };
 
+  const handleOperaFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!hotelUid) {
+      toast.error("Selecteer eerst een hotel.");
+      return;
+    }
+
+    setOperaUploading(true);
+    setLastOperaImport(null);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async ({ data, errors, meta }) => {
+        try {
+          const headers = meta?.fields?.map((field) => field.trim()) || [];
+          const requiredOperaHeaders = [
+            "BUSINESS_DATE",
+            "MARKET_CODE",
+            "NO_OF_ROOMS",
+          ];
+          const missingHeaders = requiredOperaHeaders.filter(
+            (field) => !headers.includes(field)
+          );
+          if (missingHeaders.length > 0) {
+            toast.error(
+              `CSV mist kolommen: ${missingHeaders.join(", ")}. Gebruik het Opera Inventory formaat.`
+            );
+            setOperaUploading(false);
+            return;
+          }
+
+          if (errors?.length) {
+            console.warn("CSV parse warnings", errors);
+          }
+
+          const batch = writeBatch(db);
+          const dateSet = new Set();
+          const inventoryByDate = {};
+          let importedRows = 0;
+          let skippedRows = 0;
+
+          data.forEach((row) => {
+            const dateKey = parseOperaDateKey(row.BUSINESS_DATE);
+            const marketCode = normalizeKey(row.MARKET_CODE);
+            const rooms = parseNumber(row.NO_OF_ROOMS);
+
+            if (!dateKey || !marketCode || rooms === null) {
+              skippedRows += 1;
+              return;
+            }
+
+            dateSet.add(dateKey);
+            if (!inventoryByDate[dateKey]) {
+              inventoryByDate[dateKey] = {};
+            }
+            inventoryByDate[dateKey][marketCode] = rooms;
+            importedRows += 1;
+          });
+
+          dateSet.forEach((dateKey) => {
+            const dateRef = doc(db, `hotels/${hotelUid}/operaInventory`, dateKey);
+            batch.set(
+              dateRef,
+              {
+                date: dateKey,
+                updatedAt: serverTimestamp(),
+                marketInventory: inventoryByDate[dateKey] || {},
+              },
+              { merge: true }
+            );
+          });
+
+          if (importedRows === 0) {
+            toast.error("Geen geldige rijen gevonden om te importeren.");
+            setOperaUploading(false);
+            return;
+          }
+
+          await batch.commit();
+          setLastOperaImport({
+            total: importedRows,
+            skipped: skippedRows,
+            dates: dateSet.size,
+            fileName: file.name,
+          });
+          toast.success("Opera Inventory is geïmporteerd.");
+        } catch (error) {
+          console.error("Import error", error);
+          toast.error("Importeren mislukt. Controleer het CSV-bestand.");
+        } finally {
+          setOperaUploading(false);
+        }
+      },
+      error: (error) => {
+        console.error("CSV parse error", error);
+        toast.error("CSV kon niet gelezen worden.");
+        setOperaUploading(false);
+      },
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -328,12 +451,12 @@ export default function InventoryBalancerPage() {
               Inventory Balancer
             </p>
           </div>
-          <div className="flex items-center gap-2 self-start">
+          <div className="flex flex-col items-start gap-2 self-start sm:flex-row sm:items-center">
             <Button
               type="button"
               onClick={handleFileClick}
               className="flex items-center gap-2 bg-[#b41f1f] hover:bg-[#961919]"
-              disabled={uploading}
+              disabled={uploading || operaUploading}
             >
               <FileInput className="h-4 w-4" />
               <span>{uploading ? "Import bezig..." : "Importeer Marsha Inventory"}</span>
@@ -345,19 +468,51 @@ export default function InventoryBalancerPage() {
               onChange={handleFileChange}
               className="hidden"
             />
+            <Button
+              type="button"
+              onClick={handleOperaFileClick}
+              className="flex items-center gap-2 bg-[#1f4fb4] hover:bg-[#183f91]"
+              disabled={uploading || operaUploading}
+            >
+              <FileInput className="h-4 w-4" />
+              <span>
+                {operaUploading ? "Import bezig..." : "Importeer Opera Inventory"}
+              </span>
+            </Button>
+            <input
+              ref={operaFileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleOperaFileChange}
+              className="hidden"
+            />
           </div>
         </div>
 
-        {lastImport && (
+        {(lastImport || lastOperaImport) && (
           <Card>
             <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
               <p className="font-semibold">Laatste import</p>
-              <ul className="mt-2 space-y-1">
-                <li>Bestand: {lastImport.fileName}</li>
-                <li>Rijen geïmporteerd: {lastImport.total}</li>
-                <li>Rijen overgeslagen: {lastImport.skipped}</li>
-                <li>Aantal datums: {lastImport.dates}</li>
-              </ul>
+              <div className="mt-2 space-y-4">
+                {lastImport && (
+                  <ul className="space-y-1">
+                    <li className="font-semibold">Marsha Inventory</li>
+                    <li>Bestand: {lastImport.fileName}</li>
+                    <li>Rijen geïmporteerd: {lastImport.total}</li>
+                    <li>Rijen overgeslagen: {lastImport.skipped}</li>
+                    <li>Aantal datums: {lastImport.dates}</li>
+                  </ul>
+                )}
+                {lastOperaImport && (
+                  <ul className="space-y-1">
+                    <li className="font-semibold">Opera Inventory</li>
+                    <li>Bestand: {lastOperaImport.fileName}</li>
+                    <li>Rijen geïmporteerd: {lastOperaImport.total}</li>
+                    <li>Rijen overgeslagen: {lastOperaImport.skipped}</li>
+                    <li>Aantal datums: {lastOperaImport.dates}</li>
+                  </ul>
+                )}
+              </div>
             </div>
           </Card>
         )}
