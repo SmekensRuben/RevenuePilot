@@ -125,6 +125,7 @@ export default function InventoryBalancerPage() {
   );
   const [roomClasses, setRoomClasses] = useState([]);
   const [inventoryData, setInventoryData] = useState(null);
+  const [operaInventoryData, setOperaInventoryData] = useState(null);
   const [inventoryLoading, setInventoryLoading] = useState(false);
 
   const todayLabel = useMemo(() => {
@@ -152,6 +153,7 @@ export default function InventoryBalancerPage() {
   useEffect(() => {
     if (!hotelUid || !selectedDate) {
       setInventoryData(null);
+      setOperaInventoryData(null);
       return;
     }
     let isActive = true;
@@ -159,9 +161,14 @@ export default function InventoryBalancerPage() {
       setInventoryLoading(true);
       try {
         const dateRef = doc(db, `hotels/${hotelUid}/marshaData`, selectedDate);
-        const snapshot = await getDoc(dateRef);
+        const operaRef = doc(db, `hotels/${hotelUid}/operaInventory`, selectedDate);
+        const [snapshot, operaSnapshot] = await Promise.all([
+          getDoc(dateRef),
+          getDoc(operaRef),
+        ]);
         if (!isActive) return;
         setInventoryData(snapshot.exists() ? snapshot.data() : null);
+        setOperaInventoryData(operaSnapshot.exists() ? operaSnapshot.data() : null);
       } catch (error) {
         console.error("Marsha inventory load error", error);
         toast.error("Marsha Inventory kon niet geladen worden.");
@@ -177,6 +184,7 @@ export default function InventoryBalancerPage() {
 
   const inventoryByRoom = useMemo(() => {
     const marshaInventory = inventoryData?.marshaInventory || {};
+    const operaInventory = operaInventoryData?.marketInventory || {};
     return roomClasses.map((roomClass) => {
       const normalizedCode = normalizeKey(roomClass.code).replace(/\//g, "-");
       const inventory = normalizedCode ? marshaInventory[normalizedCode] : null;
@@ -184,9 +192,10 @@ export default function InventoryBalancerPage() {
         ...roomClass,
         normalizedCode,
         raValue: inventory?.RA ?? null,
+        operaValue: normalizedCode ? operaInventory[normalizedCode] ?? null : null,
       };
     });
-  }, [inventoryData, roomClasses]);
+  }, [inventoryData, operaInventoryData, roomClasses]);
 
   const handleFileClick = () => {
     if (fileInputRef.current) {
@@ -554,19 +563,22 @@ export default function InventoryBalancerPage() {
                       <th className="px-4 py-2 text-left font-semibold text-gray-700">
                         MARSHA
                       </th>
+                      <th className="px-4 py-2 text-left font-semibold text-gray-700">
+                        OPERA
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {roomClasses.length === 0 && (
                       <tr>
-                        <td colSpan={2} className="px-4 py-3 text-gray-500">
+                        <td colSpan={3} className="px-4 py-3 text-gray-500">
                           Nog geen room classes gevonden.
                         </td>
                       </tr>
                     )}
                     {roomClasses.length > 0 && inventoryByRoom.length === 0 && (
                       <tr>
-                        <td colSpan={2} className="px-4 py-3 text-gray-500">
+                        <td colSpan={3} className="px-4 py-3 text-gray-500">
                           Geen inventory data beschikbaar.
                         </td>
                       </tr>
@@ -578,6 +590,11 @@ export default function InventoryBalancerPage() {
                           {inventoryLoading
                             ? "Laden..."
                             : roomClass.raValue ?? "—"}
+                        </td>
+                        <td className="px-4 py-2 text-gray-900">
+                          {inventoryLoading
+                            ? "Laden..."
+                            : roomClass.operaValue ?? "—"}
                         </td>
                       </tr>
                     ))}
