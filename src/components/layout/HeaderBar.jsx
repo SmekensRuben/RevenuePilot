@@ -64,6 +64,11 @@ export default function HeaderBar({ today, onLogout }) {
       icon: Settings2,
     },
     {
+      label: "Edit Website",
+      action: () => navigate("/settings/edit-website"),
+      icon: Settings2,
+    },
+    {
       label: "Segmentation Mapping",
       action: () => navigate("/settings/segmentation-mapping"),
       icon: Settings2,
