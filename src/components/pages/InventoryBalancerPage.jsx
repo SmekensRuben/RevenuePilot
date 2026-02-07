@@ -505,6 +505,8 @@ export default function InventoryBalancerPage() {
       const [day, month, year] = raw.split(".");
       return `20${year}-${month}-${day}`;
     }
+    const dateParts = extractDateParts(raw);
+    if (!dateParts) return "";
     return normalizeDateKey(raw, new Date().getFullYear());
   };
 
@@ -696,9 +698,13 @@ export default function InventoryBalancerPage() {
         data.forEach((row) => {
           const dateKey = parseOperaDateKey(row.BUSINESS_DATE);
           const marketCode = normalizeKey(row.MARKET_CODE);
+          const roomCategory = normalizeKey(row.ROOM_CATEGORY);
           const rooms = parseNumber(row.NO_OF_ROOMS1);
+          const isTotalRow =
+            marketCode.toLowerCase() === "total" ||
+            roomCategory.toLowerCase().includes("total");
 
-          if (!dateKey || !marketCode || rooms === null) {
+          if (!dateKey || !marketCode || rooms === null || isTotalRow) {
             skippedRows += 1;
             return;
           }
