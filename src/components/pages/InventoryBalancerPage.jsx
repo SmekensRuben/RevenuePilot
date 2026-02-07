@@ -157,6 +157,8 @@ export default function InventoryBalancerPage() {
   const [balancedAdjustments, setBalancedAdjustments] = useState({});
   const [balancedByCode, setBalancedByCode] = useState({});
   const [balancedSaving, setBalancedSaving] = useState(false);
+  const [exportRange, setExportRange] = useState({ start: "", end: "" });
+  const [exporting, setExporting] = useState(false);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -353,6 +355,87 @@ export default function InventoryBalancerPage() {
     }
   };
 
+  const toCsvValue = (value) => {
+    const raw = value === null || value === undefined ? "" : String(value);
+    return `"${raw.replace(/"/g, '""')}"`;
+  };
+
+  const buildDateRange = (start, end) => {
+    const startDate = new Date(`${start}T00:00:00`);
+    const endDate = new Date(`${end}T00:00:00`);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return [];
+    }
+    if (startDate > endDate) return [];
+    const dates = [];
+    let cursor = startDate;
+    while (cursor <= endDate) {
+      const year = cursor.getFullYear();
+      const month = String(cursor.getMonth() + 1).padStart(2, "0");
+      const day = String(cursor.getDate()).padStart(2, "0");
+      dates.push(`${year}-${month}-${day}`);
+      cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+    }
+    return dates;
+  };
+
+  const downloadCsv = (fileName, rows) => {
+    const content = rows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleExportBalanced = async () => {
+    if (!hotelUid) {
+      toast.error("Selecteer eerst een hotel.");
+      return;
+    }
+    if (!exportRange.start || !exportRange.end) {
+      toast.error("Selecteer een start- en einddatum voor de export.");
+      return;
+    }
+    const dates = buildDateRange(exportRange.start, exportRange.end);
+    if (dates.length === 0) {
+      toast.error("Ongeldige datumrange geselecteerd.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const rows = [["DATE", "ROOM_CLASS", "ROOMS_TO_SELL"]];
+      for (const dateKey of dates) {
+        const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, dateKey);
+        const snapshot = await getDoc(balancedRef);
+        if (!snapshot.exists()) {
+          toast.error(`Geen balanced inventory gevonden voor ${dateKey}.`);
+          setExporting(false);
+          return;
+        }
+        const data = snapshot.data() || {};
+        Object.entries(data).forEach(([roomClass, roomsToSell]) => {
+          rows.push([
+            toCsvValue(dateKey),
+            toCsvValue(roomClass),
+            toCsvValue(roomsToSell),
+          ]);
+        });
+      }
+      const fileName = `balanced-inventory-${exportRange.start}-tot-${exportRange.end}.csv`;
+      downloadCsv(fileName, rows);
+      toast.success("Balanced inventory geëxporteerd.");
+    } catch (error) {
+      console.error("Export balanced error", error);
+      toast.error("Exporteren mislukt.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const totals = useMemo(() => {
     return inventoryByRoom.reduce(
       (acc, roomClass) => {
@@ -425,6 +508,7 @@ export default function InventoryBalancerPage() {
           }
 
           await clearCollection(`hotels/${hotelUid}/marshaData`);
+          await clearCollection(`hotels/${hotelUid}/operaInventory`);
 
           if (errors?.length) {
             console.warn("CSV parse warnings", errors);
@@ -600,6 +684,42 @@ export default function InventoryBalancerPage() {
             );
           });
 
+          const roomTypeById = roomTypes.reduce((acc, roomType) => {
+            acc[roomType.id] = roomType;
+            return acc;
+          }, {});
+
+          dateSet.forEach((dateKey) => {
+            const operaInventory = inventoryByDate[dateKey] || {};
+            const balancedMap = {};
+            roomClasses.forEach((roomClass) => {
+              if (!roomClass.code) return;
+              const operaCodes = (roomClass.roomTypes || [])
+                .map((roomTypeId) => roomTypeById[roomTypeId]?.operaCode)
+                .filter(Boolean)
+                .map((code) => normalizeKey(code));
+              let hasOperaValue = false;
+              const operaValue = operaCodes.reduce((total, operaCode) => {
+                const value = operaInventory[operaCode];
+                if (Number.isFinite(value)) {
+                  hasOperaValue = true;
+                  return total + value;
+                }
+                return total;
+              }, 0);
+              if (hasOperaValue) {
+                balancedMap[roomClass.code] = operaValue;
+              }
+            });
+            balancedByDate[dateKey] = balancedMap;
+            const balancedRef = doc(
+              db,
+              `hotels/${hotelUid}/marshaInventoryBalanced`,
+              dateKey
+            );
+            batch.set(balancedRef, balancedMap, { merge: true });
+          });
+
           if (importedRows === 0) {
             toast.error("Geen geldige rijen gevonden om te importeren.");
             setOperaUploading(false);
@@ -607,6 +727,9 @@ export default function InventoryBalancerPage() {
           }
 
           await batch.commit();
+          if (balancedByDate[selectedDate]) {
+            setBalancedByCode(balancedByDate[selectedDate]);
+          }
           setLastOperaImport({
             total: importedRows,
             skipped: skippedRows,
@@ -674,8 +797,53 @@ export default function InventoryBalancerPage() {
               onChange={handleOperaFileChange}
               className="hidden"
             />
+            <Button
+              type="button"
+              onClick={handleExportBalanced}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+              disabled={exporting || uploading || operaUploading}
+            >
+              <span>{exporting ? "Export bezig..." : "Exporteer Balanced Inventory"}</span>
+            </Button>
           </div>
         </div>
+
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">
+                Exporteer Balanced Inventory
+              </p>
+              <p className="text-xs text-gray-500">
+                Selecteer een datumrange om de balanced inventory te exporteren.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <label className="flex flex-col text-xs font-medium text-gray-600">
+                Startdatum
+                <input
+                  type="date"
+                  value={exportRange.start}
+                  onChange={(event) =>
+                    setExportRange((current) => ({ ...current, start: event.target.value }))
+                  }
+                  className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/40"
+                />
+              </label>
+              <label className="flex flex-col text-xs font-medium text-gray-600">
+                Einddatum
+                <input
+                  type="date"
+                  value={exportRange.end}
+                  onChange={(event) =>
+                    setExportRange((current) => ({ ...current, end: event.target.value }))
+                  }
+                  className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/40"
+                />
+              </label>
+            </div>
+          </div>
+        </Card>
 
         {(lastImport || lastOperaImport) && (
           <Card>
@@ -849,15 +1017,23 @@ export default function InventoryBalancerPage() {
                     {inventoryByRoom.length > 0 && (
                       <tr className="bg-gray-50 font-semibold text-gray-700">
                         <td className="px-4 py-2">Totaal</td>
-                        <td className="px-4 py-2">{totals.opera}</td>
-                        <td className="px-4 py-2">{totals.marsha}</td>
                         <td
                           className={`px-4 py-2 ${
-                            totals.opera !== totals.marsha
-                              ? "bg-red-100"
-                              : totals.opera === totals.balanced
-                                ? "bg-emerald-100"
-                                : "bg-red-100"
+                            totals.opera === totals.marsha ? "bg-emerald-100" : "bg-red-100"
+                          }`}
+                        >
+                          {totals.opera}
+                        </td>
+                        <td
+                          className={`px-4 py-2 ${
+                            totals.opera === totals.marsha ? "bg-emerald-100" : "bg-red-100"
+                          }`}
+                        >
+                          {totals.marsha}
+                        </td>
+                        <td
+                          className={`px-4 py-2 ${
+                            totals.opera === totals.balanced ? "bg-emerald-100" : "bg-red-100"
                           }`}
                         >
                           {totals.balanced}
