@@ -407,21 +407,36 @@ export default function InventoryBalancerPage() {
     }
     setExporting(true);
     try {
-      const rows = [["DATE", "ROOM_CLASS", "ROOMS_TO_SELL"]];
+      const rows = [
+        ["DATE", "ROOM_CLASS", "ROOMS_TO_SELL", "ROOMS_ALREADY_SOLD", "ROOMS_TO_AUTHORIZE"],
+      ];
       for (const dateKey of dates) {
         const balancedRef = doc(db, `hotels/${hotelUid}/marshaInventoryBalanced`, dateKey);
-        const snapshot = await getDoc(balancedRef);
-        if (!snapshot.exists()) {
+        const marshaRef = doc(db, `hotels/${hotelUid}/marshaData`, dateKey);
+        const [balancedSnapshot, marshaSnapshot] = await Promise.all([
+          getDoc(balancedRef),
+          getDoc(marshaRef),
+        ]);
+        if (!balancedSnapshot.exists()) {
           toast.error(`Geen balanced inventory gevonden voor ${dateKey}.`);
           setExporting(false);
           return;
         }
-        const data = snapshot.data() || {};
+        const data = balancedSnapshot.data() || {};
+        const marshaInventory = marshaSnapshot.exists()
+          ? marshaSnapshot.data()?.marshaInventory || {}
+          : {};
         Object.entries(data).forEach(([roomClass, roomsToSell]) => {
+          const normalizedRoomClass = normalizeKey(roomClass).replace(/\//g, "-");
+          const marshaEntry = marshaInventory[normalizedRoomClass] || {};
+          const roomsAlreadySold = parseNumber(marshaEntry.RS) ?? 0;
+          const roomsToAuthorize = roomsAlreadySold + (parseNumber(roomsToSell) ?? 0);
           rows.push([
             toCsvValue(dateKey),
             toCsvValue(roomClass),
             toCsvValue(roomsToSell),
+            toCsvValue(roomsAlreadySold),
+            toCsvValue(roomsToAuthorize),
           ]);
         });
       }
