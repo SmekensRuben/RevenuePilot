@@ -692,6 +692,7 @@ export default function InventoryBalancerPage() {
         const batch = writeBatch(db);
         const dateSet = new Set();
         const inventoryByDate = {};
+        const balancedByDate = {};
         let importedRows = 0;
         let skippedRows = 0;
 
