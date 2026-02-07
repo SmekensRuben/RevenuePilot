@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
+import { getSettings } from "../../services/firebaseSettings";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
@@ -9,6 +10,8 @@ import { Card } from "../layout/Card";
 export default function DashboardPage() {
   const { t } = useTranslation("dashboard");
   const { hotelName, hotelUid, roles } = useHotelContext();
+  const [websiteIntroTitle, setWebsiteIntroTitle] = useState("");
+  const [websiteIntroText, setWebsiteIntroText] = useState("");
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -22,6 +25,19 @@ export default function DashboardPage() {
     window.location.href = "/login";
   };
 
+  useEffect(() => {
+    if (!hotelUid) return;
+    const loadWebsiteIntro = async () => {
+      const settings = await getSettings(hotelUid);
+      setWebsiteIntroTitle(settings?.websiteIntroTitle ?? "");
+      setWebsiteIntroText(settings?.websiteIntroText ?? "");
+    };
+    loadWebsiteIntro();
+  }, [hotelUid]);
+
+  const introTitle = websiteIntroTitle.trim() || t("title", { hotel: hotelName });
+  const introText = websiteIntroText.trim() || t("intro");
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={today} onLogout={handleLogout} />
@@ -31,12 +47,8 @@ export default function DashboardPage() {
           <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">
             {t("welcomeLabel")}
           </p>
-          <h1 className="text-2xl sm:text-3xl font-bold">
-            {t("title", { hotel: hotelName })}
-          </h1>
-          <p className="text-gray-600 max-w-3xl">
-            {t("intro")}
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-bold">{introTitle}</h1>
+          <p className="text-gray-600 max-w-3xl">{introText}</p>
           {hotelUid && (
             <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700">
               <span className="font-semibold text-[#b41f1f]">{t("activeHotel")}</span>
