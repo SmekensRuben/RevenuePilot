@@ -71,6 +71,7 @@ export async function getArticles(hotelUidArg) {
       articleNumber: value.articleNumber || "",
       ean: value.ean || "",
       aliases: value.aliases || { en: "", fr: "", nl: "" },
+      inventory: value.inventory ?? false,
     };
   });
 }

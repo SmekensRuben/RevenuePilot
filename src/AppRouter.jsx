@@ -28,6 +28,7 @@ import RoomClassesPage from "./components/pages/RoomClassesPage.jsx";
 import RoomClassCreatePage from "./components/pages/RoomClassCreatePage.jsx";
 import RoomClassEditPage from "./components/pages/RoomClassEditPage.jsx";
 import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
+import ArticlesSettingsPage from "./components/pages/ArticlesSettingsPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -71,6 +72,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <GeneralSettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/articles"
+        element={
+          <ProtectedRoute>
+            <ArticlesSettingsPage />
           </ProtectedRoute>
         }
       />
