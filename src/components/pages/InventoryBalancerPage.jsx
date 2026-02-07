@@ -124,6 +124,20 @@ const parseNumber = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
+const normalizeHeader = (header) => header.replace(/^\uFEFF/, "").trim();
+
+const parseCsvFile = (file, { delimiter } = {}) =>
+  new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      delimiter,
+      transformHeader: normalizeHeader,
+      complete: resolve,
+      error: reject,
+    });
+  });
+
 const clearCollection = async (path) => {
   const snapshot = await getDocs(collection(db, path));
   if (snapshot.empty) return;
@@ -634,137 +648,142 @@ export default function InventoryBalancerPage() {
     setOperaUploading(true);
     setLastOperaImport(null);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async ({ data, errors, meta }) => {
-        try {
-          const headers = meta?.fields?.map((field) => field.trim()) || [];
-          const requiredOperaHeaders = [
-            "BUSINESS_DATE",
-            "MARKET_CODE",
-            "NO_OF_ROOMS1",
-          ];
-          const missingHeaders = requiredOperaHeaders.filter(
+    const requiredOperaHeaders = [
+      "BUSINESS_DATE",
+      "MARKET_CODE",
+      "NO_OF_ROOMS1",
+    ];
+    const candidateDelimiters = [undefined, "\t", ";", ","];
+
+    (async () => {
+      try {
+        let parseResult = null;
+        let headers = [];
+        for (const delimiter of candidateDelimiters) {
+          const result = await parseCsvFile(file, { delimiter });
+          headers = result.meta?.fields?.map(normalizeHeader) || [];
+          const missing = requiredOperaHeaders.filter(
             (field) => !headers.includes(field)
           );
-          if (missingHeaders.length > 0) {
-            toast.error(
-              `CSV mist kolommen: ${missingHeaders.join(", ")}. Gebruik het Opera Inventory formaat.`
-            );
-            setOperaUploading(false);
-            return;
+          if (missing.length === 0) {
+            parseResult = result;
+            break;
           }
-
-          await clearCollection(`hotels/${hotelUid}/operaInventory`);
-
-          if (errors?.length) {
-            console.warn("CSV parse warnings", errors);
-          }
-
-          const batch = writeBatch(db);
-          const dateSet = new Set();
-          const inventoryByDate = {};
-          let importedRows = 0;
-          let skippedRows = 0;
-
-          data.forEach((row) => {
-            const dateKey = parseOperaDateKey(row.BUSINESS_DATE);
-            const marketCode = normalizeKey(row.MARKET_CODE);
-            const rooms = parseNumber(row.NO_OF_ROOMS1);
-
-            if (!dateKey || !marketCode || rooms === null) {
-              skippedRows += 1;
-              return;
-            }
-
-            dateSet.add(dateKey);
-            if (!inventoryByDate[dateKey]) {
-              inventoryByDate[dateKey] = {};
-            }
-            inventoryByDate[dateKey][marketCode] = rooms;
-            importedRows += 1;
-          });
-
-          dateSet.forEach((dateKey) => {
-            const dateRef = doc(db, `hotels/${hotelUid}/operaInventory`, dateKey);
-            batch.set(
-              dateRef,
-              {
-                date: dateKey,
-                updatedAt: serverTimestamp(),
-                marketInventory: inventoryByDate[dateKey] || {},
-              },
-              { merge: true }
-            );
-          });
-
-          const roomTypeById = roomTypes.reduce((acc, roomType) => {
-            acc[roomType.id] = roomType;
-            return acc;
-          }, {});
-
-          dateSet.forEach((dateKey) => {
-            const operaInventory = inventoryByDate[dateKey] || {};
-            const balancedMap = {};
-            roomClasses.forEach((roomClass) => {
-              if (!roomClass.code) return;
-              const operaCodes = (roomClass.roomTypes || [])
-                .map((roomTypeId) => roomTypeById[roomTypeId]?.operaCode)
-                .filter(Boolean)
-                .map((code) => normalizeKey(code));
-              let hasOperaValue = false;
-              const operaValue = operaCodes.reduce((total, operaCode) => {
-                const value = operaInventory[operaCode];
-                if (Number.isFinite(value)) {
-                  hasOperaValue = true;
-                  return total + value;
-                }
-                return total;
-              }, 0);
-              if (hasOperaValue) {
-                balancedMap[roomClass.code] = operaValue;
-              }
-            });
-            balancedByDate[dateKey] = balancedMap;
-            const balancedRef = doc(
-              db,
-              `hotels/${hotelUid}/marshaInventoryBalanced`,
-              dateKey
-            );
-            batch.set(balancedRef, balancedMap, { merge: true });
-          });
-
-          if (importedRows === 0) {
-            toast.error("Geen geldige rijen gevonden om te importeren.");
-            setOperaUploading(false);
-            return;
-          }
-
-          await batch.commit();
-          if (balancedByDate[selectedDate]) {
-            setBalancedByCode(balancedByDate[selectedDate]);
-          }
-          setLastOperaImport({
-            total: importedRows,
-            skipped: skippedRows,
-            dates: dateSet.size,
-            fileName: file.name,
-          });
-          toast.success("Opera Inventory is geïmporteerd.");
-        } catch (error) {
-          console.error("Import error", error);
-          toast.error("Importeren mislukt. Controleer het CSV-bestand.");
-        } finally {
-          setOperaUploading(false);
         }
-      },
-      error: (error) => {
-        console.error("CSV parse error", error);
-        toast.error("CSV kon niet gelezen worden.");
+
+        if (!parseResult) {
+          toast.error(
+            `CSV mist kolommen: ${requiredOperaHeaders.join(", ")}. Gebruik het Opera Inventory formaat.`
+          );
+          setOperaUploading(false);
+          return;
+        }
+
+        const { data, errors } = parseResult;
+
+        await clearCollection(`hotels/${hotelUid}/operaInventory`);
+
+        if (errors?.length) {
+          console.warn("CSV parse warnings", errors);
+        }
+
+        const batch = writeBatch(db);
+        const dateSet = new Set();
+        const inventoryByDate = {};
+        let importedRows = 0;
+        let skippedRows = 0;
+
+        data.forEach((row) => {
+          const dateKey = parseOperaDateKey(row.BUSINESS_DATE);
+          const marketCode = normalizeKey(row.MARKET_CODE);
+          const rooms = parseNumber(row.NO_OF_ROOMS1);
+
+          if (!dateKey || !marketCode || rooms === null) {
+            skippedRows += 1;
+            return;
+          }
+
+          dateSet.add(dateKey);
+          if (!inventoryByDate[dateKey]) {
+            inventoryByDate[dateKey] = {};
+          }
+          inventoryByDate[dateKey][marketCode] = rooms;
+          importedRows += 1;
+        });
+
+        dateSet.forEach((dateKey) => {
+          const dateRef = doc(db, `hotels/${hotelUid}/operaInventory`, dateKey);
+          batch.set(
+            dateRef,
+            {
+              date: dateKey,
+              updatedAt: serverTimestamp(),
+              marketInventory: inventoryByDate[dateKey] || {},
+            },
+            { merge: true }
+          );
+        });
+
+        const roomTypeById = roomTypes.reduce((acc, roomType) => {
+          acc[roomType.id] = roomType;
+          return acc;
+        }, {});
+
+        dateSet.forEach((dateKey) => {
+          const operaInventory = inventoryByDate[dateKey] || {};
+          const balancedMap = {};
+          roomClasses.forEach((roomClass) => {
+            if (!roomClass.code) return;
+            const operaCodes = (roomClass.roomTypes || [])
+              .map((roomTypeId) => roomTypeById[roomTypeId]?.operaCode)
+              .filter(Boolean)
+              .map((code) => normalizeKey(code));
+            let hasOperaValue = false;
+            const operaValue = operaCodes.reduce((total, operaCode) => {
+              const value = operaInventory[operaCode];
+              if (Number.isFinite(value)) {
+                hasOperaValue = true;
+                return total + value;
+              }
+              return total;
+            }, 0);
+            if (hasOperaValue) {
+              balancedMap[roomClass.code] = operaValue;
+            }
+          });
+          balancedByDate[dateKey] = balancedMap;
+          const balancedRef = doc(
+            db,
+            `hotels/${hotelUid}/marshaInventoryBalanced`,
+            dateKey
+          );
+          batch.set(balancedRef, balancedMap, { merge: true });
+        });
+
+        if (importedRows === 0) {
+          toast.error("Geen geldige rijen gevonden om te importeren.");
+          setOperaUploading(false);
+          return;
+        }
+
+        await batch.commit();
+        if (balancedByDate[selectedDate]) {
+          setBalancedByCode(balancedByDate[selectedDate]);
+        }
+        setLastOperaImport({
+          total: importedRows,
+          skipped: skippedRows,
+          dates: dateSet.size,
+          fileName: file.name,
+        });
+        toast.success("Opera Inventory is geïmporteerd.");
+      } catch (error) {
+        console.error("Import error", error);
+        toast.error("Importeren mislukt. Controleer het CSV-bestand.");
+      } finally {
         setOperaUploading(false);
-      },
-    });
+      }
+    })();
   };
 
   return (
