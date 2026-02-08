@@ -393,6 +393,31 @@ export default function InventoryBalancerPage() {
     return dates;
   };
 
+  const formatExportDateKey = (dateKey) => {
+    if (!dateKey) return "";
+    const parts = String(dateKey).split("-");
+    if (parts.length !== 3) return dateKey;
+    const [, month, day] = parts;
+    const monthIndex = Number(month) - 1;
+    const monthLabels = [
+      "jan",
+      "feb",
+      "mar",
+      "apr",
+      "may",
+      "jun",
+      "jul",
+      "aug",
+      "sep",
+      "oct",
+      "nov",
+      "dec",
+    ];
+    const monthLabel = monthLabels[monthIndex];
+    if (!monthLabel) return dateKey;
+    return `${String(day).padStart(2, "0")}${monthLabel}`;
+  };
+
   const downloadCsv = (fileName, rows) => {
     const content = rows.map((row) => row.join(",")).join("\n");
     const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
@@ -446,7 +471,7 @@ export default function InventoryBalancerPage() {
           const roomsAlreadySold = parseNumber(marshaEntry.RS) ?? 0;
           const roomsToAuthorize = roomsAlreadySold + (parseNumber(roomsToSell) ?? 0);
           rows.push([
-            toCsvValue(dateKey),
+            toCsvValue(formatExportDateKey(dateKey)),
             toCsvValue(roomClass),
             toCsvValue(roomsToSell),
             toCsvValue(roomsAlreadySold),
