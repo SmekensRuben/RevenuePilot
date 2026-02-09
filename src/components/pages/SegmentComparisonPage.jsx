@@ -43,6 +43,16 @@ const parseDateInput = (dateString) => {
 };
 
 const normalizeCode = (code) => String(code || "").trim().toUpperCase();
+const isWeekend = (date) => {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+};
+
+const DAY_FILTER_OPTIONS = [
+  { value: "all", label: "Alles" },
+  { value: "weekdays", label: "Weekdagen" },
+  { value: "weekend", label: "Weekend" },
+];
 
 const formatAdr = (value) => {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
@@ -71,6 +81,7 @@ export default function SegmentComparisonPage() {
   const [comparisonData, setComparisonData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [dayFilter, setDayFilter] = useState("all");
 
   useEffect(() => {
     let isActive = true;
@@ -134,32 +145,49 @@ export default function SegmentComparisonPage() {
               roomsSold: Number(value?.roomsSold ?? 0),
               adr: value?.adr === null || value?.adr === undefined ? null : Number(value?.adr),
             }));
-        return rows;
+        return { date, rows };
       })
     );
 
-    return overview.flat();
+    return overview;
   };
 
-  const aggregateBySegment = (rows) => {
+  const aggregateBySegment = (entries, filter) => {
     const totals = new Map();
-    rows.forEach((row) => {
-      const code = normalizeCode(row.marketCode);
-      if (!code) return;
-      const existing = totals.get(code) || {
-        roomsSold: 0,
-        adrRooms: 0,
-        adrRevenue: 0,
-      };
-      const roomsSold = Number(row.roomsSold) || 0;
-      existing.roomsSold += roomsSold;
-      const adrValue = Number(row.adr);
-      if (Number.isFinite(adrValue) && roomsSold > 0) {
-        existing.adrRooms += roomsSold;
-        existing.adrRevenue += roomsSold * adrValue;
-      }
-      totals.set(code, existing);
+    let dayCount = 0;
+    entries.forEach(({ date, rows }) => {
+      const dayIsWeekend = isWeekend(date);
+      if (filter === "weekdays" && dayIsWeekend) return;
+      if (filter === "weekend" && !dayIsWeekend) return;
+      dayCount += 1;
+      rows.forEach((row) => {
+        const code = normalizeCode(row.marketCode);
+        if (!code) return;
+        const existing = totals.get(code) || {
+          roomsSold: 0,
+          adrRooms: 0,
+          adrRevenue: 0,
+        };
+        const roomsSold = Number(row.roomsSold) || 0;
+        existing.roomsSold += roomsSold;
+        const adrValue = Number(row.adr);
+        if (Number.isFinite(adrValue) && roomsSold > 0) {
+          existing.adrRooms += roomsSold;
+          existing.adrRevenue += roomsSold * adrValue;
+        }
+        totals.set(code, existing);
+      });
     });
+
+    if (filter !== "all" && dayCount > 0) {
+      totals.forEach((value, key) => {
+        totals.set(key, {
+          roomsSold: value.roomsSold / dayCount,
+          adrRooms: value.adrRooms,
+          adrRevenue: value.adrRevenue,
+        });
+      });
+    }
     return totals;
   };
 
@@ -228,8 +256,8 @@ export default function SegmentComparisonPage() {
         fetchRangeStatistics(startB, endB),
       ]);
 
-      const totalsA = aggregateBySegment(rowsA);
-      const totalsB = aggregateBySegment(rowsB);
+      const totalsA = aggregateBySegment(rowsA, dayFilter);
+      const totalsB = aggregateBySegment(rowsB, dayFilter);
       const labels = buildLabels(totalsA, totalsB);
 
       const roomsA = labels.map((label) => totalsA.get(label.code)?.roomsSold ?? 0);
@@ -302,12 +330,12 @@ export default function SegmentComparisonPage() {
           },
           title: {
             display: true,
-            text: "Rooms sold",
+            text: dayFilter === "all" ? "Rooms sold" : "Gemiddelde rooms sold",
           },
         },
       },
     }),
-    [comparisonData]
+    [comparisonData, dayFilter]
   );
 
   return (
@@ -368,6 +396,23 @@ export default function SegmentComparisonPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-semibold text-gray-700" htmlFor="dayFilter">
+                Dagfilter
+              </label>
+              <select
+                id="dayFilter"
+                value={dayFilter}
+                onChange={(event) => setDayFilter(event.target.value)}
+                className="rounded border border-gray-200 px-3 py-2 text-sm"
+              >
+                {DAY_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button type="button" onClick={handleCompare} disabled={isLoading}>
               Vergelijk segments
             </Button>
