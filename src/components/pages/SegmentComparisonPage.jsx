@@ -182,7 +182,14 @@ export default function SegmentComparisonPage() {
         code,
         label: segmentMap.get(code) || code,
       }))
-      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+      .sort((a, b) => {
+        const roomsA = totalsA.get(a.code)?.roomsSold ?? 0;
+        const roomsB = totalsA.get(b.code)?.roomsSold ?? 0;
+        if (roomsB !== roomsA) {
+          return roomsB - roomsA;
+        }
+        return a.label.localeCompare(b.label, undefined, { sensitivity: "base" });
+      });
   };
 
   const handleCompare = async () => {
