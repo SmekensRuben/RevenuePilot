@@ -70,6 +70,39 @@ function parseDateFromInput(value) {
   return date;
 }
 
+function parseReservationDate(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+
+  if (trimmed.includes("-")) {
+    return parseDateFromInput(trimmed);
+  }
+
+  const parts = trimmed.split(".");
+  if (parts.length !== 3) return null;
+
+  const [day, month, year] = parts.map((part) => Number(part));
+  if (![day, month, year].every(Number.isFinite)) return null;
+
+  const fullYear = year < 100 ? 2000 + year : year;
+  const date = new Date(fullYear, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function isDateWithinRange(date, range) {
+  if (!date) return false;
+  const start = parseDateFromInput(range.start);
+  const endCandidate = parseDateFromInput(range.end);
+  const end = endCandidate && start && endCandidate < start ? start : endCandidate;
+
+  if (start && date < start) return false;
+  if (end && date > end) return false;
+  return true;
+}
+
 function getDateRangeForPreset(preset) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -112,6 +145,8 @@ export default function MadeReservationsPage() {
   const [dateRange, setDateRange] = useState(() => getDateRangeForPreset("yesterday"));
   const [importDate, setImportDate] = useState(formatDateInput());
   const [selectedWeekday, setSelectedWeekday] = useState("");
+  const [arrivalDateRange, setArrivalDateRange] = useState({ start: "", end: "" });
+  const [departureDateRange, setDepartureDateRange] = useState({ start: "", end: "" });
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -221,6 +256,8 @@ export default function MadeReservationsPage() {
           (result.reservations || []).map((reservation) => ({
             ...reservation,
             __sourceDate: result.date,
+            __arrivalDateParsed: parseReservationDate(reservation.arrivalDate),
+            __departureDateParsed: parseReservationDate(reservation.departureDate),
           }))
         );
 
@@ -249,6 +286,20 @@ export default function MadeReservationsPage() {
     setDatePreset("custom");
   };
 
+  const handleArrivalRangeChange = (key, value) => {
+    setArrivalDateRange((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  const handleDepartureRangeChange = (key, value) => {
+    setDepartureDateRange((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.start) {
       return t("filters.dateRangeMissing");
@@ -272,12 +323,38 @@ export default function MadeReservationsPage() {
   }, [reservations]);
 
   const filteredReservations = useMemo(() => {
-    if (!roomTypeFilter.length) return reservations;
+    const hasRoomTypeFilter = roomTypeFilter.length > 0;
     const selected = roomTypeFilter.map((type) => String(type).toLowerCase());
-    return reservations.filter((reservation) =>
-      selected.includes(String(reservation.roomTypeCode || "").toLowerCase())
-    );
-  }, [reservations, roomTypeFilter]);
+    const hasArrivalRange = Boolean(arrivalDateRange.start || arrivalDateRange.end);
+    const hasDepartureRange = Boolean(departureDateRange.start || departureDateRange.end);
+
+    return reservations.filter((reservation) => {
+      if (
+        hasRoomTypeFilter &&
+        !selected.includes(String(reservation.roomTypeCode || "").toLowerCase())
+      ) {
+        return false;
+      }
+
+      if (hasArrivalRange) {
+        const arrivalDate =
+          reservation.__arrivalDateParsed ?? parseReservationDate(reservation.arrivalDate);
+        if (!isDateWithinRange(arrivalDate, arrivalDateRange)) {
+          return false;
+        }
+      }
+
+      if (hasDepartureRange) {
+        const departureDate =
+          reservation.__departureDateParsed ?? parseReservationDate(reservation.departureDate);
+        if (!isDateWithinRange(departureDate, departureDateRange)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [arrivalDateRange, departureDateRange, reservations, roomTypeFilter]);
 
   const sortedReservations = useMemo(() => {
     if (!sortConfig.key) {
@@ -286,7 +363,10 @@ export default function MadeReservationsPage() {
 
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
 
-    const toComparable = (value) => {
+    const toComparable = (value, fallbackDate) => {
+      if (fallbackDate) {
+        return fallbackDate.getTime();
+      }
       const numericValue = Number(value);
       if (Number.isFinite(numericValue)) {
         return numericValue;
@@ -295,8 +375,20 @@ export default function MadeReservationsPage() {
     };
 
     return [...filteredReservations].sort((a, b) => {
-      const aValue = toComparable(a?.[sortConfig.key]);
-      const bValue = toComparable(b?.[sortConfig.key]);
+      const isArrival = sortConfig.key === "arrivalDate";
+      const isDeparture = sortConfig.key === "departureDate";
+      const aDate = isArrival
+        ? a.__arrivalDateParsed
+        : isDeparture
+          ? a.__departureDateParsed
+          : null;
+      const bDate = isArrival
+        ? b.__arrivalDateParsed
+        : isDeparture
+          ? b.__departureDateParsed
+          : null;
+      const aValue = toComparable(a?.[sortConfig.key], aDate);
+      const bValue = toComparable(b?.[sortConfig.key], bDate);
 
       if (typeof aValue === "number" && typeof bValue === "number") {
         return (aValue - bValue) * directionMultiplier;
@@ -663,6 +755,46 @@ export default function MadeReservationsPage() {
                 </label>
               </div>
             )}
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
+                {t("filters.arrivalStart")}
+                <input
+                  type="date"
+                  value={arrivalDateRange.start}
+                  onChange={(e) => handleArrivalRangeChange("start", e.target.value)}
+                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
+                {t("filters.arrivalEnd")}
+                <input
+                  type="date"
+                  value={arrivalDateRange.end}
+                  onChange={(e) => handleArrivalRangeChange("end", e.target.value)}
+                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
+                {t("filters.departureStart")}
+                <input
+                  type="date"
+                  value={departureDateRange.start}
+                  onChange={(e) => handleDepartureRangeChange("start", e.target.value)}
+                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
+                {t("filters.departureEnd")}
+                <input
+                  type="date"
+                  value={departureDateRange.end}
+                  onChange={(e) => handleDepartureRangeChange("end", e.target.value)}
+                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
             <div className="relative">
               <button
                 type="button"
