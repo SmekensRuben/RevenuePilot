@@ -1,15 +1,20 @@
 {
-  "welcomeLabel": "Nouveau départ",
-  "title": "Bienvenue sur Revenue Pilot, {{hotel}}",
-  "intro": "Ce tableau de bord garde la mise en page, la connexion, les rôles et le sélecteur d'hôtel afin que vous puissiez reconstruire le produit sans l'ancien héritage.",
-  "activeHotel": "Propriété active",
-  "rolesTitle": "Rôles",
-  "rolesBody": "Les rôles existants continuent de contrôler l'accès pendant que vous ajoutez de nouvelles fonctionnalités.",
-  "noRoles": "Aucun rôle attribué pour l'instant.",
-  "nextStepsTitle": "Prochaines étapes",
-  "nextSteps": {
-    "clean": "Remplacez les anciens flux par les nouvelles fonctionnalités prévues.",
-    "login": "Continuez à tester l'expérience de connexion pour que les utilisateurs puissent se connecter immédiatement.",
-    "properties": "Utilisez le sélecteur d'hôtel pour vérifier le support multi-propriétés pendant le développement."
-  }
+  "dateRangeLabel": "Plage de dates",
+  "datePresets": {
+    "thisMonth": "Ce mois-ci",
+    "lastMonth": "Mois dernier",
+    "custom": "Personnalisé"
+  },
+  "startDate": "Date de début",
+  "endDate": "Date de fin",
+  "segmentFilterTitle": "Segments de marché",
+  "selectAll": "Tout sélectionner",
+  "clearAll": "Tout effacer",
+  "chartTitle": "Performance par segment",
+  "chartSubtitle": "Rooms sold par segment pour la plage sélectionnée.",
+  "loading": "Chargement des statistiques de réservation...",
+  "noData": "Aucune donnée disponible pour la plage ou les segments sélectionnés.",
+  "noSegments": "Aucun segment de marché trouvé.",
+  "invalidDateRange": "Veuillez sélectionner une plage de dates valide.",
+  "loadError": "Une erreur s'est produite lors du chargement des statistiques de réservation."
 }

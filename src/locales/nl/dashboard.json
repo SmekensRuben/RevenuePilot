@@ -1,15 +1,20 @@
 {
-  "welcomeLabel": "Schone lei",
-  "title": "Welkom bij Revenue Pilot, {{hotel}}",
-  "intro": "Dit dashboard behoudt de lay-out, login, rollen en hotelkeuze zodat je het product opnieuw kunt opbouwen zonder oude features.",
-  "activeHotel": "Actieve property",
-  "rolesTitle": "Rollen",
-  "rolesBody": "Roltoewijzingen blijven de toegang bepalen terwijl je nieuwe modules bouwt.",
-  "noRoles": "Nog geen rollen gekoppeld.",
-  "nextStepsTitle": "Volgende stappen",
-  "nextSteps": {
-    "clean": "Vervang de oude flows door de nieuwe functionaliteit die je plant.",
-    "login": "Blijf de login-ervaring testen zodat gebruikers meteen kunnen aanmelden.",
-    "properties": "Gebruik de hotelkeuze om de multi-property ondersteuning te valideren tijdens het bouwen."
-  }
+  "dateRangeLabel": "Datumrange",
+  "datePresets": {
+    "thisMonth": "Deze maand",
+    "lastMonth": "Vorige maand",
+    "custom": "Aangepast"
+  },
+  "startDate": "Startdatum",
+  "endDate": "Einddatum",
+  "segmentFilterTitle": "Market segments",
+  "selectAll": "Alles selecteren",
+  "clearAll": "Alles wissen",
+  "chartTitle": "Market segment prestaties",
+  "chartSubtitle": "Rooms sold per segment voor de gekozen datumrange.",
+  "loading": "Reservation statistics worden geladen...",
+  "noData": "Geen data beschikbaar voor de gekozen range of segmenten.",
+  "noSegments": "Geen market segments gevonden.",
+  "invalidDateRange": "Kies een geldige datumrange.",
+  "loadError": "Er ging iets mis bij het laden van reservation statistics."
 }
