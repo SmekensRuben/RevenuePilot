@@ -195,32 +195,69 @@ export default function SegmentComparisonPage() {
     return totals;
   };
 
-  const buildLabels = (totalsA, totalsB) => {
+  const buildSegmentLookup = () => {
+    const lookup = new Map();
+    marketSegments.forEach((segment) => {
+      const codes = getMarketSegmentCodes(segment)
+        .map((code) => normalizeCode(code))
+        .filter(Boolean);
+      if (!codes.length) return;
+      const label = segment.name || codes[0];
+      const key = segment.id || label;
+      codes.forEach((code) => lookup.set(code, { key, label }));
+    });
+    return lookup;
+  };
+
+  const aggregateTotalsBySegment = (totals, lookup) => {
+    const segmentTotals = new Map();
+    totals.forEach((value, code) => {
+      const normalized = normalizeCode(code);
+      if (!normalized) return;
+      const mapped = lookup.get(normalized);
+      const key = mapped?.key || normalized;
+      const label = mapped?.label || normalized;
+      const existing = segmentTotals.get(key) || {
+        key,
+        label,
+        roomsSold: 0,
+        adrRooms: 0,
+        adrRevenue: 0,
+      };
+      existing.roomsSold += value.roomsSold;
+      existing.adrRooms += value.adrRooms;
+      existing.adrRevenue += value.adrRevenue;
+      segmentTotals.set(key, existing);
+    });
+    return segmentTotals;
+  };
+
+  const buildLabels = (segmentTotalsA, segmentTotalsB) => {
     const segmentMap = new Map();
     marketSegments.forEach((segment) => {
-      const codes = getMarketSegmentCodes(segment);
+      const codes = getMarketSegmentCodes(segment)
+        .map((code) => normalizeCode(code))
+        .filter(Boolean);
       if (!codes.length) return;
-      codes.forEach((code) => {
-        const normalized = normalizeCode(code);
-        if (!normalized) return;
-        segmentMap.set(normalized, segment.name || code || normalized);
-      });
+      const label = segment.name || codes[0];
+      const key = segment.id || label;
+      segmentMap.set(key, label);
     });
 
-    const allCodes = new Set([
+    const allKeys = new Set([
       ...segmentMap.keys(),
-      ...totalsA.keys(),
-      ...totalsB.keys(),
+      ...segmentTotalsA.keys(),
+      ...segmentTotalsB.keys(),
     ]);
 
-    return Array.from(allCodes)
-      .map((code) => ({
-        code,
-        label: segmentMap.get(code) || code,
+    return Array.from(allKeys)
+      .map((key) => ({
+        key,
+        label: segmentMap.get(key) || key,
       }))
       .sort((a, b) => {
-        const roomsA = totalsA.get(a.code)?.roomsSold ?? 0;
-        const roomsB = totalsA.get(b.code)?.roomsSold ?? 0;
+        const roomsA = segmentTotalsA.get(a.key)?.roomsSold ?? 0;
+        const roomsB = segmentTotalsA.get(b.key)?.roomsSold ?? 0;
         if (roomsB !== roomsA) {
           return roomsB - roomsA;
         }
@@ -266,17 +303,24 @@ export default function SegmentComparisonPage() {
 
       const totalsA = aggregateBySegment(rowsA, dayFilter);
       const totalsB = aggregateBySegment(rowsB, dayFilter);
-      const labels = buildLabels(totalsA, totalsB);
+      const segmentLookup = buildSegmentLookup();
+      const segmentTotalsA = aggregateTotalsBySegment(totalsA, segmentLookup);
+      const segmentTotalsB = aggregateTotalsBySegment(totalsB, segmentLookup);
+      const labels = buildLabels(segmentTotalsA, segmentTotalsB);
 
-      const roomsA = labels.map((label) => totalsA.get(label.code)?.roomsSold ?? 0);
-      const roomsB = labels.map((label) => totalsB.get(label.code)?.roomsSold ?? 0);
+      const roomsA = labels.map(
+        (label) => segmentTotalsA.get(label.key)?.roomsSold ?? 0
+      );
+      const roomsB = labels.map(
+        (label) => segmentTotalsB.get(label.key)?.roomsSold ?? 0
+      );
       const adrA = labels.map((label) => {
-        const entry = totalsA.get(label.code);
+        const entry = segmentTotalsA.get(label.key);
         if (!entry || entry.adrRooms === 0) return null;
         return entry.adrRevenue / entry.adrRooms;
       });
       const adrB = labels.map((label) => {
-        const entry = totalsB.get(label.code);
+        const entry = segmentTotalsB.get(label.key);
         if (!entry || entry.adrRooms === 0) return null;
         return entry.adrRevenue / entry.adrRooms;
       });
