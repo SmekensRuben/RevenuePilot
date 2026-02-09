@@ -93,6 +93,11 @@ export default function MarketSegmentDetailPage() {
     }));
   };
 
+  const parsedMarketSegmentCodes = useMemo(
+    () => parseMarketSegmentCodesInput(formData.marketSegmentCodesText),
+    [formData.marketSegmentCodesText]
+  );
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!formData.name.trim()) {
@@ -107,10 +112,7 @@ export default function MarketSegmentDetailPage() {
 
     try {
       setSaving(true);
-      const marketSegmentCodes = parseMarketSegmentCodesInput(
-        formData.marketSegmentCodesText
-      );
-      const primaryMarketSegmentCode = marketSegmentCodes[0] || "";
+      const primaryMarketSegmentCode = parsedMarketSegmentCodes[0] || "";
       const savedId = await saveMarketSegment(
         hotelUid,
         isNew ? null : segmentId,
@@ -119,7 +121,7 @@ export default function MarketSegmentDetailPage() {
           type: formData.type,
           rateCategoryCode: formData.rateCategoryCode,
           marketSegmentCode: primaryMarketSegmentCode,
-          marketSegmentCodes,
+          marketSegmentCodes: parsedMarketSegmentCodes,
           countTowardsAdr: formData.countTowardsAdr,
         }
       );
@@ -134,7 +136,7 @@ export default function MarketSegmentDetailPage() {
               type: formData.type,
               rateCategoryCode: formData.rateCategoryCode,
               marketSegmentCode: primaryMarketSegmentCode,
-              marketSegmentCodes,
+              marketSegmentCodes: parsedMarketSegmentCodes,
               countTowardsAdr: formData.countTowardsAdr,
             },
           },
@@ -228,6 +230,22 @@ export default function MarketSegmentDetailPage() {
               <span className="text-xs font-normal text-gray-500">
                 Scheid meerdere codes met komma&apos;s.
               </span>
+              {parsedMarketSegmentCodes.length ? (
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {parsedMarketSegmentCodes.map((code) => (
+                    <span
+                      key={code}
+                      className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-700"
+                    >
+                      {code}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs font-normal text-gray-400 pt-1">
+                  Nog geen codes toegevoegd.
+                </span>
+              )}
             </label>
 
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
