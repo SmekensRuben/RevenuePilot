@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   db,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -114,4 +115,14 @@ export const saveSubSegment = async (hotelUid, subSegmentId, data) => {
     createdAt: serverTimestamp(),
   });
   return docRef.id;
+};
+
+export const deleteMarketSegment = async (hotelUid, segmentId) => {
+  if (!hotelUid || !segmentId) throw new Error("Market segment ontbreekt");
+  await deleteDoc(doc(db, marketSegmentsPath(hotelUid), segmentId));
+};
+
+export const deleteSubSegment = async (hotelUid, subSegmentId) => {
+  if (!hotelUid || !subSegmentId) throw new Error("Sub segment ontbreekt");
+  await deleteDoc(doc(db, subSegmentsPath(hotelUid), subSegmentId));
 };
