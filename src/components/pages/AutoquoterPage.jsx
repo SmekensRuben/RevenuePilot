@@ -15,6 +15,10 @@ import {
   signOut,
 } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
+import {
+  getMarketSegmentCodes,
+  normalizeMarketSegmentCode,
+} from "../../utils/segmentationUtils";
 import { getSettings } from "../../services/firebaseSettings";
 
 const formatDateInput = (date) => {
@@ -109,9 +113,14 @@ export default function AutoquoterPage() {
   const adrEligibleMarketCodes = useMemo(() => {
     const codes = new Set();
     sortedMarketSegments.forEach((segment) => {
-      if (!segment?.marketSegmentCode) return;
       if (segment.countTowardsAdr === false) return;
-      codes.add(String(segment.marketSegmentCode).toUpperCase());
+      const segmentCodes = getMarketSegmentCodes(segment);
+      segmentCodes.forEach((code) => {
+        const normalized = normalizeMarketSegmentCode(code);
+        if (normalized) {
+          codes.add(normalized);
+        }
+      });
     });
     return codes;
   }, [sortedMarketSegments]);
@@ -144,7 +153,8 @@ export default function AutoquoterPage() {
     rows.forEach((row) => {
       const roomsSold = Number(row.roomsSold) || 0;
       const adrValue = Number(row.adr);
-      if (eligibleCodes && (!row.marketCode || !eligibleCodes.has(row.marketCode.toUpperCase()))) {
+      const normalizedCode = normalizeMarketSegmentCode(row.marketCode);
+      if (eligibleCodes && (!normalizedCode || !eligibleCodes.has(normalizedCode))) {
         return;
       }
       if (!Number.isFinite(adrValue) || roomsSold <= 0) return;
@@ -162,22 +172,23 @@ export default function AutoquoterPage() {
     const groupEntries = Object.entries(groupedMarketSegments);
     marketOverview.forEach((day, dayIndex) => {
       groupEntries.forEach(([groupName, segments]) => {
-        const segmentCodes = segments
-          .map((segment) => segment?.marketSegmentCode)
-          .filter(Boolean)
-          .map((code) => String(code).toUpperCase());
+        const segmentCodes = segments.flatMap((segment) =>
+          getMarketSegmentCodes(segment).map(normalizeMarketSegmentCode)
+        );
+        const segmentCodeSet = new Set(segmentCodes.filter(Boolean));
         const groupRows = day.rows.filter((row) => {
           if (!row.marketCode) return false;
-          return segmentCodes.includes(String(row.marketCode).toUpperCase());
+          return segmentCodeSet.has(normalizeMarketSegmentCode(row.marketCode));
         });
         const total = groupRows.reduce(
           (sum, row) => sum + (Number(row.roomsSold) || 0),
           0
         );
         const eligibleGroupCodes = new Set(
-          segments
-            .filter((segment) => segment?.marketSegmentCode && segment.countTowardsAdr !== false)
-            .map((segment) => String(segment.marketSegmentCode).toUpperCase())
+          segments.flatMap((segment) => {
+            if (segment.countTowardsAdr === false) return [];
+            return getMarketSegmentCodes(segment).map(normalizeMarketSegmentCode);
+          })
         );
         const adr = calculateWeightedAdr(groupRows, eligibleGroupCodes);
         if (!totalsByGroup[groupName]) {
@@ -512,35 +523,46 @@ export default function AutoquoterPage() {
                             {!isCollapsed && segments.length
                               ? segments.map((segment) => (
                                   <tr
-                                    key={segment.id || segment.marketSegmentCode}
+                                    key={segment.id || getMarketSegmentCodes(segment).join("-")}
                                     className="border-t border-gray-100"
                                   >
                                     <td className="px-4 py-3 font-semibold text-gray-700">
                                       {segment.name ||
-                                        segment.marketSegmentCode ||
+                                        getMarketSegmentCodes(segment).join(", ") ||
                                         "Onbekend"}
                                     </td>
                                     {marketOverview.map((day, index) => {
-                                      const match = day.rows.find(
+                                      const segmentCodes = getMarketSegmentCodes(segment).map(
+                                        normalizeMarketSegmentCode
+                                      );
+                                      const segmentCodeSet = new Set(
+                                        segmentCodes.filter(Boolean)
+                                      );
+                                      const segmentRows = day.rows.filter(
                                         (row) =>
                                           row.marketCode &&
-                                          segment.marketSegmentCode &&
-                                          row.marketCode.toUpperCase() ===
-                                            segment.marketSegmentCode.toUpperCase()
+                                          segmentCodeSet.has(
+                                            normalizeMarketSegmentCode(row.marketCode)
+                                          )
                                       );
+                                      const roomsSold = segmentRows.reduce(
+                                        (sum, row) => sum + (Number(row.roomsSold) || 0),
+                                        0
+                                      );
+                                      const adr = calculateWeightedAdr(segmentRows);
                                       return (
                                         <td
-                                          key={`${day.dateKey}-${segment.marketSegmentCode || segment.id}`}
+                                          key={`${day.dateKey}-${segment.id}`}
                                           className={`px-4 py-3 text-gray-700 ${
                                             weekdayMatches[index] ? "bg-emerald-50" : ""
                                           }`}
                                         >
                                           <div className="space-y-1">
                                             <span className="block font-medium">
-                                              {match ? match.roomsSold : "—"}
+                                              {segmentRows.length ? roomsSold : "—"}
                                             </span>
                                             <span className="block text-xs text-gray-500">
-                                              {match ? formatAdr(match.adr) : "—"}
+                                              {segmentRows.length ? formatAdr(adr) : "—"}
                                             </span>
                                           </div>
                                         </td>
