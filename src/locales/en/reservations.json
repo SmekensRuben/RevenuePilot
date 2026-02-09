@@ -19,6 +19,10 @@
     "datePreset": "Date filter",
     "startDate": "Start date",
     "endDate": "End date",
+    "arrivalStart": "Arrival start",
+    "arrivalEnd": "Arrival end",
+    "departureStart": "Departure start",
+    "departureEnd": "Departure end",
     "weekday": "Weekday",
     "weekdayAny": "All weekdays",
     "weekdays": {

@@ -19,6 +19,10 @@
     "datePreset": "Datum filter",
     "startDate": "Startdatum",
     "endDate": "Einddatum",
+    "arrivalStart": "Aankomst vanaf",
+    "arrivalEnd": "Aankomst tot",
+    "departureStart": "Vertrek vanaf",
+    "departureEnd": "Vertrek tot",
     "weekday": "Weekdag",
     "weekdayAny": "Alle weekdagen",
     "weekdays": {

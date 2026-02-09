@@ -19,6 +19,10 @@
     "datePreset": "Filtre de date",
     "startDate": "Date de début",
     "endDate": "Date de fin",
+    "arrivalStart": "Arrivée à partir de",
+    "arrivalEnd": "Arrivée jusqu'au",
+    "departureStart": "Départ à partir de",
+    "departureEnd": "Départ jusqu'au",
     "weekday": "Jour de semaine",
     "weekdayAny": "Tous les jours",
     "weekdays": {
