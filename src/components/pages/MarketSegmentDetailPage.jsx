@@ -9,6 +9,7 @@ import {
   saveMarketSegment,
   subscribeSubSegments,
 } from "../../services/segmentationService";
+import { parseMarketSegmentCodesInput } from "../../utils/segmentationUtils";
 
 export default function MarketSegmentDetailPage() {
   const { segmentId } = useParams();
@@ -22,7 +23,10 @@ export default function MarketSegmentDetailPage() {
     name: initialSegment?.name || "",
     type: initialSegment?.type || "Transient",
     rateCategoryCode: initialSegment?.rateCategoryCode || "",
-    marketSegmentCode: initialSegment?.marketSegmentCode || "",
+    marketSegmentCodesText:
+      initialSegment?.marketSegmentCodes?.join(", ") ||
+      initialSegment?.marketSegmentCode ||
+      "",
     countTowardsAdr: initialSegment?.countTowardsAdr ?? true,
   });
   const [subSegments, setSubSegments] = useState([]);
@@ -56,7 +60,8 @@ export default function MarketSegmentDetailPage() {
           name: segment.name || "",
           type: segment.type || "Transient",
           rateCategoryCode: segment.rateCategoryCode || "",
-          marketSegmentCode: segment.marketSegmentCode || "",
+          marketSegmentCodesText:
+            segment.marketSegmentCodes?.join(", ") || segment.marketSegmentCode || "",
           countTowardsAdr: segment.countTowardsAdr ?? true,
         });
         setStatusMessage("");
@@ -102,6 +107,10 @@ export default function MarketSegmentDetailPage() {
 
     try {
       setSaving(true);
+      const marketSegmentCodes = parseMarketSegmentCodesInput(
+        formData.marketSegmentCodesText
+      );
+      const primaryMarketSegmentCode = marketSegmentCodes[0] || "";
       const savedId = await saveMarketSegment(
         hotelUid,
         isNew ? null : segmentId,
@@ -109,7 +118,8 @@ export default function MarketSegmentDetailPage() {
           name: formData.name.trim(),
           type: formData.type,
           rateCategoryCode: formData.rateCategoryCode,
-          marketSegmentCode: formData.marketSegmentCode,
+          marketSegmentCode: primaryMarketSegmentCode,
+          marketSegmentCodes,
           countTowardsAdr: formData.countTowardsAdr,
         }
       );
@@ -123,7 +133,8 @@ export default function MarketSegmentDetailPage() {
               name: formData.name.trim(),
               type: formData.type,
               rateCategoryCode: formData.rateCategoryCode,
-              marketSegmentCode: formData.marketSegmentCode,
+              marketSegmentCode: primaryMarketSegmentCode,
+              marketSegmentCodes,
               countTowardsAdr: formData.countTowardsAdr,
             },
           },
@@ -205,15 +216,18 @@ export default function MarketSegmentDetailPage() {
             </label>
 
             <label className="flex flex-col gap-1 text-sm font-semibold text-gray-700">
-              Market Segment Code
+              Market Segment Codes
               <input
                 type="text"
-                name="marketSegmentCode"
-                value={formData.marketSegmentCode}
+                name="marketSegmentCodesText"
+                value={formData.marketSegmentCodesText}
                 onChange={handleChange}
                 className="border border-gray-300 rounded px-3 py-2 text-gray-900"
-                placeholder="bv. MSC"
+                placeholder="bv. MSC1, MSC2"
               />
+              <span className="text-xs font-normal text-gray-500">
+                Scheid meerdere codes met komma&apos;s.
+              </span>
             </label>
 
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">

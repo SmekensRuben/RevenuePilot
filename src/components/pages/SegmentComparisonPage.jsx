@@ -24,6 +24,10 @@ import {
   signOut,
 } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
+import {
+  getMarketSegmentCodes,
+  normalizeMarketSegmentCode,
+} from "../../utils/segmentationUtils";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Legend, Tooltip);
 
@@ -42,7 +46,7 @@ const parseDateInput = (dateString) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const normalizeCode = (code) => String(code || "").trim().toUpperCase();
+const normalizeCode = normalizeMarketSegmentCode;
 const isWeekend = (date) => {
   const day = date.getDay();
   return day === 0 || day === 6;
@@ -194,9 +198,13 @@ export default function SegmentComparisonPage() {
   const buildLabels = (totalsA, totalsB) => {
     const segmentMap = new Map();
     marketSegments.forEach((segment) => {
-      const code = normalizeCode(segment.marketSegmentCode);
-      if (!code) return;
-      segmentMap.set(code, segment.name || segment.marketSegmentCode || code);
+      const codes = getMarketSegmentCodes(segment);
+      if (!codes.length) return;
+      codes.forEach((code) => {
+        const normalized = normalizeCode(code);
+        if (!normalized) return;
+        segmentMap.set(normalized, segment.name || code || normalized);
+      });
     });
 
     const allCodes = new Set([
