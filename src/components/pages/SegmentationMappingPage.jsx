@@ -5,6 +5,8 @@ import PageContainer from "../layout/PageContainer";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import {
+  deleteMarketSegment,
+  deleteSubSegment,
   subscribeMarketSegments,
   subscribeSubSegments,
 } from "../../services/segmentationService";
@@ -57,6 +59,24 @@ export default function SegmentationMappingPage() {
     }
   }, [location.state]);
 
+  const handleDeleteMarketSegment = async (segment) => {
+    if (!hotelUid || !segment?.id) return;
+    const confirmed = window.confirm(
+      `Weet je zeker dat je het market segment "${segment.name}" wil verwijderen?`
+    );
+    if (!confirmed) return;
+    await deleteMarketSegment(hotelUid, segment.id);
+  };
+
+  const handleDeleteSubSegment = async (segment) => {
+    if (!hotelUid || !segment?.id) return;
+    const confirmed = window.confirm(
+      `Weet je zeker dat je het sub segment "${segment.name}" wil verwijderen?`
+    );
+    if (!confirmed) return;
+    await deleteSubSegment(hotelUid, segment.id);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -105,6 +125,7 @@ export default function SegmentationMappingPage() {
                 state: { segment },
               })
             }
+            onDelete={handleDeleteMarketSegment}
           />
         ) : (
           <SegmentList
@@ -117,6 +138,7 @@ export default function SegmentationMappingPage() {
                 state: { subSegment: segment },
               })
             }
+            onDelete={handleDeleteSubSegment}
           />
         )}
         {loadingMessage && (
@@ -127,7 +149,7 @@ export default function SegmentationMappingPage() {
   );
 }
 
-function SegmentList({ title, items, onAdd, onSelect, emptyMessage }) {
+function SegmentList({ title, items, onAdd, onSelect, onDelete, emptyMessage }) {
   const hasItems = Array.isArray(items) && items.length > 0;
 
   return (
@@ -146,24 +168,46 @@ function SegmentList({ title, items, onAdd, onSelect, emptyMessage }) {
         <ul>
           {items.map((segment) => (
             <li key={segment.id}>
-              <button
-                onClick={() => onSelect(segment)}
-                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="text-base font-medium text-gray-900">
-                    {segment.name}
+              <div className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <button
+                    onClick={() => onSelect(segment)}
+                    className="flex-1 text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="text-base font-medium text-gray-900">
+                        {segment.name}
+                      </div>
+                      {segment.type && (
+                        <span className="text-xs font-semibold text-gray-700 bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
+                          {segment.type}
+                        </span>
+                      )}
+                    </div>
+                    {segment.description && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {segment.description}
+                      </p>
+                    )}
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(segment)}
+                      className="px-3 py-1.5 rounded-md border border-gray-200 text-sm font-medium text-gray-700 hover:bg-white"
+                    >
+                      Bewerk
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete?.(segment)}
+                      className="px-3 py-1.5 rounded-md border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Verwijder
+                    </button>
                   </div>
-                  {segment.type && (
-                    <span className="text-xs font-semibold text-gray-700 bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
-                      {segment.type}
-                    </span>
-                  )}
                 </div>
-                {segment.description && (
-                  <p className="text-sm text-gray-600 mt-1">{segment.description}</p>
-                )}
-              </button>
+              </div>
             </li>
           ))}
         </ul>
