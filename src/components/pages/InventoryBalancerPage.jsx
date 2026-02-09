@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { FileInput } from "lucide-react";
+import { ArrowLeft, ArrowRight, FileInput } from "lucide-react";
 import { toast } from "react-toastify";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
@@ -173,6 +173,22 @@ export default function InventoryBalancerPage() {
   const [balancedSaving, setBalancedSaving] = useState(false);
   const [exportRange, setExportRange] = useState({ start: "", end: "" });
   const [exporting, setExporting] = useState(false);
+
+  const formatDateValue = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleDateShift = (delta) => {
+    if (!selectedDate) return;
+    const [year, month, day] = selectedDate.split("-").map(Number);
+    if (!year || !month || !day) return;
+    const updatedDate = new Date(year, month - 1, day);
+    updatedDate.setDate(updatedDate.getDate() + delta);
+    setSelectedDate(formatDateValue(updatedDate));
+  };
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -923,15 +939,33 @@ export default function InventoryBalancerPage() {
                   Kies een datum om de RA-waarde per room class te bekijken.
                 </p>
               </div>
-              <label className="flex flex-col text-sm font-medium text-gray-700">
-                Datum filter
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                  className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#b41f1f] focus:outline-none focus:ring-2 focus:ring-[#b41f1f]/40"
-                />
-              </label>
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDateShift(-1)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 text-gray-600 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#b41f1f]/40"
+                  aria-label="Vorige dag"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <label className="flex flex-col text-sm font-medium text-gray-700">
+                  Datum filter
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                    className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#b41f1f] focus:outline-none focus:ring-2 focus:ring-[#b41f1f]/40"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleDateShift(1)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 text-gray-600 shadow-sm transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-[#b41f1f]/40"
+                  aria-label="Volgende dag"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {!hotelUid && (
