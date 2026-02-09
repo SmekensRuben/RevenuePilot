@@ -79,6 +79,16 @@ const CHART_COLORS = [
   "rgb(100, 116, 139)",
 ];
 
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
 export default function DashboardPage() {
   const { t } = useTranslation("dashboard");
   const { hotelUid } = useHotelContext();
@@ -91,6 +101,7 @@ export default function DashboardPage() {
   const [segmentSeries, setSegmentSeries] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSegmentMenuOpen, setIsSegmentMenuOpen] = useState(false);
 
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -156,7 +167,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setSelectedSegments((current) => {
-      const available = segmentOptions.map((segment) => segment.key);
+      const available = ["total", ...segmentOptions.map((segment) => segment.key)];
       if (!current.length) {
         return available;
       }
@@ -217,11 +228,11 @@ export default function DashboardPage() {
             const rows = Array.isArray(marketStats)
               ? marketStats.map((item) => ({
                   marketCode: String(item?.marketCode || "").trim(),
-                  roomsSold: Number(item?.roomsSold ?? 0),
+                  roomsRevenue: Number(item?.roomsRevenue ?? 0),
                 }))
               : Object.entries(marketStats).map(([marketCode, value]) => ({
                   marketCode: String(marketCode || "").trim(),
-                  roomsSold: Number(value?.roomsSold ?? 0),
+                  roomsRevenue: Number(value?.roomsRevenue ?? 0),
                 }));
             return { dateKey, rows };
           })
@@ -233,23 +244,28 @@ export default function DashboardPage() {
             { key: segment.key, label: segment.label, data: [] },
           ])
         );
+        const totalSeries = { key: "total", label: t("totalSegments"), data: [] };
 
         dailyStats.forEach(({ rows }) => {
           const totals = new Map();
+          let totalValue = 0;
           rows.forEach((row) => {
             const normalized = normalizeMarketSegmentCode(row.marketCode);
             const mapped = lookup.get(normalized);
             if (!mapped) return;
-            totals.set(mapped.key, (totals.get(mapped.key) || 0) + (Number(row.roomsSold) || 0));
+            const value = Number(row.roomsRevenue) || 0;
+            totals.set(mapped.key, (totals.get(mapped.key) || 0) + value);
+            totalValue += value;
           });
           seriesMap.forEach((series) => {
             series.data.push(totals.get(series.key) || 0);
           });
+          totalSeries.data.push(totalValue);
         });
 
         if (isActive) {
           setChartLabels(dailyStats.map((entry) => entry.dateKey));
-          setSegmentSeries(Array.from(seriesMap.values()));
+          setSegmentSeries([totalSeries, ...Array.from(seriesMap.values())]);
         }
       } catch (loadError) {
         console.error("Fout bij ophalen van reservation statistics:", loadError);
@@ -274,7 +290,7 @@ export default function DashboardPage() {
     const datasets = segmentSeries
       .filter((series) => selectedSegments.includes(series.key))
       .map((series, index) => {
-        const color = CHART_COLORS[index % CHART_COLORS.length];
+        const color = series.key === "total" ? "rgb(15, 23, 42)" : CHART_COLORS[index % CHART_COLORS.length];
         return {
           label: series.label,
           data: series.data,
@@ -283,6 +299,7 @@ export default function DashboardPage() {
           tension: 0.3,
           pointRadius: 2,
           pointHoverRadius: 4,
+          borderWidth: series.key === "total" ? 3 : 2,
         };
       });
     return {
@@ -296,14 +313,19 @@ export default function DashboardPage() {
       responsive: true,
       plugins: {
         legend: {
-          position: "top",
+          position: "bottom",
+        },
+        tooltip: {
+          callbacks: {
+            label: (context) => `${context.dataset.label}: ${formatCurrency(context.parsed.y)}`,
+          },
         },
       },
       scales: {
         y: {
           beginAtZero: true,
           ticks: {
-            precision: 0,
+            callback: (value) => formatCurrency(value),
           },
         },
       },
@@ -326,7 +348,7 @@ export default function DashboardPage() {
   };
 
   const handleSelectAllSegments = () => {
-    setSelectedSegments(segmentOptions.map((segment) => segment.key));
+    setSelectedSegments(["total", ...segmentOptions.map((segment) => segment.key)]);
   };
 
   const handleClearSegments = () => {
@@ -381,44 +403,80 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+            <div className="relative flex flex-wrap items-center gap-2 text-sm text-gray-600">
               <span className="font-semibold text-gray-700">{t("segmentFilterTitle")}</span>
               <button
                 type="button"
-                onClick={handleSelectAllSegments}
-                className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
+                onClick={() => setIsSegmentMenuOpen((current) => !current)}
+                className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-700"
               >
-                {t("selectAll")}
+                {t("segmentFilterDropdown")}
+                <span className="text-xs">▾</span>
               </button>
-              <button
-                type="button"
-                onClick={handleClearSegments}
-                className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
-              >
-                {t("clearAll")}
-              </button>
+              {isSegmentMenuOpen ? (
+                <div className="absolute right-0 top-full z-10 mt-2 w-72 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+                  <div className="flex items-center justify-between text-xs font-semibold text-gray-500">
+                    <span>{t("segmentFilterTitle")}</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsSegmentMenuOpen(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllSegments}
+                      className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
+                    >
+                      {t("selectAll")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearSegments}
+                      className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-gray-700"
+                    >
+                      {t("clearAll")}
+                    </button>
+                  </div>
+                  <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedSegments.includes("total")}
+                        onChange={() => handleToggleSegment("total")}
+                        className="h-4 w-4"
+                      />
+                      {t("totalSegments")}
+                    </label>
+                    {segmentOptions.length ? (
+                      segmentOptions.map((segment) => (
+                        <label
+                          key={segment.key}
+                          className="flex items-center gap-2 text-sm text-gray-700"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedSegments.includes(segment.key)}
+                            onChange={() => handleToggleSegment(segment.key)}
+                            className="h-4 w-4"
+                          />
+                          {segment.label}
+                        </label>
+                      ))
+                    ) : (
+                      <span className="text-sm text-gray-500">{t("noSegments")}</span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            {segmentOptions.length ? (
-              segmentOptions.map((segment) => (
-                <label
-                  key={segment.key}
-                  className="flex items-center gap-2 rounded-full border border-gray-200 px-3 py-1 text-sm text-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedSegments.includes(segment.key)}
-                    onChange={() => handleToggleSegment(segment.key)}
-                    className="h-4 w-4"
-                  />
-                  {segment.label}
-                </label>
-              ))
-            ) : (
-              <span className="text-sm text-gray-500">{t("noSegments")}</span>
-            )}
+          <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+            <span>{t("segmentFilterHint", { count: selectedSegments.length })}</span>
           </div>
           {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
         </Card>
