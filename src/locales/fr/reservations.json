@@ -4,7 +4,8 @@
     "menuTitle": "Menu",
     "menuSubtitle": "Choisissez un aperçu des réservations",
     "madeReservationsLabel": "Réservations effectuées",
-    "madeReservationsDescription": "Voir les réservations enregistrées"
+    "madeReservationsDescription": "Voir les réservations enregistrées",
+    "segmentComparisonLabel": "Comparaison des segments"
   },
   "page": {
     "tag": "Réservations",
