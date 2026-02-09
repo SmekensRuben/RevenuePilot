@@ -38,6 +38,11 @@ export default function HeaderBar({ today, onLogout }) {
       icon: ClipboardList,
     },
     {
+      label: t("header.segmentComparisonLabel", { ns: "reservations" }),
+      action: () => navigate("/reservations/segment-comparison"),
+      icon: LineChart,
+    },
+    {
       label: "Inventory Balancer",
       action: () => navigate("/reservations/inventory-balancer"),
       icon: FileSpreadsheet,

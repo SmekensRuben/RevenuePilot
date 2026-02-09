@@ -4,7 +4,8 @@
     "menuTitle": "Menu",
     "menuSubtitle": "Choose a reservation overview",
     "madeReservationsLabel": "Made Reservations",
-    "madeReservationsDescription": "View the entered reservations"
+    "madeReservationsDescription": "View the entered reservations",
+    "segmentComparisonLabel": "Segment Comparison"
   },
   "page": {
     "tag": "Reservations",

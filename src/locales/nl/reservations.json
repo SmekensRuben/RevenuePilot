@@ -4,7 +4,8 @@
     "menuTitle": "Menu",
     "menuSubtitle": "Kies een reservatie-overzicht",
     "madeReservationsLabel": "Ingevoerde reservaties",
-    "madeReservationsDescription": "Bekijk de ingevoerde reservaties"
+    "madeReservationsDescription": "Bekijk de ingevoerde reservaties",
+    "segmentComparisonLabel": "Segment vergelijking"
   },
   "page": {
     "tag": "Reservaties",
