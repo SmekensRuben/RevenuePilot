@@ -6,7 +6,9 @@ import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import {
   deleteMarketSegment,
+  deleteGroupMarketSegment,
   deleteSubSegment,
+  subscribeGroupMarketSegments,
   subscribeMarketSegments,
   subscribeSubSegments,
 } from "../../services/segmentationService";
@@ -17,6 +19,7 @@ export default function SegmentationMappingPage() {
   const { hotelUid } = useHotelContext();
   const [activeTab, setActiveTab] = useState("market");
   const [marketSegments, setMarketSegments] = useState([]);
+  const [groupMarketSegments, setGroupMarketSegments] = useState([]);
   const [subSegments, setSubSegments] = useState([]);
   const [loadingMessage, setLoadingMessage] = useState("Gegevens laden...");
   const todayLabel = useMemo(
@@ -43,12 +46,17 @@ export default function SegmentationMappingPage() {
       hotelUid,
       setMarketSegments
     );
+    const unsubscribeGroups = subscribeGroupMarketSegments(
+      hotelUid,
+      setGroupMarketSegments
+    );
     const unsubscribeSubs = subscribeSubSegments(hotelUid, setSubSegments);
 
     setLoadingMessage("");
 
     return () => {
       unsubscribeMarkets();
+      unsubscribeGroups();
       unsubscribeSubs();
     };
   }, [hotelUid]);
@@ -77,6 +85,26 @@ export default function SegmentationMappingPage() {
     await deleteSubSegment(hotelUid, segment.id);
   };
 
+  const handleDeleteGroupMarketSegment = async (segment) => {
+    if (!hotelUid || !segment?.id) return;
+    const confirmed = window.confirm(
+      `Weet je zeker dat je het group market segment "${segment.name}" wil verwijderen?`
+    );
+    if (!confirmed) return;
+    await deleteGroupMarketSegment(hotelUid, segment.id);
+  };
+
+  const groupMarketSegmentItems = useMemo(
+    () =>
+      groupMarketSegments.map((segment) => ({
+        ...segment,
+        description: segment.marketSegmentNames?.length
+          ? `${segment.marketSegmentNames.length} market segments`
+          : "Nog geen market segments gekoppeld.",
+      })),
+    [groupMarketSegments]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -102,6 +130,16 @@ export default function SegmentationMappingPage() {
               Market Segment
             </button>
             <button
+              onClick={() => setActiveTab("group")}
+              className={`px-4 py-2 rounded-md font-medium border ${
+                activeTab === "group"
+                  ? "bg-[#b41f1f] text-white border-[#b41f1f]"
+                  : "bg-white text-gray-800 border-gray-200"
+              }`}
+            >
+              Group Market Segment
+            </button>
+            <button
               onClick={() => setActiveTab("sub")}
               className={`px-4 py-2 rounded-md font-medium border ${
                 activeTab === "sub"
@@ -114,7 +152,7 @@ export default function SegmentationMappingPage() {
           </div>
         </div>
 
-        {activeTab === "market" ? (
+        {activeTab === "market" && (
           <SegmentList
             title="Market Segments"
             items={marketSegments}
@@ -127,7 +165,27 @@ export default function SegmentationMappingPage() {
             }
             onDelete={handleDeleteMarketSegment}
           />
-        ) : (
+        )}
+        {activeTab === "group" && (
+          <SegmentList
+            title="Group Market Segments"
+            items={groupMarketSegmentItems}
+            emptyMessage="Er zijn nog geen group market segments beschikbaar. Voeg er een toe om een groep te maken."
+            onAdd={() =>
+              navigate("/settings/segmentation-mapping/group-market-segments/new")
+            }
+            onSelect={(segment) =>
+              navigate(
+                `/settings/segmentation-mapping/group-market-segments/${segment.id}`,
+                {
+                  state: { segment },
+                }
+              )
+            }
+            onDelete={handleDeleteGroupMarketSegment}
+          />
+        )}
+        {activeTab === "sub" && (
           <SegmentList
             title="Sub Segments"
             items={subSegments}

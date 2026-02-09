@@ -8,6 +8,7 @@ import InventoryBalancerPage from "./components/pages/InventoryBalancerPage.jsx"
 import SegmentComparisonPage from "./components/pages/SegmentComparisonPage.jsx";
 import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.jsx";
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
+import GroupMarketSegmentDetailPage from "./components/pages/GroupMarketSegmentDetailPage.jsx";
 import SubSegmentDetailPage from "./components/pages/SubSegmentDetailPage.jsx";
 import LocalCalendarPage from "./components/pages/LocalCalendarPage.jsx";
 import LocalEventDetailPage from "./components/pages/LocalEventDetailPage.jsx";
@@ -96,6 +97,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <MarketSegmentDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/segmentation-mapping/group-market-segments/:groupSegmentId"
+        element={
+          <ProtectedRoute>
+            <GroupMarketSegmentDetailPage />
           </ProtectedRoute>
         }
       />
