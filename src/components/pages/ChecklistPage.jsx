@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
@@ -9,6 +10,7 @@ import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
 import {
   addChecklistItem,
+  clearChecklistItemsCompleted,
   deleteChecklistItem,
   subscribeToChecklistItems,
   toggleChecklistItemCompleted,
@@ -47,11 +49,13 @@ function createFormFromItem(item) {
 }
 
 export default function ChecklistPage() {
+  const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
   const [checklistItems, setChecklistItems] = useState([]);
   const [activeFrequency, setActiveFrequency] = useState(FREQUENCIES[0]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClearingChecked, setIsClearingChecked] = useState(false);
   const [formData, setFormData] = useState(createEmptyForm);
   const [editingItemId, setEditingItemId] = useState(null);
 
@@ -76,6 +80,11 @@ export default function ChecklistPage() {
   const visibleItems = useMemo(
     () => checklistItems.filter((item) => item.frequency === activeFrequency),
     [activeFrequency, checklistItems]
+  );
+
+  const checkedVisibleItems = useMemo(
+    () => visibleItems.filter((item) => item.isCompleted),
+    [visibleItems]
   );
 
   const handleLogout = async () => {
@@ -149,6 +158,22 @@ export default function ChecklistPage() {
     } catch (error) {
       console.error("Kon status van checklist item niet wijzigen", error);
       toast.error("Er liep iets mis bij het bijwerken van de status.");
+    }
+  };
+
+  const handleClearChecked = async () => {
+    if (!checkedVisibleItems.length) return;
+
+    setIsClearingChecked(true);
+
+    try {
+      await clearChecklistItemsCompleted(checkedVisibleItems.map((item) => item.id));
+      toast.success("Alle checkmarks zijn verwijderd.");
+    } catch (error) {
+      console.error("Kon checkmarks niet wissen", error);
+      toast.error("Er liep iets mis bij het clearen van checkmarks.");
+    } finally {
+      setIsClearingChecked(false);
     }
   };
 
@@ -247,6 +272,14 @@ export default function ChecklistPage() {
                 {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"} gevonden
               </p>
             </div>
+            <button
+              type="button"
+              onClick={handleClearChecked}
+              disabled={!checkedVisibleItems.length || isClearingChecked}
+              className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isClearingChecked ? "Clearing..." : "Clear checked"}
+            </button>
           </div>
 
           {!visibleItems.length ? (
@@ -254,28 +287,33 @@ export default function ChecklistPage() {
           ) : (
             <div className="space-y-4">
               {visibleItems.map((item) => (
-                <div key={item.id} className="border rounded-lg bg-white p-4 shadow-sm">
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigate(`/checklist/${item.id}`)}
+                  className="w-full text-left border rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+                >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <input
                         id={`checklist-completed-${item.id}`}
                         type="checkbox"
                         checked={!!item.isCompleted}
+                        onClick={(event) => event.stopPropagation()}
                         onChange={() => handleToggleCompleted(item)}
                         className="mt-1 h-4 w-4 accent-[#b41f1f]"
                       />
                       <div>
-                        <label
-                          htmlFor={`checklist-completed-${item.id}`}
-                          className={`text-lg font-semibold cursor-pointer ${item.isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
+                        <p
+                          className={`text-lg font-semibold ${item.isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
                         >
                           {item.name}
-                        </label>
+                        </p>
                         <p className="text-sm text-gray-600 mt-1">{item.description || "Geen beschrijving"}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => openEditModal(item)}
@@ -294,7 +332,7 @@ export default function ChecklistPage() {
                       </button>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

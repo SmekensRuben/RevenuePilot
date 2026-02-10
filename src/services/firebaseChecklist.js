@@ -13,6 +13,7 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
+  writeBatch,
 } from "../firebaseConfig";
 import { getSelectedHotelUid } from "../utils/hotelUtils";
 
@@ -30,6 +31,25 @@ export function subscribeToChecklistItems(callback) {
     }));
 
     callback(checklistItems);
+  });
+}
+
+export function subscribeToChecklistItem(checklistId, callback) {
+  const hotelUid = getSelectedHotelUid();
+  if (!hotelUid || !checklistId) return () => {};
+
+  const checklistDocRef = doc(db, `hotels/${hotelUid}/checklistItems/${checklistId}`);
+
+  return onSnapshot(checklistDocRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      callback(null);
+      return;
+    }
+
+    callback({
+      id: snapshot.id,
+      ...snapshot.data(),
+    });
   });
 }
 
@@ -125,4 +145,27 @@ export async function toggleChecklistItemCompleted(checklistId, isCompleted) {
     isCompleted,
     completedAt: isCompleted ? serverTimestamp() : null,
   });
+}
+
+export async function clearChecklistItemsCompleted(checklistIds) {
+  const hotelUid = getSelectedHotelUid();
+  if (!hotelUid) {
+    throw new Error("No hotel selected");
+  }
+
+  if (!Array.isArray(checklistIds) || !checklistIds.length) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+
+  checklistIds.forEach((checklistId) => {
+    const itemRef = doc(db, `hotels/${hotelUid}/checklistItems/${checklistId}`);
+    batch.update(itemRef, {
+      isCompleted: false,
+      completedAt: null,
+    });
+  });
+
+  await batch.commit();
 }
