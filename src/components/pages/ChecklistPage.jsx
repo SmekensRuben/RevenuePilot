@@ -1,34 +1,63 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { Card } from "../layout/Card";
 import Modal from "../shared/Modal";
 import { auth, signOut } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { addChecklistItem, subscribeToChecklistItems } from "../../services/firebaseChecklist";
+import {
+  addChecklistItem,
+  clearChecklistItemsCompleted,
+  deleteChecklistItem,
+  subscribeToChecklistItems,
+  toggleChecklistItemCompleted,
+  updateChecklistItem,
+} from "../../services/firebaseChecklist";
+
+const FREQUENCIES = ["Daily", "Weekly", "Monthly"];
 
 const EMPTY_STEP = {
   title: "",
   photoFiles: [],
+  photoUrls: [],
 };
 
 function createEmptyForm() {
   return {
     name: "",
     description: "",
-    frequency: "",
+    frequency: FREQUENCIES[0],
     steps: [{ ...EMPTY_STEP }],
   };
 }
 
+function createFormFromItem(item) {
+  return {
+    name: item.name || "",
+    description: item.description || "",
+    frequency: item.frequency || FREQUENCIES[0],
+    steps:
+      item.steps?.map((step) => ({
+        title: step.title || "",
+        photoFiles: [],
+        photoUrls: step.photoUrls || [],
+      })) || [{ ...EMPTY_STEP }],
+  };
+}
+
 export default function ChecklistPage() {
+  const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
   const [checklistItems, setChecklistItems] = useState([]);
+  const [activeFrequency, setActiveFrequency] = useState(FREQUENCIES[0]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClearingChecked, setIsClearingChecked] = useState(false);
   const [formData, setFormData] = useState(createEmptyForm);
+  const [editingItemId, setEditingItemId] = useState(null);
 
   const todayLabel = useMemo(() => {
     return new Date().toLocaleDateString(undefined, {
@@ -48,15 +77,38 @@ export default function ChecklistPage() {
     return () => unsubscribe && unsubscribe();
   }, [hotelUid]);
 
+  const visibleItems = useMemo(
+    () => checklistItems.filter((item) => item.frequency === activeFrequency),
+    [activeFrequency, checklistItems]
+  );
+
+  const checkedVisibleItems = useMemo(
+    () => visibleItems.filter((item) => item.isCompleted),
+    [visibleItems]
+  );
+
   const handleLogout = async () => {
     await signOut(auth);
     sessionStorage.clear();
     window.location.href = "/login";
   };
 
+  const openCreateModal = () => {
+    setEditingItemId(null);
+    setFormData(createEmptyForm());
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (item) => {
+    setEditingItemId(item.id);
+    setFormData(createFormFromItem(item));
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     if (isSaving) return;
     setIsModalOpen(false);
+    setEditingItemId(null);
     setFormData(createEmptyForm());
   };
 
@@ -84,6 +136,47 @@ export default function ChecklistPage() {
     });
   };
 
+  const handleDeleteItem = async (itemId) => {
+    const confirmed = window.confirm("Weet je zeker dat je dit checklist item wilt verwijderen?");
+    if (!confirmed) return;
+
+    try {
+      await deleteChecklistItem(itemId);
+      toast.success("Checklist item verwijderd.");
+    } catch (error) {
+      console.error("Kon checklist item niet verwijderen", error);
+      toast.error("Er liep iets mis bij het verwijderen.");
+    }
+  };
+
+  const handleToggleCompleted = async (item) => {
+    const nextCompletedState = !item.isCompleted;
+
+    try {
+      await toggleChecklistItemCompleted(item.id, nextCompletedState);
+      toast.success(nextCompletedState ? "Checklist item afgevinkt." : "Checklist item opnieuw geopend.");
+    } catch (error) {
+      console.error("Kon status van checklist item niet wijzigen", error);
+      toast.error("Er liep iets mis bij het bijwerken van de status.");
+    }
+  };
+
+  const handleClearChecked = async () => {
+    if (!checkedVisibleItems.length) return;
+
+    setIsClearingChecked(true);
+
+    try {
+      await clearChecklistItemsCompleted(checkedVisibleItems.map((item) => item.id));
+      toast.success("Alle checkmarks zijn verwijderd.");
+    } catch (error) {
+      console.error("Kon checkmarks niet wissen", error);
+      toast.error("Er liep iets mis bij het clearen van checkmarks.");
+    } finally {
+      setIsClearingChecked(false);
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -92,8 +185,8 @@ export default function ChecklistPage() {
       return;
     }
 
-    if (!formData.frequency.trim()) {
-      toast.error("Frequentie is verplicht.");
+    if (!FREQUENCIES.includes(formData.frequency)) {
+      toast.error("Selecteer een geldige frequentie.");
       return;
     }
 
@@ -105,19 +198,26 @@ export default function ChecklistPage() {
     setIsSaving(true);
 
     try {
-      await addChecklistItem({
+      const payload = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        frequency: formData.frequency.trim(),
+        frequency: formData.frequency,
         steps: formData.steps.map((step) => ({
           title: step.title.trim(),
           photoFiles: step.photoFiles,
+          photoUrls: step.photoUrls,
         })),
-      });
+      };
 
-      toast.success("Checklist item toegevoegd.");
-      setFormData(createEmptyForm());
-      setIsModalOpen(false);
+      if (editingItemId) {
+        await updateChecklistItem(editingItemId, payload);
+        toast.success("Checklist item bijgewerkt.");
+      } else {
+        await addChecklistItem(payload);
+        toast.success("Checklist item toegevoegd.");
+      }
+
+      closeModal();
     } catch (error) {
       console.error("Kon checklist item niet opslaan", error);
       toast.error("Er liep iets mis bij het opslaan.");
@@ -134,12 +234,12 @@ export default function ChecklistPage() {
           <div>
             <p className="text-sm uppercase tracking-wide text-[#b41f1f] font-semibold">Checklist</p>
             <h1 className="text-2xl sm:text-3xl font-bold">Checklist overzicht</h1>
-            <p className="text-gray-600 mt-1">Beheer checklist items met stappenplan en foto&apos;s per stap.</p>
+            <p className="text-gray-600 mt-1">Beheer checklist items met stappenplan en status.</p>
           </div>
 
           <button
             type="button"
-            onClick={() => setIsModalOpen(true)}
+            onClick={openCreateModal}
             className="bg-[#b41f1f] text-white px-4 py-2 rounded-full shadow hover:bg-[#961919] transition-colors inline-flex items-center gap-2 self-start"
           >
             <Plus className="h-4 w-4" />
@@ -148,65 +248,98 @@ export default function ChecklistPage() {
         </div>
 
         <Card>
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <div>
-              <h2 className="text-lg font-semibold">Checklist items</h2>
-              <p className="text-sm text-gray-600">
-                {checklistItems.length} item{checklistItems.length === 1 ? "" : "s"} gevonden
-              </p>
-            </div>
+          <div className="flex flex-wrap gap-2 mb-5">
+            {FREQUENCIES.map((frequency) => (
+              <button
+                key={frequency}
+                type="button"
+                onClick={() => setActiveFrequency(frequency)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                  activeFrequency === frequency
+                    ? "bg-[#b41f1f] text-white border-[#b41f1f]"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                }`}
+              >
+                {frequency}
+              </button>
+            ))}
           </div>
 
-          {!checklistItems.length ? (
-            <p className="text-gray-600">Nog geen checklist items aangemaakt.</p>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold">Checklist items ({activeFrequency})</h2>
+              <p className="text-sm text-gray-600">
+                {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"} gevonden
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClearChecked}
+              disabled={!checkedVisibleItems.length || isClearingChecked}
+              className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isClearingChecked ? "Clearing..." : "Clear checked"}
+            </button>
+          </div>
+
+          {!visibleItems.length ? (
+            <p className="text-gray-600">Nog geen checklist items voor deze frequentie.</p>
           ) : (
             <div className="space-y-4">
-              {checklistItems.map((item) => (
-                <div key={item.id} className="border rounded-lg bg-white p-4 shadow-sm">
+              {visibleItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigate(`/checklist/${item.id}`)}
+                  className="w-full text-left border rounded-lg bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+                >
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{item.description || "Geen beschrijving"}</p>
-                    </div>
-                    <span className="inline-flex items-center rounded-full bg-[#b41f1f]/10 text-[#b41f1f] px-3 py-1 text-xs font-semibold">
-                      Frequentie: {item.frequency}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {(item.steps || []).map((step, stepIndex) => (
-                      <div key={`${item.id}-step-${stepIndex}`} className="rounded border border-gray-100 p-3">
-                        <p className="text-sm font-semibold">Stap {stepIndex + 1}: {step.title}</p>
-                        {!!step.photoUrls?.length && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
-                            {step.photoUrls.map((photoUrl, photoIndex) => (
-                              <a
-                                key={`${item.id}-step-${stepIndex}-photo-${photoIndex}`}
-                                href={photoUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="block"
-                              >
-                                <img
-                                  src={photoUrl}
-                                  alt={`Stap ${stepIndex + 1} foto ${photoIndex + 1}`}
-                                  className="h-32 w-full object-cover rounded border"
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        )}
+                    <div className="flex items-start gap-3">
+                      <input
+                        id={`checklist-completed-${item.id}`}
+                        type="checkbox"
+                        checked={!!item.isCompleted}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={() => handleToggleCompleted(item)}
+                        className="mt-1 h-4 w-4 accent-[#b41f1f]"
+                      />
+                      <div>
+                        <p
+                          className={`text-lg font-semibold ${item.isCompleted ? "line-through text-gray-500" : "text-gray-900"}`}
+                        >
+                          {item.name}
+                        </p>
+                        <p className="text-sm text-gray-600 mt-1">{item.description || "Geen beschrijving"}</p>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="inline-flex items-center gap-1 rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Bewerken
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="inline-flex items-center gap-1 rounded border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Verwijderen
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
         </Card>
       </PageContainer>
 
-      <Modal open={isModalOpen} onClose={closeModal} title="Checklist item toevoegen">
+      <Modal open={isModalOpen} onClose={closeModal} title={editingItemId ? "Checklist item bewerken" : "Checklist item toevoegen"}>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="checklist-name">
@@ -239,15 +372,19 @@ export default function ChecklistPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="checklist-frequency">
               Frequentie
             </label>
-            <input
+            <select
               id="checklist-frequency"
-              type="text"
               value={formData.frequency}
               onChange={(event) => setFormData((previous) => ({ ...previous, frequency: event.target.value }))}
               className="w-full rounded border border-gray-300 px-3 py-2"
-              placeholder="Bijvoorbeeld: dagelijks"
               required
-            />
+            >
+              {FREQUENCIES.map((frequency) => (
+                <option key={frequency} value={frequency}>
+                  {frequency}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-3">
@@ -292,30 +429,32 @@ export default function ChecklistPage() {
                   required
                 />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor={`step-photos-${stepIndex}`}>
-                    Foto&apos;s toevoegen
-                  </label>
-                  <input
-                    id={`step-photos-${stepIndex}`}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(event) => {
-                      const files = Array.from(event.target.files || []);
-                      updateStep(stepIndex, (current) => ({
-                        ...current,
-                        photoFiles: files,
-                      }));
-                    }}
-                    className="w-full text-sm"
-                  />
-                  {!!step.photoFiles.length && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {step.photoFiles.length} foto{step.photoFiles.length === 1 ? "" : "'s"} geselecteerd
-                    </p>
-                  )}
-                </div>
+                {!editingItemId && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor={`step-photos-${stepIndex}`}>
+                      Foto&apos;s toevoegen
+                    </label>
+                    <input
+                      id={`step-photos-${stepIndex}`}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files || []);
+                        updateStep(stepIndex, (current) => ({
+                          ...current,
+                          photoFiles: files,
+                        }));
+                      }}
+                      className="w-full text-sm"
+                    />
+                    {!!step.photoFiles.length && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {step.photoFiles.length} foto{step.photoFiles.length === 1 ? "" : "'s"} geselecteerd
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
