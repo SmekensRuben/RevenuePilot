@@ -30,6 +30,7 @@ import RoomClassesPage from "./components/pages/RoomClassesPage.jsx";
 import RoomClassCreatePage from "./components/pages/RoomClassCreatePage.jsx";
 import RoomClassEditPage from "./components/pages/RoomClassEditPage.jsx";
 import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
+import ChecklistPage from "./components/pages/ChecklistPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -249,6 +250,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <RoomClassEditPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/checklist"
+        element={
+          <ProtectedRoute>
+            <ChecklistPage />
           </ProtectedRoute>
         }
       />

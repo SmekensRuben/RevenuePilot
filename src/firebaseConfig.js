@@ -28,6 +28,13 @@ import {
   signInWithEmailAndPassword
 } from 'firebase/auth';
 
+import {
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -45,6 +52,7 @@ enableIndexedDbPersistence(db).catch(err => {
   console.warn('Offline persistence could not be enabled', err);
 });
 const auth = getAuth(app);
+const storage = getStorage(app);
 
 // Firestore exports
 export {
@@ -64,6 +72,10 @@ export {
   orderBy,
   serverTimestamp,
   writeBatch,  // <-- toegevoegd!
+  storage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
   auth,
   signOut,
   signInWithEmailAndPassword
