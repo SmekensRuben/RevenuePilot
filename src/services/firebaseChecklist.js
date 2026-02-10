@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   db,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -82,5 +83,46 @@ export async function addChecklistItem(item) {
 
   await updateDoc(doc(db, `hotels/${hotelUid}/checklistItems/${createdDoc.id}`), {
     steps: resolvedSteps,
+    isCompleted: false,
+    completedAt: null,
+  });
+}
+
+export async function updateChecklistItem(checklistId, item) {
+  const hotelUid = getSelectedHotelUid();
+  if (!hotelUid) {
+    throw new Error("No hotel selected");
+  }
+
+  const itemRef = doc(db, `hotels/${hotelUid}/checklistItems/${checklistId}`);
+  await updateDoc(itemRef, {
+    name: item.name,
+    description: item.description,
+    frequency: item.frequency,
+    steps: item.steps.map((step) => ({
+      title: step.title,
+      photoUrls: Array.isArray(step.photoUrls) ? step.photoUrls : [],
+    })),
+  });
+}
+
+export async function deleteChecklistItem(checklistId) {
+  const hotelUid = getSelectedHotelUid();
+  if (!hotelUid) {
+    throw new Error("No hotel selected");
+  }
+
+  await deleteDoc(doc(db, `hotels/${hotelUid}/checklistItems/${checklistId}`));
+}
+
+export async function toggleChecklistItemCompleted(checklistId, isCompleted) {
+  const hotelUid = getSelectedHotelUid();
+  if (!hotelUid) {
+    throw new Error("No hotel selected");
+  }
+
+  await updateDoc(doc(db, `hotels/${hotelUid}/checklistItems/${checklistId}`), {
+    isCompleted,
+    completedAt: isCompleted ? serverTimestamp() : null,
   });
 }
