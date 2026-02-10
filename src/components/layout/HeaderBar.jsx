@@ -74,6 +74,11 @@ export default function HeaderBar({ today, onLogout }) {
       icon: Settings2,
     },
     {
+      label: "Artikels",
+      action: () => navigate("/settings/articles"),
+      icon: ClipboardList,
+    },
+    {
       label: "Room Types",
       action: () => navigate("/settings/room-types"),
       icon: BedDouble,
