@@ -13,6 +13,7 @@ import {
   FileText,
   Quote,
   BedDouble,
+  ListChecks,
 } from "lucide-react";
 
 export default function HeaderBar({ today, onLogout }) {
@@ -25,11 +26,13 @@ export default function HeaderBar({ today, onLogout }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isForecastOpen, setIsForecastOpen] = useState(false);
+  const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const reservationsMenuRef = useRef(null);
   const quotesMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
   const calendarMenuRef = useRef(null);
   const forecastMenuRef = useRef(null);
+  const checklistMenuRef = useRef(null);
 
   const reservationMenuItems = [
     {
@@ -121,6 +124,14 @@ export default function HeaderBar({ today, onLogout }) {
     },
   ];
 
+  const checklistMenuItems = [
+    {
+      label: "Checklist overzicht",
+      action: () => navigate("/checklist"),
+      icon: ListChecks,
+    },
+  ];
+
   useEffect(() => {
     async function fetchHotels() {
       const results = await Promise.all(
@@ -164,6 +175,10 @@ export default function HeaderBar({ today, onLogout }) {
 
       if (forecastMenuRef.current && !forecastMenuRef.current.contains(event.target)) {
         setIsForecastOpen(false);
+      }
+
+      if (checklistMenuRef.current && !checklistMenuRef.current.contains(event.target)) {
+        setIsChecklistOpen(false);
       }
     };
 
@@ -233,6 +248,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsReservationsOpen(false);
                   setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
+                  setIsChecklistOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -278,6 +294,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsReservationsOpen(false);
                   setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
+                  setIsChecklistOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -322,6 +339,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsQuotesOpen(false);
                   setIsSettingsOpen(false);
                   setIsCalendarOpen(false);
+                  setIsChecklistOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -368,6 +386,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsSettingsOpen(false);
                   setIsReservationsOpen(false);
                   setIsCalendarOpen(false);
+                  setIsChecklistOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -412,6 +431,7 @@ export default function HeaderBar({ today, onLogout }) {
                   setIsQuotesOpen(false);
                   setIsReservationsOpen(false);
                   setIsCalendarOpen(false);
+                  setIsChecklistOpen(false);
                 }}
                 className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
                 style={{ minHeight: 44 }}
@@ -432,6 +452,52 @@ export default function HeaderBar({ today, onLogout }) {
                           onClick={() => {
                             item.action();
                             setIsSettingsOpen(false);
+                          }}
+                          className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
+                        >
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100">
+                            {Icon && <Icon className="h-4 w-4" />}
+                          </span>
+                          <span className="text-sm font-semibold">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div ref={checklistMenuRef} className="flex justify-end w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setIsChecklistOpen((prev) => !prev);
+                  setIsSettingsOpen(false);
+                  setIsQuotesOpen(false);
+                  setIsReservationsOpen(false);
+                  setIsCalendarOpen(false);
+                  setIsForecastOpen(false);
+                }}
+                className="bg-transparent text-white px-4 py-2 rounded font-semibold w-full sm:w-auto text-sm flex items-center justify-between shadow-sm"
+                style={{ minHeight: 44 }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="uppercase tracking-wide">Checklist</span>
+                </div>
+                <span className="ml-3 text-base">▾</span>
+              </button>
+              {isChecklistOpen && (
+                <div className="absolute left-0 mt-2 w-64 rounded-lg shadow-xl ring-1 ring-black/5 z-30 overflow-hidden bg-white text-gray-900">
+                  <div className="py-2">
+                    {checklistMenuItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          onClick={() => {
+                            item.action();
+                            setIsChecklistOpen(false);
                           }}
                           className="w-full px-4 py-2 flex items-center gap-3 hover:bg-gray-100 transition-colors text-left"
                         >
