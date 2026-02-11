@@ -18,6 +18,16 @@ import {
 } from "../../services/firebaseChecklist";
 
 const FREQUENCIES = ["Daily", "Weekly", "Monthly"];
+const IMPORTANCE_LEVELS = ["Low", "Medium", "High"];
+const IMPORTANCE_ORDER = {
+  High: 3,
+  Medium: 2,
+  Low: 1,
+};
+
+function getImportanceLabel(importance) {
+  return IMPORTANCE_LEVELS.includes(importance) ? importance : "Medium";
+}
 
 const EMPTY_STEP = {
   title: "",
@@ -30,6 +40,7 @@ function createEmptyForm() {
     name: "",
     description: "",
     frequency: FREQUENCIES[0],
+    importance: "Medium",
     steps: [],
   };
 }
@@ -39,6 +50,7 @@ function createFormFromItem(item) {
     name: item.name || "",
     description: item.description || "",
     frequency: item.frequency || FREQUENCIES[0],
+    importance: getImportanceLabel(item.importance),
     steps:
       item.steps?.map((step) => ({
         title: step.title || "",
@@ -78,7 +90,19 @@ export default function ChecklistPage() {
   }, [hotelUid]);
 
   const visibleItems = useMemo(
-    () => checklistItems.filter((item) => item.frequency === activeFrequency),
+    () =>
+      checklistItems
+        .filter((item) => item.frequency === activeFrequency)
+        .sort((leftItem, rightItem) => {
+          const leftImportance = IMPORTANCE_ORDER[getImportanceLabel(leftItem.importance)] || 0;
+          const rightImportance = IMPORTANCE_ORDER[getImportanceLabel(rightItem.importance)] || 0;
+
+          if (leftImportance !== rightImportance) {
+            return rightImportance - leftImportance;
+          }
+
+          return (leftItem.name || "").localeCompare(rightItem.name || "");
+        }),
     [activeFrequency, checklistItems]
   );
 
@@ -190,6 +214,11 @@ export default function ChecklistPage() {
       return;
     }
 
+    if (!IMPORTANCE_LEVELS.includes(formData.importance)) {
+      toast.error("Selecteer een geldige prioriteit.");
+      return;
+    }
+
     const normalizedSteps = formData.steps
       .map((step) => ({
         ...step,
@@ -209,6 +238,7 @@ export default function ChecklistPage() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         frequency: formData.frequency,
+        importance: formData.importance,
         steps: normalizedSteps.map((step) => ({
           title: step.title,
           photoFiles: step.photoFiles,
@@ -316,6 +346,9 @@ export default function ChecklistPage() {
                         >
                           {item.name}
                         </p>
+                        <p className="text-xs font-semibold text-[#b41f1f] mt-1">
+                          Prioriteit: {getImportanceLabel(item.importance)}
+                        </p>
                         <p className="text-sm text-gray-600 mt-1">{item.description || "Geen beschrijving"}</p>
                       </div>
                     </div>
@@ -389,6 +422,25 @@ export default function ChecklistPage() {
               {FREQUENCIES.map((frequency) => (
                 <option key={frequency} value={frequency}>
                   {frequency}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="checklist-importance">
+              Prioriteit
+            </label>
+            <select
+              id="checklist-importance"
+              value={formData.importance}
+              onChange={(event) => setFormData((previous) => ({ ...previous, importance: event.target.value }))}
+              className="w-full rounded border border-gray-300 px-3 py-2"
+              required
+            >
+              {IMPORTANCE_LEVELS.map((importance) => (
+                <option key={importance} value={importance}>
+                  {importance}
                 </option>
               ))}
             </select>
