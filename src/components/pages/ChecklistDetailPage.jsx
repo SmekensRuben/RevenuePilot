@@ -72,6 +72,9 @@ export default function ChecklistDetailPage() {
                 <span className="inline-flex items-center rounded-full bg-[#b41f1f]/10 text-[#b41f1f] px-3 py-1 text-xs font-semibold">
                   Frequentie: {item.frequency}
                 </span>
+                <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-3 py-1 text-xs font-semibold">
+                  Prioriteit: {item.importance || "Medium"}
+                </span>
                 <span
                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
                     item.isCompleted ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"

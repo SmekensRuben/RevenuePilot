@@ -78,6 +78,7 @@ export async function addChecklistItem(item) {
     name: item.name,
     description: item.description,
     frequency: item.frequency,
+    importance: item.importance || "Medium",
     steps: [],
     createdAt: serverTimestamp(),
   });
@@ -119,6 +120,7 @@ export async function updateChecklistItem(checklistId, item) {
     name: item.name,
     description: item.description,
     frequency: item.frequency,
+    importance: item.importance || "Medium",
     steps: item.steps.map((step) => ({
       title: step.title,
       photoUrls: Array.isArray(step.photoUrls) ? step.photoUrls : [],
