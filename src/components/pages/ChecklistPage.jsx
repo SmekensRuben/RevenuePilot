@@ -30,7 +30,7 @@ function createEmptyForm() {
     name: "",
     description: "",
     frequency: FREQUENCIES[0],
-    steps: [{ ...EMPTY_STEP }],
+    steps: [],
   };
 }
 
@@ -44,7 +44,7 @@ function createFormFromItem(item) {
         title: step.title || "",
         photoFiles: [],
         photoUrls: step.photoUrls || [],
-      })) || [{ ...EMPTY_STEP }],
+      })) || [],
   };
 }
 
@@ -131,7 +131,7 @@ export default function ChecklistPage() {
       const nextSteps = previous.steps.filter((_, index) => index !== stepIndex);
       return {
         ...previous,
-        steps: nextSteps.length ? nextSteps : [{ ...EMPTY_STEP }],
+        steps: nextSteps,
       };
     });
   };
@@ -190,8 +190,15 @@ export default function ChecklistPage() {
       return;
     }
 
-    if (!formData.steps.length || formData.steps.some((step) => !step.title.trim())) {
-      toast.error("Elke stap in het stappenplan moet een naam hebben.");
+    const normalizedSteps = formData.steps
+      .map((step) => ({
+        ...step,
+        title: step.title.trim(),
+      }))
+      .filter((step) => step.title);
+
+    if (formData.steps.some((step) => step.title && !step.title.trim())) {
+      toast.error("Elke ingevulde stap in het stappenplan moet een naam hebben.");
       return;
     }
 
@@ -202,8 +209,8 @@ export default function ChecklistPage() {
         name: formData.name.trim(),
         description: formData.description.trim(),
         frequency: formData.frequency,
-        steps: formData.steps.map((step) => ({
-          title: step.title.trim(),
+        steps: normalizedSteps.map((step) => ({
+          title: step.title,
           photoFiles: step.photoFiles,
           photoUrls: step.photoUrls,
         })),
@@ -426,7 +433,6 @@ export default function ChecklistPage() {
                   }
                   className="w-full rounded border border-gray-300 px-3 py-2"
                   placeholder="Naam van de stap"
-                  required
                 />
 
                 {!editingItemId && (
