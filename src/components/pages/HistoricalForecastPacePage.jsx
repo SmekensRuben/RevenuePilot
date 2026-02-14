@@ -71,6 +71,8 @@ const SEGMENT_FIELD_OVERRIDES = {
   Groups: "totalGroupOtb",
 };
 
+const COMPARISON_OFFSETS = [1, 3, 7, 14, 21];
+
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -126,6 +128,10 @@ export default function HistoricalForecastPacePage() {
   const [selectedSegments, setSelectedSegments] = useState(SEGMENT_OPTIONS);
   const [historicalData, setHistoricalData] = useState([]);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
+  const [rangeStartDate, setRangeStartDate] = useState(formatDateInput());
+  const [rangeEndDate, setRangeEndDate] = useState(formatDateInput());
+  const [rangeComparisons, setRangeComparisons] = useState([]);
+  const [loadingRangeComparisons, setLoadingRangeComparisons] = useState(false);
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -169,6 +175,41 @@ export default function HistoricalForecastPacePage() {
     }
     setIsDateDialogOpen(false);
     fileInputRef.current?.click();
+  };
+
+  const parseDateToStartOfDay = (value) => {
+    if (!value) return null;
+    const parsed = new Date(`${value}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const findClosestPreviousSnapshot = (snapshots, latestReportDate, targetOffset) => {
+    const latestDate = parseDateToStartOfDay(latestReportDate);
+    if (!latestDate) return null;
+
+    let bestMatch = null;
+
+    snapshots.forEach((snapshot) => {
+      const snapshotDate = parseDateToStartOfDay(snapshot.reportDate);
+      if (!snapshotDate) return;
+
+      const diffMs = latestDate - snapshotDate;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= 0) return;
+
+      const distanceFromTarget = Math.abs(diffDays - targetOffset);
+
+      if (
+        !bestMatch ||
+        distanceFromTarget < bestMatch.distanceFromTarget ||
+        (distanceFromTarget === bestMatch.distanceFromTarget && diffDays < bestMatch.diffDays)
+      ) {
+        bestMatch = { ...snapshot, diffDays, distanceFromTarget };
+      }
+    });
+
+    return bestMatch;
   };
 
   const fetchHistoricalSegments = async () => {
@@ -223,6 +264,111 @@ export default function HistoricalForecastPacePage() {
       toast.error("Kon historische forecast pace niet laden.");
     } finally {
       setLoadingHistorical(false);
+    }
+  };
+
+  const fetchRangeComparisons = async () => {
+    if (!hotelUid) {
+      toast.error("Selecteer een hotel om data te laden.");
+      return;
+    }
+
+    const parsedStart = parseDateToStartOfDay(rangeStartDate);
+    const parsedEnd = parseDateToStartOfDay(rangeEndDate);
+
+    if (!parsedStart || !parsedEnd) {
+      toast.error("Selecteer zowel een start- als einddatum.");
+      return;
+    }
+
+    if (parsedStart > parsedEnd) {
+      toast.error("De startdatum moet voor de einddatum liggen.");
+      return;
+    }
+
+    setLoadingRangeComparisons(true);
+
+    try {
+      const reportCollection = collection(db, `hotels/${hotelUid}/historicalBobPerSegment`);
+      const reportSnapshot = await getDocs(reportCollection);
+
+      const stayDateSnapshots = {};
+
+      await Promise.all(
+        reportSnapshot.docs.map(async (reportDoc) => {
+          const reportData = reportDoc.data();
+          const reportDate = reportData?.reportDate || reportDoc.id;
+
+          const dateDocs = await getDocs(collection(reportDoc.ref, "dates"));
+
+          dateDocs.forEach((dateDoc) => {
+            const stayDate = dateDoc.id;
+            const stayDateObj = parseDateToStartOfDay(stayDate);
+
+            if (!stayDateObj || stayDateObj < parsedStart || stayDateObj > parsedEnd) return;
+
+            stayDateSnapshots[stayDate] = stayDateSnapshots[stayDate] || [];
+            stayDateSnapshots[stayDate].push({
+              reportDate,
+              data: dateDoc.data(),
+            });
+          });
+        })
+      );
+
+      const comparisons = Object.entries(stayDateSnapshots)
+        .map(([stayDate, snapshots]) => {
+          const orderedSnapshots = snapshots.sort((a, b) =>
+            (a.reportDate || "").localeCompare(b.reportDate || "")
+          );
+
+          const latestSnapshot = orderedSnapshots[orderedSnapshots.length - 1];
+
+          const segmentComparisons = selectedSegments.reduce((acc, segment) => {
+            const fieldName = SEGMENT_FIELD_OVERRIDES[segment] || `${toCamelCase(segment)}Otb`;
+            const currentValue = Number(latestSnapshot.data?.[fieldName] ?? 0);
+
+            acc[segment] = COMPARISON_OFFSETS.reduce((offsetAcc, offset) => {
+              const reference = findClosestPreviousSnapshot(
+                orderedSnapshots,
+                latestSnapshot.reportDate,
+                offset
+              );
+
+              if (!reference) {
+                offsetAcc[offset] = null;
+                return offsetAcc;
+              }
+
+              const referenceValue = Number(reference.data?.[fieldName] ?? 0);
+              offsetAcc[offset] = {
+                value: currentValue - referenceValue,
+                referenceReportDate: reference.reportDate,
+              };
+              return offsetAcc;
+            }, {});
+
+            return acc;
+          }, {});
+
+          return {
+            stayDate,
+            latestReportDate: latestSnapshot.reportDate,
+            comparisons: segmentComparisons,
+          };
+        })
+        .sort((a, b) => a.stayDate.localeCompare(b.stayDate));
+
+      setRangeComparisons(comparisons);
+
+      if (!comparisons.length) {
+        toast.info("Geen data gevonden voor deze datumrange.");
+      }
+    } catch (err) {
+      console.error("Error fetching range comparisons", err);
+      toast.error("Kon de datumrange vergelijkingen niet laden.");
+    } finally {
+      setLoadingRangeComparisons(false);
     }
   };
 
@@ -396,6 +542,21 @@ export default function HistoricalForecastPacePage() {
     []
   );
 
+  const renderDeltaCell = (delta) => {
+    if (!delta) {
+      return <span className="text-gray-400">—</span>;
+    }
+
+    return (
+      <div className="space-y-1">
+        <div className="font-medium">{delta.value.toLocaleString("nl-NL")}</div>
+        {delta.referenceReportDate && (
+          <div className="text-xs text-gray-500">vs {delta.referenceReportDate}</div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={today} onLogout={handleLogout} />
@@ -531,6 +692,101 @@ export default function HistoricalForecastPacePage() {
             <p className="text-gray-600">
               Geen data beschikbaar voor de gekozen combinatie van datum en segmenten.
             </p>
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold">Datumrange vergelijking per segment</h2>
+              <p className="text-sm text-gray-500">
+                Bekijk hoeveel boekingen er zijn toegevoegd ten opzichte van eerdere rapporten.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full sm:w-auto">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Startdatum</label>
+                <input
+                  type="date"
+                  value={rangeStartDate}
+                  onChange={(e) => setRangeStartDate(e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Einddatum</label>
+                <input
+                  type="date"
+                  value={rangeEndDate}
+                  onChange={(e) => setRangeEndDate(e.target.value)}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  onClick={fetchRangeComparisons}
+                  disabled={loadingRangeComparisons || !hotelUid}
+                  className="w-full"
+                >
+                  {loadingRangeComparisons ? "Berekenen..." : "Toon datumrange"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {!selectedSegments.length ? (
+            <p className="text-sm text-gray-600">
+              Selecteer minstens één segment om vergelijkingen te tonen.
+            </p>
+          ) : loadingRangeComparisons ? (
+            <p className="text-gray-600">Vergelijkingen laden...</p>
+          ) : !rangeComparisons.length ? (
+            <p className="text-gray-600">
+              Kies een datumrange en laad de vergelijkingen om resultaten te zien.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {rangeComparisons.map(({ stayDate, latestReportDate, comparisons }) => (
+                <div
+                  key={stayDate}
+                  className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+                >
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="font-semibold text-gray-900">{stayDate}</div>
+                    <div className="text-sm text-gray-600">
+                      Laatste rapport: {latestReportDate}
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm text-gray-800">
+                      <thead>
+                        <tr className="bg-white">
+                          <th className="p-2 font-semibold">Segment</th>
+                          {COMPARISON_OFFSETS.map((offset) => (
+                            <th key={offset} className="p-2 font-semibold text-center">
+                              +{offset} dag{offset === 1 ? "" : "en"}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedSegments.map((segment) => (
+                          <tr key={segment} className="odd:bg-white even:bg-gray-100">
+                            <td className="p-2 font-medium text-gray-900">{segment}</td>
+                            {COMPARISON_OFFSETS.map((offset) => (
+                              <td key={offset} className="p-2 align-top">
+                                {renderDeltaCell(comparisons[segment]?.[offset])}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </Card>
       </PageContainer>
