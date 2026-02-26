@@ -31,12 +31,92 @@ const parseDdMmYy = (value) => {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 };
 
-const parseTsv = (rawText) => {
+const normalizeTsvRows = (rawText) => {
   const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split("\n").filter((line) => line.trim());
-  if (!lines.length) return null;
+  const lines = normalized.split("\n");
+  const headerLine = lines.shift();
 
-  const headers = lines[0].split("\t").map((header) => header.trim());
+  if (!headerLine) {
+    return null;
+  }
+
+  const headers = headerLine.split("\t").map((header) => header.trim());
+  const expectedColumnCount = headers.length;
+  const billToIndex = headers.indexOf("BILL_TO_ADDRESS");
+  const rows = [];
+  let currentColumns = null;
+
+  const normalizeColumns = (columns) => {
+    let normalizedColumns = columns;
+    if (columns.length > expectedColumnCount) {
+      normalizedColumns = [
+        ...columns.slice(0, expectedColumnCount - 1),
+        columns.slice(expectedColumnCount - 1).join("\t"),
+      ];
+    } else if (columns.length < expectedColumnCount) {
+      normalizedColumns = [
+        ...columns,
+        ...Array(expectedColumnCount - columns.length).fill(""),
+      ];
+    }
+    return normalizedColumns;
+  };
+
+  const appendContinuation = (line) => {
+    if (!currentColumns) {
+      return;
+    }
+
+    const targetIndex = billToIndex >= 0 ? billToIndex : Math.max(currentColumns.length - 1, 0);
+
+    while (currentColumns.length <= targetIndex) {
+      currentColumns.push("");
+    }
+
+    if (line.includes("\t")) {
+      const [addressPart, ...rest] = line.split("\t");
+      currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${addressPart}`.trim();
+      if (rest.length) {
+        currentColumns.push(...rest);
+      }
+      return;
+    }
+
+    currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${line}`.trim();
+  };
+
+  lines.forEach((line) => {
+    if (!line) {
+      return;
+    }
+
+    const isRecordStart = line.startsWith("\t");
+    if (!currentColumns) {
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    if (isRecordStart) {
+      rows.push(normalizeColumns(currentColumns));
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    appendContinuation(line);
+  });
+
+  if (currentColumns) {
+    rows.push(normalizeColumns(currentColumns));
+  }
+
+  return { headers, rows };
+};
+
+const parseTsv = (rawText) => {
+  const normalizedRows = normalizeTsvRows(rawText);
+  if (!normalizedRows) return null;
+
+  const { headers, rows } = normalizedRows;
   const missing = REQUIRED_HEADERS.filter((header) => !headers.includes(header));
   if (missing.length) {
     throw new Error(`Ontbrekende kolommen: ${missing.join(", ")}`);
@@ -53,23 +133,29 @@ const parseTsv = (rawText) => {
     return String(row[index] ?? "").trim();
   };
 
-  return lines.slice(1).map((line) => {
-    const columns = line.split("\t");
-    const addedPackages = getValue(columns, "PRODUCTS")
+  const mappedRows = rows.map((row) => {
+    const addedPackages = getValue(row, "PRODUCTS")
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
 
     return {
-      reservationNumber: getValue(columns, "EXTERNAL_REFERENCE"),
-      dateOfArrival: parseDdMmYy(getValue(columns, "ARRIVAL")),
+      reservationNumber: getValue(row, "EXTERNAL_REFERENCE"),
+      dateOfArrival: parseDdMmYy(getValue(row, "ARRIVAL")),
       addedPackages,
-      marketCode: getValue(columns, "MARKET_CODE"),
-      rateCode: getValue(columns, "RATE_CODE"),
-      dateOfDeparture: parseDdMmYy(getValue(columns, "DEPARTURE")),
-      adults: Number(getValue(columns, "ADULTS") || 0),
+      marketCode: getValue(row, "MARKET_CODE"),
+      rateCode: getValue(row, "RATE_CODE"),
+      dateOfDeparture: parseDdMmYy(getValue(row, "DEPARTURE")),
+      adults: Number(getValue(row, "ADULTS") || 0),
     };
   });
+
+  const validRows = mappedRows.filter((row) => row.marketCode);
+  return {
+    rows: validRows,
+    skippedMarketCode: mappedRows.length - validRows.length,
+    totalRows: mappedRows.length,
+  };
 };
 
 export default function VatChangeCorrectionPage() {
@@ -108,7 +194,9 @@ export default function VatChangeCorrectionPage() {
       id: docSnap.id,
       ...docSnap.data(),
     }));
-    loadedRows.sort((a, b) => String(a.reservationNumber || "").localeCompare(String(b.reservationNumber || "")));
+    loadedRows.sort((a, b) =>
+      String(a.reservationNumber || "").localeCompare(String(b.reservationNumber || ""))
+    );
     setRows(loadedRows);
   };
 
@@ -129,24 +217,32 @@ export default function VatChangeCorrectionPage() {
 
     try {
       const rawText = await file.text();
-      const parsedRows = parseTsv(rawText);
-      if (!parsedRows?.length) {
-        setStatus({ type: "error", message: "Geen rijen gevonden in het bestand." });
+      const parsed = parseTsv(rawText);
+      if (!parsed?.rows?.length) {
+        setStatus({ type: "error", message: "Geen geldige rijen gevonden in het bestand." });
         return;
       }
 
       const batch = writeBatch(db);
-      parsedRows.forEach((row) => {
+      let importedRows = 0;
+      parsed.rows.forEach((row) => {
         if (!row.reservationNumber) return;
         const docRef = doc(
           db,
           `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${row.reservationNumber}`
         );
         batch.set(docRef, row, { merge: true });
+        importedRows += 1;
       });
       await batch.commit();
 
-      setStatus({ type: "success", message: `Import gelukt (${parsedRows.length} rijen).` });
+      const skippedInfo = parsed.skippedMarketCode
+        ? ` (${parsed.skippedMarketCode} rij(en) met lege MARKET_CODE overgeslagen)`
+        : "";
+      setStatus({
+        type: "success",
+        message: `Import gelukt (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
+      });
       await loadTodayRows();
     } catch (error) {
       console.error(error);
@@ -183,11 +279,13 @@ export default function VatChangeCorrectionPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Reservation Number", "Market Code", "adults", "Packages", "12% Breakfast"].map((header) => (
-                    <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
-                      {header}
-                    </th>
-                  ))}
+                  {["Reservation Number", "Market Code", "adults", "Packages", "12% Breakfast"].map(
+                    (header) => (
+                      <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
+                        {header}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
               <tbody>
