@@ -53,6 +53,25 @@ const parseDdMmYy = (value) => {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 };
 
+
+const parseIsoDate = (value) => {
+  const normalized = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null;
+  const [year, month, day] = normalized.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  const isValidDate =
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+  return isValidDate ? parsed : null;
+};
+
+const calculateNights = (dateOfArrival, dateOfDeparture) => {
+  const arrival = parseIsoDate(dateOfArrival);
+  const departure = parseIsoDate(dateOfDeparture);
+  if (!arrival || !departure) return 0;
+  const diffMs = departure.getTime() - arrival.getTime();
+  const nights = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  return nights > 0 ? nights : 0;
+};
 const normalizeTsvRows = (rawText) => {
   const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = normalized.split("\n");
@@ -184,6 +203,7 @@ export default function VatChangeCorrectionPage() {
   const { hotelUid } = useHotelContext();
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState({ type: "idle", message: "" });
+  const [completeListSummary, setCompleteListSummary] = useState({ reservations: 0, totalNights: 0 });
   const todayKey = useMemo(() => formatDateKey(new Date()), []);
   const todayLabel = useMemo(
     () =>
@@ -222,8 +242,31 @@ export default function VatChangeCorrectionPage() {
     setRows(loadedRows);
   };
 
+  const loadCompleteListSummary = async () => {
+    if (!hotelUid) {
+      setCompleteListSummary({ reservations: 0, totalNights: 0 });
+      return;
+    }
+
+    const completeListRef = collection(
+      db,
+      `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations`
+    );
+    const snapshot = await getDocs(completeListRef);
+    const totalNights = snapshot.docs.reduce((sum, docSnap) => {
+      const data = docSnap.data() || {};
+      const storedNights = Number(data.nights);
+      if (Number.isFinite(storedNights) && storedNights > 0) {
+        return sum + storedNights;
+      }
+      return sum + calculateNights(data.dateOfArrival, data.dateOfDeparture);
+    }, 0);
+
+    setCompleteListSummary({ reservations: snapshot.size, totalNights });
+  };
+
   useEffect(() => {
-    loadTodayRows().catch((error) => {
+    Promise.all([loadTodayRows(), loadCompleteListSummary()]).catch((error) => {
       console.error(error);
       setStatus({ type: "error", message: "Laden van data is mislukt." });
     });
@@ -256,7 +299,15 @@ export default function VatChangeCorrectionPage() {
             : `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${row.reservationNumber}`;
 
         const docRef = doc(db, targetPath);
-        batch.set(docRef, row, { merge: true });
+        const rowPayload =
+          destination === "complete-list"
+            ? {
+                ...row,
+                nights: calculateNights(row.dateOfArrival, row.dateOfDeparture),
+              }
+            : row;
+
+        batch.set(docRef, rowPayload, { merge: true });
         importedRows += 1;
       });
       await batch.commit();
@@ -273,7 +324,9 @@ export default function VatChangeCorrectionPage() {
         message: `Import gelukt naar ${destinationLabel} (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
       });
 
-      if (destination !== "complete-list") {
+      if (destination === "complete-list") {
+        await loadCompleteListSummary();
+      } else {
         await loadTodayRows();
       }
     } catch (error) {
@@ -287,6 +340,18 @@ export default function VatChangeCorrectionPage() {
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
       <PageContainer title="VAT Change Correction">
         <div className="space-y-4">
+          <div className="rounded border border-gray-200 bg-white px-4 py-3">
+            <h2 className="text-sm font-semibold text-gray-800">Complete list overzicht</h2>
+            <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700">
+              <p>
+                Reservaties: <span className="font-semibold">{completeListSummary.reservations}</span>
+              </p>
+              <p>
+                Totaal nights: <span className="font-semibold">{completeListSummary.totalNights}</span>
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-gray-600">Overzicht voor {todayKey}</p>
             <div className="flex flex-wrap items-center justify-end gap-2">
