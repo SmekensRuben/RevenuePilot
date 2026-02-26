@@ -229,7 +229,7 @@ export default function VatChangeCorrectionPage() {
     });
   }, [hotelUid, todayKey]);
 
-  const handleImport = async (event) => {
+  const handleImport = async (event, destination) => {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -249,10 +249,13 @@ export default function VatChangeCorrectionPage() {
       let importedRows = 0;
       parsed.rows.forEach((row) => {
         if (!row.reservationNumber) return;
-        const docRef = doc(
-          db,
-          `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${row.reservationNumber}`
-        );
+
+        const targetPath =
+          destination === "complete-list"
+            ? `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations/${row.reservationNumber}`
+            : `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${row.reservationNumber}`;
+
+        const docRef = doc(db, targetPath);
         batch.set(docRef, row, { merge: true });
         importedRows += 1;
       });
@@ -261,11 +264,18 @@ export default function VatChangeCorrectionPage() {
       const skippedInfo = parsed.skippedMarketCode
         ? ` (${parsed.skippedMarketCode} rij(en) met lege MARKET_CODE overgeslagen)`
         : "";
+      const destinationLabel =
+        destination === "complete-list"
+          ? "arrivalsDetailedCompleteList/listOfAllReservations"
+          : `arrivalsDetailedPerStayDate/${todayKey}`;
       setStatus({
         type: "success",
-        message: `Import gelukt (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
+        message: `Import gelukt naar ${destinationLabel} (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
       });
-      await loadTodayRows();
+
+      if (destination !== "complete-list") {
+        await loadTodayRows();
+      }
     } catch (error) {
       console.error(error);
       setStatus({ type: "error", message: error.message || "Import mislukt." });
@@ -277,12 +287,28 @@ export default function VatChangeCorrectionPage() {
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
       <PageContainer title="VAT Change Correction">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-gray-600">Overzicht voor {todayKey}</p>
-            <label className="inline-flex cursor-pointer items-center rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991919]">
-              Import tab-gescheiden CSV
-              <input type="file" accept=".csv,.txt" className="hidden" onChange={handleImport} />
-            </label>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label className="inline-flex cursor-pointer items-center rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991919]">
+                Import naar today list
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  className="hidden"
+                  onChange={(event) => handleImport(event, "stay-date")}
+                />
+              </label>
+              <label className="inline-flex cursor-pointer items-center rounded bg-[#7d1d1d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#661717]">
+                Import naar complete list
+                <input
+                  type="file"
+                  accept=".csv,.txt"
+                  className="hidden"
+                  onChange={(event) => handleImport(event, "complete-list")}
+                />
+              </label>
+            </div>
           </div>
 
           {status.message ? (
