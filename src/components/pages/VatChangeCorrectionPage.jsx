@@ -296,11 +296,21 @@ export default function VatChangeCorrectionPage() {
         db,
         `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${reservationNumber}`
       );
-      await updateDoc(docRef, { isChanged: nextIsChanged });
+      const activeUser =
+        auth.currentUser?.displayName || auth.currentUser?.email || auth.currentUser?.uid || "Unknown user";
+      const updatePayload = nextIsChanged
+        ? { isChanged: true, lastChangedByUser: activeUser }
+        : { isChanged: false };
+
+      await updateDoc(docRef, updatePayload);
       setRows((previousRows) =>
         previousRows.map((currentRow) =>
           (currentRow.reservationNumber || currentRow.id) === reservationNumber
-            ? { ...currentRow, isChanged: nextIsChanged }
+            ? {
+                ...currentRow,
+                isChanged: nextIsChanged,
+                ...(nextIsChanged ? { lastChangedByUser: activeUser } : {}),
+              }
             : currentRow
         )
       );
