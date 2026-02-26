@@ -491,7 +491,7 @@ export default function VatChangeCorrectionPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["Reservation Number", "Market Code", "adults", "Packages"].map((header) => (
+                    {["Reservation Number", "Market Code", "adults", "Arrival", "Departure", "Packages"].map((header) => (
                       <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
                         {header}
                       </th>
@@ -516,13 +516,15 @@ export default function VatChangeCorrectionPage() {
                           <td className="px-4 py-3">{row.reservationNumber || row.id}</td>
                           <td className="px-4 py-3">{row.marketCode || "-"}</td>
                           <td className="px-4 py-3">{row.adults ?? 0}</td>
+                          <td className="px-4 py-3">{row.dateOfArrival || "-"}</td>
+                          <td className="px-4 py-3">{row.dateOfDeparture || "-"}</td>
                           <td className="px-4 py-3">{packages.join(", ") || "-"}</td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-6 text-center text-gray-500" colSpan={4}>
+                      <td className="px-4 py-6 text-center text-gray-500" colSpan={6}>
                         {activeList === "to-change"
                           ? "Geen reservaties gevonden met To Change = true en Is Changed = false."
                           : "Geen reservaties gevonden met Is Changed = true."}
