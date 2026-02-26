@@ -6,6 +6,7 @@ import DashboardPage from "./components/pages/DashboardPage.jsx";
 import MadeReservationsPage from "./components/pages/MadeReservationsPage.jsx";
 import InventoryBalancerPage from "./components/pages/InventoryBalancerPage.jsx";
 import SegmentComparisonPage from "./components/pages/SegmentComparisonPage.jsx";
+import VatChangeCorrectionPage from "./components/pages/VatChangeCorrectionPage.jsx";
 import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.jsx";
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
 import GroupMarketSegmentDetailPage from "./components/pages/GroupMarketSegmentDetailPage.jsx";
@@ -67,6 +68,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <SegmentComparisonPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reservations/vat-change-correction"
+        element={
+          <ProtectedRoute>
+            <VatChangeCorrectionPage />
           </ProtectedRoute>
         }
       />
