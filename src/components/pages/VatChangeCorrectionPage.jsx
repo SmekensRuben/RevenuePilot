@@ -290,18 +290,26 @@ export default function VatChangeCorrectionPage() {
     }
 
     try {
-      const reservationNumber = confirmReservation.reservationNumber || confirmReservation.id;
+      const { row, nextIsChanged } = confirmReservation;
+      const reservationNumber = row.reservationNumber || row.id;
       const docRef = doc(
         db,
         `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${reservationNumber}`
       );
-      await updateDoc(docRef, { isChanged: true });
+      await updateDoc(docRef, { isChanged: nextIsChanged });
       setRows((previousRows) =>
-        previousRows.map((row) =>
-          (row.reservationNumber || row.id) === reservationNumber ? { ...row, isChanged: true } : row
+        previousRows.map((currentRow) =>
+          (currentRow.reservationNumber || currentRow.id) === reservationNumber
+            ? { ...currentRow, isChanged: nextIsChanged }
+            : currentRow
         )
       );
-      setStatus({ type: "success", message: `Reservatie ${reservationNumber} is afgevinkt als gewijzigd.` });
+      setStatus({
+        type: "success",
+        message: nextIsChanged
+          ? `Reservatie ${reservationNumber} is afgevinkt als gewijzigd.`
+          : `Reservatie ${reservationNumber} is teruggezet naar nog te wijzigen.`,
+      });
     } catch (error) {
       console.error(error);
       setStatus({ type: "error", message: "Bijwerken van reservatie is mislukt." });
@@ -473,7 +481,7 @@ export default function VatChangeCorrectionPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    {["Reservation Number", "Market Code", "adults", "Packages", "Actie"].map((header) => (
+                    {["Reservation Number", "Market Code", "adults", "Packages"].map((header) => (
                       <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
                         {header}
                       </th>
@@ -485,29 +493,26 @@ export default function VatChangeCorrectionPage() {
                     filteredRows.map((row) => {
                       const packages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
                       return (
-                        <tr key={row.id} className="border-t border-gray-100">
+                        <tr
+                          key={row.id}
+                          className="cursor-pointer border-t border-gray-100 hover:bg-gray-50"
+                          onClick={() =>
+                            setConfirmReservation({
+                              row,
+                              nextIsChanged: activeList === "to-change",
+                            })
+                          }
+                        >
                           <td className="px-4 py-3">{row.reservationNumber || row.id}</td>
                           <td className="px-4 py-3">{row.marketCode || "-"}</td>
                           <td className="px-4 py-3">{row.adults ?? 0}</td>
                           <td className="px-4 py-3">{packages.join(", ") || "-"}</td>
-                          <td className="px-4 py-3">
-                            {activeList === "to-change" ? (
-                              <input
-                                type="checkbox"
-                                checked={false}
-                                onChange={() => setConfirmReservation(row)}
-                                aria-label={`Vink reservatie ${row.reservationNumber || row.id} af`}
-                              />
-                            ) : (
-                              <span className="text-gray-500">Afgevinkt</span>
-                            )}
-                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td className="px-4 py-6 text-center text-gray-500" colSpan={5}>
+                      <td className="px-4 py-6 text-center text-gray-500" colSpan={4}>
                         {activeList === "to-change"
                           ? "Geen reservaties gevonden met To Change = true en Is Changed = false."
                           : "Geen reservaties gevonden met Is Changed = true."}
@@ -524,7 +529,9 @@ export default function VatChangeCorrectionPage() {
               <div className="w-full max-w-md rounded bg-white p-4 shadow-lg">
                 <h3 className="text-base font-semibold text-gray-900">Bevestig wijziging</h3>
                 <p className="mt-2 text-sm text-gray-700">
-                  Is de rate in deze reservatie gerebate en vervangen door een 6% versie?
+                  {confirmReservation.nextIsChanged
+                    ? "Is de rate in deze reservatie gerebate en vervangen door een 6% versie?"
+                    : "Wil je deze reservatie terugzetten naar de To Change lijst?"}
                 </p>
                 <div className="mt-4 flex justify-end gap-2">
                   <button
