@@ -22,12 +22,34 @@ const formatDateKey = (date) => {
 };
 
 const parseDdMmYy = (value) => {
-  const normalized = String(value || "").trim();
-  if (!/^\d{6}$/.test(normalized)) return "";
-  const day = Number(normalized.slice(0, 2));
-  const month = Number(normalized.slice(2, 4));
-  const year = 2000 + Number(normalized.slice(4, 6));
-  if (!day || !month) return "";
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+
+  const digitsOnly = normalized.replace(/[^\d]/g, "");
+  let day = 0;
+  let month = 0;
+  let year = 0;
+
+  if (digitsOnly.length === 6) {
+    day = Number(digitsOnly.slice(0, 2));
+    month = Number(digitsOnly.slice(2, 4));
+    year = 2000 + Number(digitsOnly.slice(4, 6));
+  } else if (digitsOnly.length === 8) {
+    day = Number(digitsOnly.slice(0, 2));
+    month = Number(digitsOnly.slice(2, 4));
+    year = Number(digitsOnly.slice(4, 8));
+  } else {
+    return "";
+  }
+
+  const parsed = new Date(year, month - 1, day);
+  const isValidDate =
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+
+  if (!isValidDate) {
+    return "";
+  }
+
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 };
 
