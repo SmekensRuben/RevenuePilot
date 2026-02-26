@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { auth, collection, db, getDocs, signOut, doc, writeBatch } from "../../firebaseConfig";
+import { auth, collection, db, getDocs, signOut, doc, writeBatch, updateDoc } from "../../firebaseConfig";
 
 const REQUIRED_HEADERS = [
   "EXTERNAL_REFERENCE",
@@ -204,6 +204,8 @@ export default function VatChangeCorrectionPage() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [completeListSummary, setCompleteListSummary] = useState({ reservations: 0, totalNights: 0 });
+  const [activeList, setActiveList] = useState("to-change");
+  const [confirmReservation, setConfirmReservation] = useState(null);
   const todayKey = useMemo(() => formatDateKey(new Date()), []);
   const todayLabel = useMemo(
     () =>
@@ -272,6 +274,42 @@ export default function VatChangeCorrectionPage() {
     });
   }, [hotelUid, todayKey]);
 
+
+  const filteredRows = useMemo(() => {
+    if (activeList === "is-changed") {
+      return rows.filter((row) => row.toChange === true && row.isChanged === true);
+    }
+
+    return rows.filter((row) => row.toChange === true && row.isChanged !== true);
+  }, [rows, activeList]);
+
+  const handleConfirmChanged = async () => {
+    if (!confirmReservation || !hotelUid) {
+      setConfirmReservation(null);
+      return;
+    }
+
+    try {
+      const reservationNumber = confirmReservation.reservationNumber || confirmReservation.id;
+      const docRef = doc(
+        db,
+        `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${reservationNumber}`
+      );
+      await updateDoc(docRef, { isChanged: true });
+      setRows((previousRows) =>
+        previousRows.map((row) =>
+          (row.reservationNumber || row.id) === reservationNumber ? { ...row, isChanged: true } : row
+        )
+      );
+      setStatus({ type: "success", message: `Reservatie ${reservationNumber} is afgevinkt als gewijzigd.` });
+    } catch (error) {
+      console.error(error);
+      setStatus({ type: "error", message: "Bijwerken van reservatie is mislukt." });
+    } finally {
+      setConfirmReservation(null);
+    }
+  };
+
   const handleImport = async (event, destination) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -320,7 +358,8 @@ export default function VatChangeCorrectionPage() {
               }
             : {
                 ...row,
-                ...(shouldMarkToChange ? { toChange: true } : {}),
+                toChange: shouldMarkToChange,
+                isChanged: false,
               };
 
         batch.set(docRef, rowPayload, { merge: true });
@@ -404,43 +443,108 @@ export default function VatChangeCorrectionPage() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded border border-gray-200 bg-white">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {["Reservation Number", "Market Code", "adults", "Packages", "To Change"].map(
-                    (header) => (
+          <div className="rounded border border-gray-200 bg-white">
+            <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setActiveList("to-change")}
+                className={`rounded px-3 py-1 text-sm font-semibold ${
+                  activeList === "to-change"
+                    ? "bg-[#b41f1f] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                To Change
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveList("is-changed")}
+                className={`rounded px-3 py-1 text-sm font-semibold ${
+                  activeList === "is-changed"
+                    ? "bg-[#b41f1f] text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Is Changed
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {["Reservation Number", "Market Code", "adults", "Packages", "Actie"].map((header) => (
                       <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
                         {header}
                       </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length ? (
-                  rows.map((row) => {
-                    const packages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
-                    return (
-                      <tr key={row.id} className="border-t border-gray-100">
-                        <td className="px-4 py-3">{row.reservationNumber || row.id}</td>
-                        <td className="px-4 py-3">{row.marketCode || "-"}</td>
-                        <td className="px-4 py-3">{row.adults ?? 0}</td>
-                        <td className="px-4 py-3">{packages.join(", ") || "-"}</td>
-                        <td className="px-4 py-3">{row.toChange ? "Yes" : "No"}</td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td className="px-4 py-6 text-center text-gray-500" colSpan={5}>
-                      Geen reservaties gevonden voor vandaag.
-                    </td>
+                    ))}
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredRows.length ? (
+                    filteredRows.map((row) => {
+                      const packages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
+                      return (
+                        <tr key={row.id} className="border-t border-gray-100">
+                          <td className="px-4 py-3">{row.reservationNumber || row.id}</td>
+                          <td className="px-4 py-3">{row.marketCode || "-"}</td>
+                          <td className="px-4 py-3">{row.adults ?? 0}</td>
+                          <td className="px-4 py-3">{packages.join(", ") || "-"}</td>
+                          <td className="px-4 py-3">
+                            {activeList === "to-change" ? (
+                              <input
+                                type="checkbox"
+                                checked={false}
+                                onChange={() => setConfirmReservation(row)}
+                                aria-label={`Vink reservatie ${row.reservationNumber || row.id} af`}
+                              />
+                            ) : (
+                              <span className="text-gray-500">Afgevinkt</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td className="px-4 py-6 text-center text-gray-500" colSpan={5}>
+                        {activeList === "to-change"
+                          ? "Geen reservaties gevonden met To Change = true en Is Changed = false."
+                          : "Geen reservaties gevonden met Is Changed = true."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
+
+          {confirmReservation ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-md rounded bg-white p-4 shadow-lg">
+                <h3 className="text-base font-semibold text-gray-900">Bevestig wijziging</h3>
+                <p className="mt-2 text-sm text-gray-700">
+                  Is de rate in deze reservatie gerebate en vervangen door een 6% versie?
+                </p>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() => setConfirmReservation(null)}
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919]"
+                    onClick={handleConfirmChanged}
+                  >
+                    Bevestigen
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </PageContainer>
     </>
