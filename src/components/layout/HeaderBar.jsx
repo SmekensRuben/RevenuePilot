@@ -50,6 +50,11 @@ export default function HeaderBar({ today, onLogout }) {
       action: () => navigate("/reservations/inventory-balancer"),
       icon: FileSpreadsheet,
     },
+    {
+      label: "VAT Change Correction",
+      action: () => navigate("/reservations/vat-change-correction"),
+      icon: FileText,
+    },
   ];
 
   const quotesMenuItems = [
