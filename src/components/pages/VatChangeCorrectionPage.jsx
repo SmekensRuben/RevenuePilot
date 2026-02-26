@@ -289,6 +289,17 @@ export default function VatChangeCorrectionPage() {
       }
 
       const batch = writeBatch(db);
+      let reservationsToChange = new Set();
+
+      if (destination === "stay-date") {
+        const completeListRef = collection(
+          db,
+          `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations`
+        );
+        const completeListSnapshot = await getDocs(completeListRef);
+        reservationsToChange = new Set(completeListSnapshot.docs.map((docSnap) => docSnap.id));
+      }
+
       let importedRows = 0;
       parsed.rows.forEach((row) => {
         if (!row.reservationNumber) return;
@@ -299,13 +310,18 @@ export default function VatChangeCorrectionPage() {
             : `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${todayKey}/${row.reservationNumber}`;
 
         const docRef = doc(db, targetPath);
+        const shouldMarkToChange =
+          destination === "stay-date" && reservationsToChange.has(row.reservationNumber);
         const rowPayload =
           destination === "complete-list"
             ? {
                 ...row,
                 nights: calculateNights(row.dateOfArrival, row.dateOfDeparture),
               }
-            : row;
+            : {
+                ...row,
+                ...(shouldMarkToChange ? { toChange: true } : {}),
+              };
 
         batch.set(docRef, rowPayload, { merge: true });
         importedRows += 1;
@@ -392,7 +408,7 @@ export default function VatChangeCorrectionPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  {["Reservation Number", "Market Code", "adults", "Packages", "12% Breakfast"].map(
+                  {["Reservation Number", "Market Code", "adults", "Packages", "To Change"].map(
                     (header) => (
                       <th key={header} className="px-4 py-3 text-left font-semibold text-gray-700">
                         {header}
@@ -405,16 +421,13 @@ export default function VatChangeCorrectionPage() {
                 {rows.length ? (
                   rows.map((row) => {
                     const packages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
-                    const includesBreakfast = packages.some(
-                      (item) => String(item).trim().toLowerCase() === "12% breakfast"
-                    );
                     return (
                       <tr key={row.id} className="border-t border-gray-100">
                         <td className="px-4 py-3">{row.reservationNumber || row.id}</td>
                         <td className="px-4 py-3">{row.marketCode || "-"}</td>
                         <td className="px-4 py-3">{row.adults ?? 0}</td>
                         <td className="px-4 py-3">{packages.join(", ") || "-"}</td>
-                        <td className="px-4 py-3">{includesBreakfast ? "Yes" : "No"}</td>
+                        <td className="px-4 py-3">{row.toChange ? "Yes" : "No"}</td>
                       </tr>
                     );
                   })
