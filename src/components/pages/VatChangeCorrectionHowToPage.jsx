@@ -3,7 +3,18 @@ import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { auth, signOut, db, doc, getDoc, setDoc, storage, ref, uploadBytes, getDownloadURL } from "../../firebaseConfig";
+import {
+  auth,
+  signOut,
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  storage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "../../firebaseConfig";
 
 const createStep = () => ({
   id: `step-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -20,6 +31,7 @@ export default function VatChangeCorrectionHowToPage() {
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedImageUrl, setExpandedImageUrl] = useState("");
 
   const isAdmin = useMemo(
     () => Array.isArray(roles) && roles.some((role) => String(role).toLowerCase() === "admin"),
@@ -51,7 +63,9 @@ export default function VatChangeCorrectionHowToPage() {
     const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
     const settingsSnap = await getDoc(settingsRef);
     const settings = settingsSnap.exists() ? settingsSnap.data() : {};
-    const storedSteps = Array.isArray(settings?.vatChangeHowToSteps) ? settings.vatChangeHowToSteps : [];
+    const storedSteps = Array.isArray(settings?.vatChangeHowToSteps)
+      ? settings.vatChangeHowToSteps
+      : [];
 
     setSteps(
       storedSteps.map((step) => ({
@@ -98,7 +112,9 @@ export default function VatChangeCorrectionHowToPage() {
         }))
       );
 
-      const payload = resolvedSteps.filter((step) => step.title || step.description || step.photoUrls.length);
+      const payload = resolvedSteps.filter(
+        (step) => step.title || step.description || step.photoUrls.length
+      );
       const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
       await setDoc(settingsRef, { vatChangeHowToSteps: payload }, { merge: true });
 
@@ -177,7 +193,9 @@ export default function VatChangeCorrectionHowToPage() {
                         onChange={(event) =>
                           setSteps((prev) =>
                             prev.map((item) =>
-                              item.id === step.id ? { ...item, description: event.target.value } : item
+                              item.id === step.id
+                                ? { ...item, description: event.target.value }
+                                : item
                             )
                           )
                         }
@@ -190,7 +208,9 @@ export default function VatChangeCorrectionHowToPage() {
                           const files = Array.from(event.target.files || []);
                           setSteps((prev) =>
                             prev.map((item) =>
-                              item.id === step.id ? { ...item, photoFiles: [...(item.photoFiles || []), ...files] } : item
+                              item.id === step.id
+                                ? { ...item, photoFiles: [...(item.photoFiles || []), ...files] }
+                                : item
                             )
                           );
                           event.target.value = "";
@@ -199,24 +219,37 @@ export default function VatChangeCorrectionHowToPage() {
                       <button
                         type="button"
                         className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                        onClick={() =>
-                          setSteps((prev) => prev.filter((item) => item.id !== step.id))
-                        }
+                        onClick={() => setSteps((prev) => prev.filter((item) => item.id !== step.id))}
                       >
                         Verwijder stap
                       </button>
                     </div>
                   ) : (
                     <>
-                      <h3 className="text-base font-semibold text-gray-900">Stap {index + 1}: {step.title || "Zonder titel"}</h3>
-                      {step.description ? <p className="mt-2 text-sm text-gray-700">{step.description}</p> : null}
+                      <h3 className="text-base font-semibold text-gray-900">
+                        Stap {index + 1}: {step.title || "Zonder titel"}
+                      </h3>
+                      {step.description ? (
+                        <p className="mt-2 text-sm text-gray-700">{step.description}</p>
+                      ) : null}
                     </>
                   )}
 
                   {step.photoUrls?.length ? (
                     <div className="mt-3 grid gap-3 md:grid-cols-2">
                       {step.photoUrls.map((url, photoIndex) => (
-                        <img key={`${step.id}-${photoIndex}`} src={url} alt={`Stap ${index + 1} foto ${photoIndex + 1}`} className="w-full rounded border border-gray-200" />
+                        <button
+                          key={`${step.id}-${photoIndex}`}
+                          type="button"
+                          className="overflow-hidden rounded border border-gray-200 text-left"
+                          onClick={() => setExpandedImageUrl(url)}
+                        >
+                          <img
+                            src={url}
+                            alt={`Stap ${index + 1} foto ${photoIndex + 1}`}
+                            className="w-full"
+                          />
+                        </button>
                       ))}
                     </div>
                   ) : null}
@@ -249,6 +282,24 @@ export default function VatChangeCorrectionHowToPage() {
             </div>
           ) : null}
         </div>
+
+        {expandedImageUrl ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+            onClick={() => setExpandedImageUrl("")}
+          >
+            <div className="relative max-h-full max-w-full overflow-auto" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                className="absolute right-2 top-2 rounded bg-black/70 px-2 py-1 text-xs font-semibold text-white hover:bg-black"
+                onClick={() => setExpandedImageUrl("")}
+              >
+                Sluiten
+              </button>
+              <img src={expandedImageUrl} alt="How To afbeelding op originele grootte" className="max-w-none" />
+            </div>
+          </div>
+        ) : null}
       </PageContainer>
     </>
   );
