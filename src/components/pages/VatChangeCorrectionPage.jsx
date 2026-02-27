@@ -1,8 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Settings } from "lucide-react";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
-import { auth, collection, db, getDocs, signOut, doc, writeBatch, updateDoc } from "../../firebaseConfig";
+import {
+  auth,
+  collection,
+  db,
+  getDocs,
+  signOut,
+  doc,
+  writeBatch,
+  updateDoc,
+  getDoc,
+  setDoc,
+} from "../../firebaseConfig";
 
 const REQUIRED_HEADERS = [
   "EXTERNAL_REFERENCE",
@@ -199,13 +211,23 @@ const parseTsv = (rawText) => {
   };
 };
 
+const createTrackedPackage = () => ({
+  id: `tracked-package-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  name: "",
+  price: "",
+  type: "perAdult",
+});
+
+const normalizePackageName = (value) => String(value || "").trim().toLowerCase();
+
 export default function VatChangeCorrectionPage() {
   const { hotelUid } = useHotelContext();
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState({ type: "idle", message: "" });
-  const [completeListSummary, setCompleteListSummary] = useState({ reservations: 0, totalNights: 0 });
   const [activeList, setActiveList] = useState("to-change");
   const [confirmReservation, setConfirmReservation] = useState(null);
+  const [trackedPackages, setTrackedPackages] = useState([]);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const todayKey = useMemo(() => formatDateKey(new Date()), []);
   const todayLabel = useMemo(
     () =>
@@ -244,35 +266,103 @@ export default function VatChangeCorrectionPage() {
     setRows(loadedRows);
   };
 
-  const loadCompleteListSummary = async () => {
+  const loadTrackedPackages = async () => {
     if (!hotelUid) {
-      setCompleteListSummary({ reservations: 0, totalNights: 0 });
+      setTrackedPackages([]);
       return;
     }
 
-    const completeListRef = collection(
-      db,
-      `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations`
-    );
-    const snapshot = await getDocs(completeListRef);
-    const totalNights = snapshot.docs.reduce((sum, docSnap) => {
-      const data = docSnap.data() || {};
-      const storedNights = Number(data.nights);
-      if (Number.isFinite(storedNights) && storedNights > 0) {
-        return sum + storedNights;
-      }
-      return sum + calculateNights(data.dateOfArrival, data.dateOfDeparture);
-    }, 0);
+    const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+    const settingsSnap = await getDoc(settingsRef);
+    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+    const storedPackages = Array.isArray(settings?.vatChangeTrackedPackages)
+      ? settings.vatChangeTrackedPackages
+      : [];
 
-    setCompleteListSummary({ reservations: snapshot.size, totalNights });
+    setTrackedPackages(
+      storedPackages.map((pkg) => ({
+        id: `tracked-package-${
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : Math.random().toString(16).slice(2)
+        }`,
+        name: String(pkg?.name || ""),
+        price: String(pkg?.price ?? ""),
+        type: pkg?.type === "perReservation" ? "perReservation" : "perAdult",
+      }))
+    );
+  };
+
+  const persistTrackedPackages = async (nextPackages) => {
+    if (!hotelUid) return;
+    const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+    const payload = nextPackages
+      .map((pkg) => ({
+        name: String(pkg.name || "").trim(),
+        price: Number(pkg.price) || 0,
+        type: pkg.type === "perReservation" ? "perReservation" : "perAdult",
+      }))
+      .filter((pkg) => pkg.name);
+
+    await setDoc(settingsRef, { vatChangeTrackedPackages: payload }, { merge: true });
+  };
+
+  const updateTrackedPackages = (updater) => {
+    setTrackedPackages((prev) => {
+      const nextPackages = typeof updater === "function" ? updater(prev) : updater;
+      persistTrackedPackages(nextPackages).catch((error) => {
+        console.error(error);
+        setStatus({ type: "error", message: "Opslaan van package settings is mislukt." });
+      });
+      return nextPackages;
+    });
   };
 
   useEffect(() => {
-    Promise.all([loadTodayRows(), loadCompleteListSummary()]).catch((error) => {
+    Promise.all([loadTodayRows(), loadTrackedPackages()]).catch((error) => {
       console.error(error);
       setStatus({ type: "error", message: "Laden van data is mislukt." });
     });
   }, [hotelUid, todayKey]);
+
+  const todayOverview = useMemo(() => {
+    const totalReservations = rows.length;
+    const toChangeReservations = rows.filter((row) => row.toChange === true && row.isChanged !== true).length;
+    const changedReservations = rows.filter((row) => row.toChange === true && row.isChanged === true).length;
+    return {
+      totalReservations,
+      toChangeReservations,
+      changedReservations,
+    };
+  }, [rows]);
+
+  const trackedPackageTotals = useMemo(() => {
+    return trackedPackages
+      .map((pkg) => {
+        const normalizedName = normalizePackageName(pkg.name);
+        if (!normalizedName) return null;
+        const unitPrice = Number(pkg.price) || 0;
+
+        const totalIncludedVat = rows.reduce((sum, row) => {
+          const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
+          const hasPackage = rowPackages.some((item) => normalizePackageName(item) === normalizedName);
+          if (!hasPackage) return sum;
+
+          if (pkg.type === "perReservation") {
+            return sum + unitPrice;
+          }
+
+          const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
+          return sum + unitPrice * adults;
+        }, 0);
+
+        return {
+          ...pkg,
+          totalIncludedVat,
+        };
+      })
+      .filter(Boolean);
+  }, [trackedPackages, rows]);
 
 
   const filteredRows = useMemo(() => {
@@ -397,9 +487,7 @@ export default function VatChangeCorrectionPage() {
         message: `Import gelukt naar ${destinationLabel} (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
       });
 
-      if (destination === "complete-list") {
-        await loadCompleteListSummary();
-      } else {
+      if (destination !== "complete-list") {
         await loadTodayRows();
       }
     } catch (error) {
@@ -414,14 +502,41 @@ export default function VatChangeCorrectionPage() {
       <PageContainer title="VAT Change Correction">
         <div className="space-y-4">
           <div className="rounded border border-gray-200 bg-white px-4 py-3">
-            <h2 className="text-sm font-semibold text-gray-800">Complete list overzicht</h2>
-            <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700">
-              <p>
-                Reservaties: <span className="font-semibold">{completeListSummary.reservations}</span>
-              </p>
-              <p>
-                Totaal nights: <span className="font-semibold">{completeListSummary.totalNights}</span>
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">Today's Overview</h2>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-700">
+                  <p>
+                    Reservations: <span className="font-semibold">{todayOverview.totalReservations}</span>
+                  </p>
+                  <p>
+                    To Change: <span className="font-semibold">{todayOverview.toChangeReservations}</span>
+                  </p>
+                  <p>
+                    Already Changed: <span className="font-semibold">{todayOverview.changedReservations}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+                onClick={() => setIsSettingsOpen(true)}
+                aria-label="Open package settings"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-1 text-sm text-gray-700">
+              {trackedPackageTotals.length ? (
+                trackedPackageTotals.map((pkg) => (
+                  <p key={pkg.id || pkg.name}>
+                    {pkg.name} Total Included Vat: <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
+                  </p>
+                ))
+              ) : (
+                <p className="text-gray-500">Geen package tracking ingesteld.</p>
+              )}
             </div>
           </div>
 
@@ -559,6 +674,96 @@ export default function VatChangeCorrectionPage() {
                     onClick={handleConfirmChanged}
                   >
                     Bevestigen
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {isSettingsOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+              <div className="w-full max-w-2xl rounded bg-white p-4 shadow-lg">
+                <h3 className="text-base font-semibold text-gray-900">Package tracking settings</h3>
+                <p className="mt-1 text-sm text-gray-600">
+                  Definieer welke packages je wil tracken voor VAT en kies prijs per adult of per reservatie.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {trackedPackages.length ? (
+                    trackedPackages.map((pkg) => (
+                      <div key={pkg.id} className="grid gap-2 rounded border border-gray-200 p-3 md:grid-cols-12">
+                        <input
+                          type="text"
+                          placeholder="Package naam"
+                          className="rounded border border-gray-300 px-3 py-2 text-sm md:col-span-4"
+                          value={pkg.name}
+                          onChange={(event) =>
+                            updateTrackedPackages((prev) =>
+                              prev.map((item) =>
+                                item.id === pkg.id ? { ...item, name: event.target.value } : item
+                              )
+                            )
+                          }
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Price"
+                          className="rounded border border-gray-300 px-3 py-2 text-sm md:col-span-3"
+                          value={pkg.price}
+                          onChange={(event) =>
+                            updateTrackedPackages((prev) =>
+                              prev.map((item) =>
+                                item.id === pkg.id ? { ...item, price: event.target.value } : item
+                              )
+                            )
+                          }
+                        />
+                        <select
+                          className="rounded border border-gray-300 px-3 py-2 text-sm md:col-span-3"
+                          value={pkg.type}
+                          onChange={(event) =>
+                            updateTrackedPackages((prev) =>
+                              prev.map((item) =>
+                                item.id === pkg.id ? { ...item, type: event.target.value } : item
+                              )
+                            )
+                          }
+                        >
+                          <option value="perAdult">Per Adult</option>
+                          <option value="perReservation">Per Reservation</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 md:col-span-2"
+                          onClick={() =>
+                            updateTrackedPackages((prev) => prev.filter((item) => item.id !== pkg.id))
+                          }
+                        >
+                          Verwijder
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500">Nog geen packages toegevoegd.</p>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap justify-between gap-2">
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() => updateTrackedPackages((prev) => [...prev, createTrackedPackage()])}
+                  >
+                    Package toevoegen
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919]"
+                    onClick={() => setIsSettingsOpen(false)}
+                  >
+                    Sluiten
                   </button>
                 </div>
               </div>
