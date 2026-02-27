@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
 import { useHotelContext } from "../../contexts/HotelContext";
@@ -221,7 +222,11 @@ const createTrackedPackage = () => ({
 const normalizePackageName = (value) => String(value || "").trim().toLowerCase();
 
 export default function VatChangeCorrectionPage() {
-  const { hotelUid } = useHotelContext();
+  const { hotelUid, roles } = useHotelContext();
+  const navigate = useNavigate();
+  const isAdmin = useMemo(() =>
+    Array.isArray(roles) && roles.some((role) => String(role).toLowerCase() === "admin"),
+  [roles]);
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [activeList, setActiveList] = useState("to-change");
@@ -517,14 +522,23 @@ export default function VatChangeCorrectionPage() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsSettingsOpen(true)}
-                aria-label="Open package settings"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                  onClick={() => navigate("/reservations/vat-change-correction/how-to")}
+                >
+                  How To
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+                  onClick={() => setIsSettingsOpen(true)}
+                  aria-label="Open package settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="mt-3 space-y-1 text-sm text-gray-700">
@@ -544,7 +558,7 @@ export default function VatChangeCorrectionPage() {
             <p className="text-sm text-gray-600">Overzicht voor {todayKey}</p>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <label className="inline-flex cursor-pointer items-center rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991919]">
-                Import naar today list
+                Import stayovers
                 <input
                   type="file"
                   accept=".csv,.txt"
@@ -552,15 +566,17 @@ export default function VatChangeCorrectionPage() {
                   onChange={(event) => handleImport(event, "stay-date")}
                 />
               </label>
-              <label className="inline-flex cursor-pointer items-center rounded bg-[#7d1d1d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#661717]">
-                Import naar complete list
-                <input
-                  type="file"
-                  accept=".csv,.txt"
-                  className="hidden"
-                  onChange={(event) => handleImport(event, "complete-list")}
-                />
-              </label>
+              {isAdmin ? (
+                <label className="inline-flex cursor-pointer items-center rounded bg-[#7d1d1d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#661717]">
+                  Import naar complete list
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={(event) => handleImport(event, "complete-list")}
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
 
