@@ -248,7 +248,6 @@ export default function VatChangeCorrectionPage() {
   const [trackedPackages, setTrackedPackages] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState("");
-  const [availableDateKeys, setAvailableDateKeys] = useState([]);
   const [sortConfig, setSortConfig] = useState({
     key: "reservationNumber",
     direction: "asc",
@@ -298,65 +297,10 @@ export default function VatChangeCorrectionPage() {
     return loadedRows;
   };
 
-  const loadAvailableDatesAndRows = async () => {
+  const loadSettingsAndInitialRows = async () => {
     if (!hotelUid) {
       setRows([]);
-      setAvailableDateKeys([]);
       setSelectedDateKey("");
-      return;
-    }
-
-    const completeListRef = collection(
-      db,
-      `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations`,
-    );
-    const completeListSnapshot = await getDocs(completeListRef);
-    const candidateDateKeys = Array.from(
-      new Set(
-        completeListSnapshot.docs
-          .map(
-            (docSnap) =>
-              parseDdMmYy(docSnap.data()?.dateOfArrival || "") ||
-              docSnap.data()?.dateOfArrival,
-          )
-          .map((dateValue) => String(dateValue || "").trim())
-          .filter((dateValue) => /^\d{4}-\d{2}-\d{2}$/.test(dateValue)),
-      ),
-    ).sort((a, b) => b.localeCompare(a));
-
-    const datesWithReservations = [];
-    let initialDateKey = "";
-    let initialRows = null;
-
-    for (const dateKey of candidateDateKeys) {
-      const loadedRows = await fetchRowsForDate(dateKey);
-      if (!loadedRows.length) {
-        continue;
-      }
-
-      datesWithReservations.push(dateKey);
-      if (!initialDateKey) {
-        initialDateKey = dateKey;
-        initialRows = loadedRows;
-      }
-    }
-
-    if (!initialDateKey) {
-      const todayRows = await fetchRowsForDate(todayKey);
-      if (todayRows.length) {
-        initialDateKey = todayKey;
-        initialRows = todayRows;
-        datesWithReservations.push(todayKey);
-      }
-    }
-
-    setAvailableDateKeys(datesWithReservations);
-    setSelectedDateKey(initialDateKey || todayKey);
-    setRows(initialRows || []);
-  };
-
-  const loadTrackedPackages = async () => {
-    if (!hotelUid) {
       setTrackedPackages([]);
       return;
     }
@@ -380,6 +324,16 @@ export default function VatChangeCorrectionPage() {
         type: pkg?.type === "perReservation" ? "perReservation" : "perAdult",
       })),
     );
+
+    const mostRecentDate = String(
+      settings?.vatChangeMostRecentStayDate || "",
+    ).trim();
+    const initialDateKey = /^\d{4}-\d{2}-\d{2}$/.test(mostRecentDate)
+      ? mostRecentDate
+      : todayKey;
+    setSelectedDateKey(initialDateKey);
+    const loadedRows = await fetchRowsForDate(initialDateKey);
+    setRows(loadedRows);
   };
 
   const persistTrackedPackages = async (nextPackages) => {
@@ -416,12 +370,10 @@ export default function VatChangeCorrectionPage() {
   };
 
   useEffect(() => {
-    Promise.all([loadAvailableDatesAndRows(), loadTrackedPackages()]).catch(
-      (error) => {
-        console.error(error);
-        setStatus({ type: "error", message: "Laden van data is mislukt." });
-      },
-    );
+    loadSettingsAndInitialRows().catch((error) => {
+      console.error(error);
+      setStatus({ type: "error", message: "Laden van data is mislukt." });
+    });
   }, [hotelUid, todayKey]);
 
   const todayOverview = useMemo(() => {
@@ -522,12 +474,16 @@ export default function VatChangeCorrectionPage() {
   };
 
   const handleDateChange = async (dateKey) => {
-    if (!dateKey || dateKey === selectedDateKey) {
+    const normalizedDate = String(dateKey || "").trim();
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate) ||
+      normalizedDate === selectedDateKey
+    ) {
       return;
     }
 
-    setSelectedDateKey(dateKey);
-    await loadRowsForDate(dateKey);
+    setSelectedDateKey(normalizedDate);
+    await loadRowsForDate(normalizedDate);
   };
 
   const handleConfirmChanged = async () => {
@@ -644,6 +600,28 @@ export default function VatChangeCorrectionPage() {
       });
       await batch.commit();
 
+      if (destination === "stay-date") {
+        const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
+        const settingsSnap = await getDoc(settingsRef);
+        const currentMostRecentDate = String(
+          settingsSnap.exists()
+            ? settingsSnap.data()?.vatChangeMostRecentStayDate || ""
+            : "",
+        ).trim();
+        const importedDate = selectedDateKey || todayKey;
+        const nextMostRecentDate =
+          /^\d{4}-\d{2}-\d{2}$/.test(currentMostRecentDate) &&
+          currentMostRecentDate > importedDate
+            ? currentMostRecentDate
+            : importedDate;
+
+        await setDoc(
+          settingsRef,
+          { vatChangeMostRecentStayDate: nextMostRecentDate },
+          { merge: true },
+        );
+      }
+
       const skippedInfo = parsed.skippedMarketCode
         ? ` (${parsed.skippedMarketCode} rij(en) met lege MARKET_CODE overgeslagen)`
         : "";
@@ -739,20 +717,12 @@ export default function VatChangeCorrectionPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <p className="text-sm text-gray-600">Overzicht voor</p>
-              <select
+              <input
+                type="date"
                 className="rounded border border-gray-300 px-2 py-1 text-sm"
                 value={selectedDateKey || todayKey}
                 onChange={(event) => handleDateChange(event.target.value)}
-              >
-                {(availableDateKeys.length
-                  ? availableDateKeys
-                  : [selectedDateKey || todayKey]
-                ).map((dateKey) => (
-                  <option key={dateKey} value={dateKey}>
-                    {dateKey}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <label className="inline-flex cursor-pointer items-center rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991919]">
