@@ -25,12 +25,16 @@ const createStep = () => ({
 });
 
 export default function VatChangeCorrectionHowToPage() {
-  const { hotelUid, roles } = useHotelContext();
+  const { hotelUid, hotelUids = [], roles } = useHotelContext();
   const navigate = useNavigate();
   const [steps, setSteps] = useState([]);
   const [status, setStatus] = useState({ type: "idle", message: "" });
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
+  const [showCopyPanel, setShowCopyPanel] = useState(false);
+  const [hotelOptions, setHotelOptions] = useState([]);
+  const [selectedHotelUids, setSelectedHotelUids] = useState([]);
   const [expandedImageUrl, setExpandedImageUrl] = useState("");
 
   const isAdmin = useMemo(
@@ -85,6 +89,38 @@ export default function VatChangeCorrectionHowToPage() {
     });
   }, [hotelUid]);
 
+  useEffect(() => {
+    const loadHotelOptions = async () => {
+      if (!hotelUids.length) {
+        setHotelOptions([]);
+        return;
+      }
+
+      const options = await Promise.all(
+        hotelUids.map(async (uid) => {
+          try {
+            const settingsSnap = await getDoc(doc(db, `hotels/${uid}/settings`, uid));
+            const settings = settingsSnap.exists() ? settingsSnap.data() : {};
+            return { uid, name: settings.hotelName || uid };
+          } catch {
+            return { uid, name: uid };
+          }
+        })
+      );
+
+      setHotelOptions(options.filter((option) => option.uid !== hotelUid));
+    };
+
+    loadHotelOptions().catch((error) => {
+      console.error(error);
+      setStatus({ type: "error", message: "Laden van hotels is mislukt." });
+    });
+  }, [hotelUid, hotelUids]);
+
+  useEffect(() => {
+    setSelectedHotelUids([]);
+  }, [hotelUid]);
+
   const uploadStepPhotos = async (step, stepIndex) => {
     const uploads = (step.photoFiles || []).map(async (file, photoIndex) => {
       const extension = file.name.includes(".") ? `.${file.name.split(".").pop()}` : "";
@@ -129,6 +165,51 @@ export default function VatChangeCorrectionHowToPage() {
     }
   };
 
+  const handleCopyToHotels = async () => {
+    if (!hotelUid || !isAdmin || !selectedHotelUids.length) return;
+
+    const hasPendingPhotoFiles = steps.some((step) => (step.photoFiles || []).length);
+    if (hasPendingPhotoFiles) {
+      setStatus({
+        type: "error",
+        message: "Sla eerst op voordat je kopieert, er staan nog niet-opgeslagen foto's klaar.",
+      });
+      return;
+    }
+
+    setIsCopying(true);
+    setStatus({ type: "idle", message: "" });
+
+    try {
+      const payload = steps
+        .map((step) => ({
+          title: String(step.title || "").trim(),
+          description: String(step.description || "").trim(),
+          photoUrls: Array.isArray(step.photoUrls) ? step.photoUrls : [],
+        }))
+        .filter((step) => step.title || step.description || step.photoUrls.length);
+
+      await Promise.all(
+        selectedHotelUids.map((targetHotelUid) => {
+          const targetSettingsRef = doc(db, `hotels/${targetHotelUid}/settings`, targetHotelUid);
+          return setDoc(targetSettingsRef, { vatChangeHowToSteps: payload }, { merge: true });
+        })
+      );
+
+      setStatus({
+        type: "success",
+        message: `How To gekopieerd naar ${selectedHotelUids.length} hotel(s).`,
+      });
+      setSelectedHotelUids([]);
+      setShowCopyPanel(false);
+    } catch (error) {
+      console.error(error);
+      setStatus({ type: "error", message: "Kopiëren naar hotels is mislukt." });
+    } finally {
+      setIsCopying(false);
+    }
+  };
+
   return (
     <>
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -144,15 +225,72 @@ export default function VatChangeCorrectionHowToPage() {
             </button>
 
             {isAdmin ? (
-              <button
-                type="button"
-                className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919]"
-                onClick={() => setIsEditing((prev) => !prev)}
-              >
-                {isEditing ? "Stop edit" : "Edit"}
-              </button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={() => setShowCopyPanel((prev) => !prev)}
+                >
+                  {showCopyPanel ? "Sluit kopiëren" : "Kopieer naar hotels"}
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919]"
+                  onClick={() => setIsEditing((prev) => !prev)}
+                >
+                  {isEditing ? "Stop edit" : "Edit"}
+                </button>
+              </div>
             ) : null}
           </div>
+
+          {showCopyPanel && isAdmin ? (
+            <div className="rounded border border-gray-200 bg-white p-4">
+              <p className="text-sm font-semibold text-gray-800">Kopieer How To naar andere hotels</p>
+              <p className="mt-1 text-sm text-gray-600">
+                Selecteer hotels waar je deze stappen (inclusief afbeeldingen) naartoe wilt kopiëren.
+              </p>
+
+              {hotelOptions.length ? (
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {hotelOptions.map((hotel) => {
+                    const isSelected = selectedHotelUids.includes(hotel.uid);
+                    return (
+                      <label
+                        key={hotel.uid}
+                        className="flex items-center gap-2 rounded border border-gray-200 px-3 py-2 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            setSelectedHotelUids((prev) =>
+                              checked ? [...prev, hotel.uid] : prev.filter((uid) => uid !== hotel.uid)
+                            );
+                          }}
+                        />
+                        <span>{hotel.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-3 text-sm text-gray-500">Geen andere hotels beschikbaar.</div>
+              )}
+
+              <div className="mt-3">
+                <button
+                  type="button"
+                  className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919] disabled:opacity-70"
+                  disabled={!selectedHotelUids.length || isCopying}
+                  onClick={handleCopyToHotels}
+                >
+                  {isCopying ? "Kopiëren..." : `Kopieer naar ${selectedHotelUids.length} hotel(s)`}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {status.message ? (
             <div
