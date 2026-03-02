@@ -80,6 +80,12 @@ const parseIsoDate = (value) => {
   return isValidDate ? parsed : null;
 };
 
+const subtractDays = (date, days) => {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() - days);
+  return nextDate;
+};
+
 const calculateNights = (dateOfArrival, dateOfDeparture) => {
   const arrival = parseIsoDate(dateOfArrival);
   const departure = parseIsoDate(dateOfDeparture);
@@ -298,6 +304,22 @@ export default function VatChangeCorrectionPage() {
     return loadedRows;
   };
 
+  const findMostRecentDateWithReservations = async (
+    startDate,
+    maxDaysToCheck = 365,
+  ) => {
+    for (let daysBack = 0; daysBack <= maxDaysToCheck; daysBack += 1) {
+      const candidateDate = subtractDays(startDate, daysBack);
+      const candidateDateKey = formatDateKey(candidateDate);
+      const candidateRows = await fetchRowsForDate(candidateDateKey);
+      if (candidateRows.length) {
+        return { dateKey: candidateDateKey, rows: candidateRows };
+      }
+    }
+
+    return null;
+  };
+
   const loadSettingsAndInitialRows = async () => {
     if (!hotelUid) {
       setRows([]);
@@ -329,12 +351,23 @@ export default function VatChangeCorrectionPage() {
     const mostRecentDate = String(
       settings?.vatChangeMostRecentStayDate || "",
     ).trim();
-    const initialDateKey = /^\d{4}-\d{2}-\d{2}$/.test(mostRecentDate)
-      ? mostRecentDate
-      : todayKey;
-    setSelectedDateKey(initialDateKey);
-    const loadedRows = await fetchRowsForDate(initialDateKey);
-    setRows(loadedRows);
+    const configuredDate = /^\d{4}-\d{2}-\d{2}$/.test(mostRecentDate)
+      ? parseIsoDate(mostRecentDate)
+      : null;
+    const startDate = configuredDate || parseIsoDate(todayKey) || new Date();
+
+    const recentWithReservations = await findMostRecentDateWithReservations(
+      startDate,
+    );
+
+    if (recentWithReservations) {
+      setSelectedDateKey(recentWithReservations.dateKey);
+      setRows(recentWithReservations.rows);
+      return;
+    }
+
+    setSelectedDateKey(todayKey);
+    setRows([]);
   };
 
   const persistTrackedPackages = async (nextPackages) => {
