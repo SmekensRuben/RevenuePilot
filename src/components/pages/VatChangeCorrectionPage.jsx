@@ -203,6 +203,7 @@ const parseTsv = (rawText) => {
 
     return {
       reservationNumber: getValue(row, "EXTERNAL_REFERENCE"),
+      fullName: getValue(row, "FULL_NAME"),
       dateOfArrival: parseDdMmYy(getValue(row, "ARRIVAL")),
       addedPackages,
       marketCode: getValue(row, "MARKET_CODE"),
@@ -471,6 +472,9 @@ export default function VatChangeCorrectionPage() {
       if (sortConfig.key === "adults") {
         return Number(row.adults) || 0;
       }
+      if (sortConfig.key === "fullName") {
+        return String(row.fullName || "").toLowerCase();
+      }
       if (
         sortConfig.key === "dateOfArrival" ||
         sortConfig.key === "dateOfDeparture"
@@ -620,6 +624,7 @@ export default function VatChangeCorrectionPage() {
               }
             : {
                 ...row,
+                fullName: String(row.fullName || ""),
                 toChange: shouldMarkToChange,
                 isChanged: false,
               };
@@ -945,6 +950,7 @@ export default function VatChangeCorrectionPage() {
                   <tr>
                     {[
                       { label: "Reservation Number", key: "reservationNumber" },
+                      { label: "Name", key: "fullName" },
                       { label: "Market Code", key: "marketCode" },
                       { label: "Adults", key: "adults" },
                       { label: "Arrival", key: "dateOfArrival" },
@@ -991,6 +997,7 @@ export default function VatChangeCorrectionPage() {
                           <td className="px-4 py-3">
                             {row.reservationNumber || row.id}
                           </td>
+                          <td className="px-4 py-3">{row.fullName || "-"}</td>
                           <td className="px-4 py-3">{row.marketCode || "-"}</td>
                           <td className="px-4 py-3">{row.adults ?? 0}</td>
                           <td className="px-4 py-3">
@@ -1009,7 +1016,7 @@ export default function VatChangeCorrectionPage() {
                     <tr>
                       <td
                         className="px-4 py-6 text-center text-gray-500"
-                        colSpan={6}
+                        colSpan={7}
                       >
                         {activeList === "to-change"
                           ? "Geen reservaties gevonden met To Change = true en Is Changed = false."
