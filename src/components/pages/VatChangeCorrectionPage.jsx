@@ -220,6 +220,34 @@ const parseTsv = (rawText) => {
   };
 };
 
+const parseReservationNumbersCsv = (rawText) => {
+  const normalized = String(rawText || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    throw new Error("Het bestand is leeg.");
+  }
+
+  const header = lines[0].replace(/^\uFEFF/, "");
+  if (header !== "RESERVATION_NUMBERS") {
+    throw new Error(
+      "Ongeldige kolom. Verwacht exact 1 kolom met header RESERVATION_NUMBERS.",
+    );
+  }
+
+  const reservationNumbers = [...new Set(lines.slice(1).filter(Boolean))];
+  if (!reservationNumbers.length) {
+    throw new Error("Geen reservationNumbers gevonden in het bestand.");
+  }
+
+  return reservationNumbers;
+};
+
 const createTrackedPackage = () => ({
   id: `tracked-package-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   name: "",
@@ -247,6 +275,7 @@ export default function VatChangeCorrectionPage() {
   const [confirmReservation, setConfirmReservation] = useState(null);
   const [trackedPackages, setTrackedPackages] = useState([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [wrongReservationImport, setWrongReservationImport] = useState(null);
   const [selectedDateKey, setSelectedDateKey] = useState("");
   const [sortConfig, setSortConfig] = useState({
     key: "reservationNumber",
@@ -643,6 +672,79 @@ export default function VatChangeCorrectionPage() {
     }
   };
 
+  const handleWrongReservationsImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !hotelUid) {
+      return;
+    }
+
+    try {
+      const reservationNumbers = parseReservationNumbersCsv(await file.text());
+      const completeListRef = collection(
+        db,
+        `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations`,
+      );
+      const completeListSnapshot = await getDocs(completeListRef);
+      const existingReservationNumbers = new Set(
+        completeListSnapshot.docs.map((docSnap) => docSnap.id),
+      );
+      const matchedReservationNumbers = reservationNumbers.filter((number) =>
+        existingReservationNumbers.has(number),
+      );
+
+      setWrongReservationImport({
+        reservationNumbers,
+        matchedReservationNumbers,
+      });
+      setStatus({
+        type: "success",
+        message: `CSV geladen (${reservationNumbers.length} reservationNumbers, ${matchedReservationNumbers.length} matches in complete list).`,
+      });
+    } catch (error) {
+      console.error(error);
+      setWrongReservationImport(null);
+      setStatus({
+        type: "error",
+        message: error.message || "Import van verkeerde reservaties mislukt.",
+      });
+    }
+  };
+
+  const handleConfirmWrongReservationsDelete = async () => {
+    if (!hotelUid || !wrongReservationImport?.matchedReservationNumbers?.length) {
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      let deletedCount = 0;
+
+      wrongReservationImport.matchedReservationNumbers.forEach((reservationNumber) => {
+        const docRef = doc(
+          db,
+          `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedCompleteList/listOfAllReservations/${reservationNumber}`,
+        );
+        batch.delete(docRef);
+        deletedCount += 1;
+      });
+
+      await batch.commit();
+      setWrongReservationImport(null);
+      setStatus({
+        type: "success",
+        message: `${deletedCount} matching reservation(s) verwijderd uit arrivalsDetailedCompleteList/listOfAllReservations.`,
+      });
+    } catch (error) {
+      console.error(error);
+      setStatus({
+        type: "error",
+        message: "Verwijderen van verkeerde reservaties is mislukt.",
+      });
+    }
+  };
+
   return (
     <>
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -745,8 +847,59 @@ export default function VatChangeCorrectionPage() {
                   />
                 </label>
               ) : null}
+              {isAdmin ? (
+                <label className="inline-flex cursor-pointer items-center rounded bg-[#5a1b1b] px-4 py-2 text-sm font-semibold text-white hover:bg-[#491616]">
+                  Import wrong reservations
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={handleWrongReservationsImport}
+                  />
+                </label>
+              ) : null}
             </div>
           </div>
+
+          {wrongReservationImport ? (
+            <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <h3 className="font-semibold">Wrong reservations import</h3>
+              <p className="mt-1">
+                Geïmporteerde reservationNumbers:
+                <span className="font-semibold">
+                  {` ${wrongReservationImport.reservationNumbers.length}`}
+                </span>
+                {`, matches in complete list: `}
+                <span className="font-semibold">
+                  {wrongReservationImport.matchedReservationNumbers.length}
+                </span>
+              </p>
+              <div className="mt-2 max-h-40 overflow-y-auto rounded border border-amber-200 bg-white px-3 py-2 font-mono text-xs">
+                {wrongReservationImport.reservationNumbers.join(", ")}
+              </div>
+              <p className="mt-2">
+                Bevestig je dat we alle reservations met deze reservationNumbers
+                verwijderen uit arrivalsDetailedCompleteList =&gt;
+                listOfAllReservations?
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={() => setWrongReservationImport(null)}
+                >
+                  Annuleren
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-[#b41f1f] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#991919]"
+                  onClick={handleConfirmWrongReservationsDelete}
+                >
+                  Verwijder reservations
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {status.message ? (
             <div
