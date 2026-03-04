@@ -48,22 +48,37 @@ const toIsoDate = ({ day, month, year }) => {
   return isoDate;
 };
 
+const normalizeYear = (yearDigits) => {
+  const normalized = String(yearDigits || "").trim();
+  if (/^\d{4}$/.test(normalized)) return normalized;
+  if (!/^\d{2}$/.test(normalized)) return "";
+
+  const yearNum = Number(normalized);
+  return String(2000 + yearNum);
+};
+
 const formatCompactDate = (value) => {
   const raw = String(value || "").trim();
   const digits = raw.replace(/\D/g, "");
-  if (!/^\d{7,8}$/.test(digits)) return "";
+  if (!/^\d{5,8}$/.test(digits)) return "";
 
-  const year = digits.slice(-4);
-  const prefix = digits.slice(0, -4);
+  const yearDigits = digits.length >= 7 ? digits.slice(-4) : digits.slice(-2);
+  const year = normalizeYear(yearDigits);
+  if (!year) return "";
+
+  const prefix = digits.slice(0, digits.length - yearDigits.length);
 
   if (prefix.length === 4) {
     return toIsoDate({ day: prefix.slice(0, 2), month: prefix.slice(2, 4), year });
   }
 
-  const asDmm = toIsoDate({ day: prefix.slice(0, 1), month: prefix.slice(1, 3), year });
-  if (asDmm) return asDmm;
+  if (prefix.length === 3) {
+    const asDmm = toIsoDate({ day: prefix.slice(0, 1), month: prefix.slice(1, 3), year });
+    if (asDmm) return asDmm;
+    return toIsoDate({ day: prefix.slice(0, 2), month: prefix.slice(2, 3), year });
+  }
 
-  return toIsoDate({ day: prefix.slice(0, 2), month: prefix.slice(2, 3), year });
+  return "";
 };
 
 const formatSlashDate = (value) => {
