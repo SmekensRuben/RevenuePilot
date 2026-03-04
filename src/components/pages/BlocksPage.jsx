@@ -20,21 +20,58 @@ import { useHotelContext } from "../../contexts/HotelContext";
 
 const normalizeHeader = (header) => String(header || "").replace(/^\uFEFF/, "").trim();
 
+const toIsoDate = ({ day, month, year }) => {
+  const dayNum = Number(day);
+  const monthNum = Number(month);
+  const yearNum = Number(year);
+
+  if (
+    !Number.isInteger(dayNum) ||
+    !Number.isInteger(monthNum) ||
+    !Number.isInteger(yearNum) ||
+    dayNum < 1 ||
+    dayNum > 31 ||
+    monthNum < 1 ||
+    monthNum > 12 ||
+    yearNum < 1900
+  ) {
+    return "";
+  }
+
+  const isoDate = `${String(yearNum).padStart(4, "0")}-${String(monthNum).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+  const checkDate = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(checkDate.getTime())) return "";
+  if (checkDate.getUTCFullYear() !== yearNum) return "";
+  if (checkDate.getUTCMonth() + 1 !== monthNum) return "";
+  if (checkDate.getUTCDate() !== dayNum) return "";
+
+  return isoDate;
+};
+
 const formatCompactDate = (value) => {
   const raw = String(value || "").trim();
-  if (!/^\d{8}$/.test(raw)) return "";
-  const day = raw.slice(0, 2);
-  const month = raw.slice(2, 4);
-  const year = raw.slice(4, 8);
-  return `${year}-${month}-${day}`;
+  const digits = raw.replace(/\D/g, "");
+  if (!/^\d{7,8}$/.test(digits)) return "";
+
+  const year = digits.slice(-4);
+  const prefix = digits.slice(0, -4);
+
+  if (prefix.length === 4) {
+    return toIsoDate({ day: prefix.slice(0, 2), month: prefix.slice(2, 4), year });
+  }
+
+  const asDmm = toIsoDate({ day: prefix.slice(0, 1), month: prefix.slice(1, 3), year });
+  if (asDmm) return asDmm;
+
+  return toIsoDate({ day: prefix.slice(0, 2), month: prefix.slice(2, 3), year });
 };
 
 const formatSlashDate = (value) => {
   const raw = String(value || "").trim();
-  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const match = raw.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
   if (!match) return "";
   const [, day, month, year] = match;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  return toIsoDate({ day, month, year });
 };
 
 const parseCsvFile = (file) =>
@@ -135,7 +172,7 @@ export default function BlocksPage() {
           insertDate: formatSlashDate(row.INSERT_DATE_SORT),
           roomStatus: String(row.ROOM_STATUS || "").trim(),
           cateringStatus: String(row.CATERING_STATUS || "").trim(),
-          roomNights: String(row.CF_NIGHTS || "").trim(),
+          roomNights: String(row.CF_NIGTHS || row.CF_NIGHTS || "").trim(),
         };
 
         groupedById.get(blockId).changes.push(change);
