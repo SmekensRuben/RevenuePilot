@@ -94,8 +94,24 @@ const formatSlashDate = (value) => {
     });
   }
 
-  const raw = String(value).trim().replace(/^'+/, "");
+  const raw = String(value)
+    .trim()
+    .replace(/^'+/, "")
+    .replace(/^"|"$/g, "");
   if (!raw) return "";
+
+  if (/^\d+(\.\d+)?$/.test(raw)) {
+    const serial = Number(raw);
+    if (Number.isFinite(serial)) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+      return toIsoDate({
+        day: date.getUTCDate(),
+        month: date.getUTCMonth() + 1,
+        year: date.getUTCFullYear(),
+      });
+    }
+  }
 
   const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (isoMatch) {
