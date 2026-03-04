@@ -57,6 +57,21 @@ const normalizeYear = (yearDigits) => {
   return String(2000 + yearNum);
 };
 
+const MONTHS = {
+  JAN: 1,
+  FEB: 2,
+  MAR: 3,
+  APR: 4,
+  MAY: 5,
+  JUN: 6,
+  JUL: 7,
+  AUG: 8,
+  SEP: 9,
+  OCT: 10,
+  NOV: 11,
+  DEC: 12,
+};
+
 const formatCompactDate = (value) => {
   const raw = String(value || "").trim();
   const digits = raw.replace(/\D/g, "");
@@ -99,6 +114,16 @@ const formatSlashDate = (value) => {
     .replace(/^'+/, "")
     .replace(/^"|"$/g, "");
   if (!raw) return "";
+
+  const monthNameMatch = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/);
+  if (monthNameMatch) {
+    const [, day, monthName, yearCandidate] = monthNameMatch;
+    const month = MONTHS[monthName.toUpperCase()];
+    const year = normalizeYear(yearCandidate);
+    if (month && year) {
+      return toIsoDate({ day, month, year });
+    }
+  }
 
   if (/^\d+(\.\d+)?$/.test(raw)) {
     const serial = Number(raw);
@@ -241,10 +266,12 @@ export default function BlocksPage() {
         }
 
         const insertDateRaw = getCsvValue(row, "INSERT_DATE_SORT");
+        const beginDateRaw = getCsvValue(row, "BEGIN_DATE") || getCsvValue(row, "BEGIN_DATE_SORT");
+        const endDateRaw = getCsvValue(row, "END_DATE") || getCsvValue(row, "END_DATE_SORT");
 
         const change = {
-          beginDate: formatCompactDate(getCsvValue(row, "BEGIN_DATE")),
-          endDate: formatCompactDate(getCsvValue(row, "END_DATE")),
+          beginDate: formatSlashDate(beginDateRaw) || formatCompactDate(beginDateRaw),
+          endDate: formatSlashDate(endDateRaw) || formatCompactDate(endDateRaw),
           roomRevenue: String(getCsvValue(row, "CF_ROOM_REVENUE") || "").trim(),
           insertDate:
             formatSlashDate(insertDateRaw) || formatCompactDate(insertDateRaw),
