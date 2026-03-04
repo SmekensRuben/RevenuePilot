@@ -82,10 +82,34 @@ const formatCompactDate = (value) => {
 };
 
 const formatSlashDate = (value) => {
-  const raw = String(value || "").trim();
-  const match = raw.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
-  if (!match) return "";
-  const [, day, month, year] = match;
+  if (value === null || value === undefined) return "";
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+    return toIsoDate({
+      day: date.getUTCDate(),
+      month: date.getUTCMonth() + 1,
+      year: date.getUTCFullYear(),
+    });
+  }
+
+  const raw = String(value).trim().replace(/^'+/, "");
+  if (!raw) return "";
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return toIsoDate({ day, month, year });
+  }
+
+  const parts = raw.split(/[^\d]+/).filter(Boolean);
+  if (parts.length < 3) return "";
+
+  const [day, month, yearCandidate] = parts;
+  const year = normalizeYear(yearCandidate);
+  if (!year) return "";
+
   return toIsoDate({ day, month, year });
 };
 
