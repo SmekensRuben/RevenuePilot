@@ -34,6 +34,7 @@ import RoomClassEditPage from "./components/pages/RoomClassEditPage.jsx";
 import GeneralSettingsPage from "./components/pages/GeneralSettingsPage.jsx";
 import ChecklistPage from "./components/pages/ChecklistPage.jsx";
 import ChecklistDetailPage from "./components/pages/ChecklistDetailPage.jsx";
+import BlocksPage from "./components/pages/BlocksPage.jsx";
 
 export default function AppRouter() {
   return (
@@ -285,6 +286,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <ChecklistDetailPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/groups-me/blocks"
+        element={
+          <ProtectedRoute>
+            <BlocksPage />
           </ProtectedRoute>
         }
       />
