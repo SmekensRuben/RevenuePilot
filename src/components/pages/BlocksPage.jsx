@@ -140,6 +140,26 @@ const parseCsvFile = (file) =>
     });
   });
 
+const getCsvValue = (row, columnName) => {
+  if (!row || typeof row !== "object") return "";
+  if (columnName in row) return row[columnName];
+
+  const normalizedTarget = String(columnName || "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toUpperCase();
+
+  const key = Object.keys(row).find((candidate) => {
+    const normalizedCandidate = String(candidate || "")
+      .replace(/^\uFEFF/, "")
+      .trim()
+      .toUpperCase();
+    return normalizedCandidate === normalizedTarget;
+  });
+
+  return key ? row[key] : "";
+};
+
 export default function BlocksPage() {
   const { hotelUid } = useHotelContext();
   const fileInputRef = useRef(null);
@@ -208,26 +228,31 @@ export default function BlocksPage() {
 
       const groupedById = new Map();
       rows.forEach((row) => {
-        const blockId = String(row.ALLOTMENT_HEADER_ID || "").trim();
+        const blockId = String(getCsvValue(row, "ALLOTMENT_HEADER_ID") || "").trim();
         if (!blockId) return;
 
         if (!groupedById.has(blockId)) {
           groupedById.set(blockId, {
-            blockName: String(row.DESCRIPTION || "").trim(),
-            ownerCode: String(row.OWNER_CODE || "").trim(),
-            companyName: String(row.COMPANY || "").trim(),
+            blockName: String(getCsvValue(row, "DESCRIPTION") || "").trim(),
+            ownerCode: String(getCsvValue(row, "OWNER_CODE") || "").trim(),
+            companyName: String(getCsvValue(row, "COMPANY") || "").trim(),
             changes: [],
           });
         }
 
+        const insertDateRaw = getCsvValue(row, "INSERT_DATE_SORT");
+
         const change = {
-          beginDate: formatCompactDate(row.BEGIN_DATE),
-          endDate: formatCompactDate(row.END_DATE),
-          roomRevenue: String(row.CF_ROOM_REVENUE || "").trim(),
-          insertDate: formatSlashDate(row.INSERT_DATE_SORT),
-          roomStatus: String(row.ROOM_STATUS || "").trim(),
-          cateringStatus: String(row.CATERING_STATUS || "").trim(),
-          roomNights: String(row.CF_NIGTHS || row.CF_NIGHTS || "").trim(),
+          beginDate: formatCompactDate(getCsvValue(row, "BEGIN_DATE")),
+          endDate: formatCompactDate(getCsvValue(row, "END_DATE")),
+          roomRevenue: String(getCsvValue(row, "CF_ROOM_REVENUE") || "").trim(),
+          insertDate:
+            formatSlashDate(insertDateRaw) || formatCompactDate(insertDateRaw),
+          roomStatus: String(getCsvValue(row, "ROOM_STATUS") || "").trim(),
+          cateringStatus: String(getCsvValue(row, "CATERING_STATUS") || "").trim(),
+          roomNights: String(
+            getCsvValue(row, "CF_NIGTHS") || getCsvValue(row, "CF_NIGHTS") || ""
+          ).trim(),
         };
 
         groupedById.get(blockId).changes.push(change);
