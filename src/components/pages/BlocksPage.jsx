@@ -171,7 +171,9 @@ export default function BlocksPage() {
   const [endDateFrom, setEndDateFrom] = useState("");
   const [endDateTo, setEndDateTo] = useState("");
   const [roomStatusFilter, setRoomStatusFilter] = useState([]);
+  const [isRoomStatusOpen, setIsRoomStatusOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "lastUpdate", direction: "desc" });
+  const roomStatusDropdownRef = useRef(null);
 
   const todayLabel = useMemo(
     () =>
@@ -214,6 +216,20 @@ export default function BlocksPage() {
   useEffect(() => {
     loadBlocks();
   }, [hotelUid]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        roomStatusDropdownRef.current
+        && !roomStatusDropdownRef.current.contains(event.target)
+      ) {
+        setIsRoomStatusOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const filteredBlocks = useMemo(() => {
     const blockQuery = blockFilter.trim().toLowerCase();
@@ -292,10 +308,18 @@ export default function BlocksPage() {
     });
   };
 
-  const handleRoomStatusFilterChange = (event) => {
-    const selectedValues = [...event.target.selectedOptions].map((option) => option.value);
-    setRoomStatusFilter(selectedValues);
+  const handleRoomStatusToggle = (status) => {
+    setRoomStatusFilter((current) => {
+      if (current.includes(status)) {
+        return current.filter((item) => item !== status);
+      }
+      return [...current, status];
+    });
   };
+
+  const roomStatusLabel = roomStatusFilter.length
+    ? `${roomStatusFilter.length} geselecteerd`
+    : "Alle statussen";
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -431,6 +455,46 @@ export default function BlocksPage() {
                   />
                 </label>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Room status
+                  <div ref={roomStatusDropdownRef} className="relative mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsRoomStatusOpen((prev) => !prev)}
+                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-left bg-white flex items-center justify-between"
+                    >
+                      <span className="truncate">{roomStatusLabel}</span>
+                      <span className="text-xs text-gray-500">▾</span>
+                    </button>
+                    {isRoomStatusOpen && (
+                      <div className="absolute z-20 mt-1 w-full rounded border border-gray-200 bg-white shadow-lg p-2 max-h-52 overflow-y-auto">
+                        {roomStatusOptions.length === 0 ? (
+                          <p className="text-xs text-gray-500 px-1 py-2">Geen room statussen beschikbaar.</p>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setRoomStatusFilter([])}
+                              className="text-xs text-[#b41f1f] font-semibold px-1 py-1 mb-1"
+                            >
+                              Wis selectie
+                            </button>
+                            {roomStatusOptions.map((status) => (
+                              <label key={status} className="flex items-center gap-2 px-1 py-1 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={roomStatusFilter.includes(status)}
+                                  onChange={() => handleRoomStatusToggle(status)}
+                                />
+                                <span>{status}</span>
+                              </label>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
                   End Date From
                   <input
                     type="date"
@@ -448,25 +512,7 @@ export default function BlocksPage() {
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </label>
-                <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  Room status (multi-select)
-                  <select
-                    multiple
-                    value={roomStatusFilter}
-                    onChange={handleRoomStatusFilterChange}
-                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm min-h-[110px]"
-                  >
-                    {roomStatusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
-              <p className="text-xs text-gray-500">
-                Tip: gebruik Ctrl/Cmd + klik om meerdere room statussen te kiezen.
-              </p>
 
               {loading ? (
                 <p className="text-sm text-gray-500">Blocks laden...</p>
