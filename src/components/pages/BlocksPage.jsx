@@ -102,9 +102,7 @@ const parseDateValue = (value) => {
     if (month && year) return toIsoDate({ day, month, year });
   }
 
-  if (/^\d+(\.\d+)?$/.test(raw)) {
-    return parseExcelSerial(raw);
-  }
+  if (/^\d+(\.\d+)?$/.test(raw)) return parseExcelSerial(raw);
 
   const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (isoMatch) {
@@ -151,6 +149,15 @@ const getLatestChange = (changes) => {
   )[changes.length - 1];
 };
 
+const columns = [
+  { key: "block", label: "Block" },
+  { key: "beginDate", label: "Begin date" },
+  { key: "endDate", label: "End date" },
+  { key: "roomStatus", label: "Room status" },
+  { key: "lastUpdate", label: "Last Update" },
+  { key: "roomNights", label: "Room nights" },
+];
+
 export default function BlocksPage() {
   const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
@@ -158,6 +165,11 @@ export default function BlocksPage() {
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [blockFilter, setBlockFilter] = useState("");
+  const [beginDateFilter, setBeginDateFilter] = useState("");
+  const [endDateFilter, setEndDateFilter] = useState("");
+  const [roomStatusFilter, setRoomStatusFilter] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: "lastUpdate", direction: "desc" });
 
   const todayLabel = useMemo(
     () =>
@@ -200,6 +212,57 @@ export default function BlocksPage() {
   useEffect(() => {
     loadBlocks();
   }, [hotelUid]);
+
+  const filteredBlocks = useMemo(() => {
+    const blockQuery = blockFilter.trim().toLowerCase();
+    const statusQuery = roomStatusFilter.trim().toLowerCase();
+
+    return blocks.filter((block) => {
+      const latest = block.latestChange || {};
+      const blockValue = String(block.blockName || block.id || "").toLowerCase();
+      const statusValue = String(latest.roomStatus || "").toLowerCase();
+      const beginDate = String(latest.beginDate || "");
+      const endDate = String(latest.endDate || "");
+
+      const matchesBlock = blockQuery ? blockValue.includes(blockQuery) : true;
+      const matchesStatus = statusQuery ? statusValue.includes(statusQuery) : true;
+      const matchesBeginDate = beginDateFilter ? beginDate === beginDateFilter : true;
+      const matchesEndDate = endDateFilter ? endDate === endDateFilter : true;
+
+      return matchesBlock && matchesStatus && matchesBeginDate && matchesEndDate;
+    });
+  }, [blocks, blockFilter, roomStatusFilter, beginDateFilter, endDateFilter]);
+
+  const sortedBlocks = useMemo(() => {
+    const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
+
+    return [...filteredBlocks].sort((a, b) => {
+      const aLatest = a.latestChange || {};
+      const bLatest = b.latestChange || {};
+
+      const aValue =
+        sortConfig.key === "block"
+          ? String(a.blockName || a.id || "")
+          : String(aLatest[sortConfig.key] || "");
+
+      const bValue =
+        sortConfig.key === "block"
+          ? String(b.blockName || b.id || "")
+          : String(bLatest[sortConfig.key] || "");
+
+      return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: "base" })
+        * directionMultiplier;
+    });
+  }, [filteredBlocks, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig((current) => {
+      if (current.key === key) {
+        return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: "asc" };
+    });
+  };
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -304,25 +367,81 @@ export default function BlocksPage() {
           </Card>
 
           <Card>
-            <div className="p-5 sm:p-6">
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Search block
+                  <input
+                    type="text"
+                    value={blockFilter}
+                    onChange={(event) => setBlockFilter(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="Zoek block"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Begin date
+                  <input
+                    type="date"
+                    value={beginDateFilter}
+                    onChange={(event) => setBeginDateFilter(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  End date
+                  <input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(event) => setEndDateFilter(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Room status
+                  <input
+                    type="text"
+                    value={roomStatusFilter}
+                    onChange={(event) => setRoomStatusFilter(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="Bijv. ACT"
+                  />
+                </label>
+              </div>
+
               {loading ? (
                 <p className="text-sm text-gray-500">Blocks laden...</p>
-              ) : !blocks.length ? (
-                <p className="text-sm text-gray-500">Nog geen blocks gevonden.</p>
+              ) : !sortedBlocks.length ? (
+                <p className="text-sm text-gray-500">Geen blocks gevonden voor deze filters.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
                     <thead>
                       <tr className="border-b text-left text-gray-600">
-                        <th className="py-2 pr-4">Block</th>
-                        <th className="py-2 pr-4">Begin date</th>
-                        <th className="py-2 pr-4">End date</th>
-                        <th className="py-2 pr-4">Room status</th>
-                        <th className="py-2 pr-4">Room nights</th>
+                        {columns.map((column) => {
+                          const isActive = sortConfig.key === column.key;
+                          const indicator = isActive
+                            ? sortConfig.direction === "asc"
+                              ? "▲"
+                              : "▼"
+                            : "⇅";
+                          return (
+                            <th key={column.key} className="py-2 pr-4">
+                              <button
+                                type="button"
+                                onClick={() => handleSort(column.key)}
+                                className="inline-flex items-center gap-1 font-semibold"
+                              >
+                                <span>{column.label}</span>
+                                <span className="text-xs text-gray-500">{indicator}</span>
+                              </button>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
-                      {blocks.map((block) => (
+                      {sortedBlocks.map((block) => (
                         <tr
                           key={block.id}
                           onClick={() => navigate(`/groups-me/blocks/${block.id}`)}
@@ -332,6 +451,7 @@ export default function BlocksPage() {
                           <td className="py-2 pr-4">{block.latestChange?.beginDate || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.endDate || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.roomStatus || "-"}</td>
+                          <td className="py-2 pr-4">{block.latestChange?.insertDate || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.roomNights || "-"}</td>
                         </tr>
                       ))}
