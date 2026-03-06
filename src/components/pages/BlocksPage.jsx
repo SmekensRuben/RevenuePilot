@@ -166,9 +166,11 @@ export default function BlocksPage() {
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [blockFilter, setBlockFilter] = useState("");
-  const [beginDateFilter, setBeginDateFilter] = useState("");
-  const [endDateFilter, setEndDateFilter] = useState("");
-  const [roomStatusFilter, setRoomStatusFilter] = useState("");
+  const [beginDateFrom, setBeginDateFrom] = useState("");
+  const [beginDateTo, setBeginDateTo] = useState("");
+  const [endDateFrom, setEndDateFrom] = useState("");
+  const [endDateTo, setEndDateTo] = useState("");
+  const [roomStatusFilter, setRoomStatusFilter] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: "lastUpdate", direction: "desc" });
 
   const todayLabel = useMemo(
@@ -215,23 +217,50 @@ export default function BlocksPage() {
 
   const filteredBlocks = useMemo(() => {
     const blockQuery = blockFilter.trim().toLowerCase();
-    const statusQuery = roomStatusFilter.trim().toLowerCase();
 
     return blocks.filter((block) => {
       const latest = block.latestChange || {};
       const blockValue = String(block.blockName || block.id || "").toLowerCase();
-      const statusValue = String(latest.roomStatus || "").toLowerCase();
+      const statusValue = String(latest.roomStatus || "").trim();
       const beginDate = String(latest.beginDate || "");
       const endDate = String(latest.endDate || "");
 
       const matchesBlock = blockQuery ? blockValue.includes(blockQuery) : true;
-      const matchesStatus = statusQuery ? statusValue.includes(statusQuery) : true;
-      const matchesBeginDate = beginDateFilter ? beginDate === beginDateFilter : true;
-      const matchesEndDate = endDateFilter ? endDate === endDateFilter : true;
+      const matchesStatus = roomStatusFilter.length
+        ? roomStatusFilter.includes(statusValue)
+        : true;
+      const matchesBeginDateFrom = beginDateFrom ? beginDate >= beginDateFrom : true;
+      const matchesBeginDateTo = beginDateTo ? beginDate <= beginDateTo : true;
+      const matchesEndDateFrom = endDateFrom ? endDate >= endDateFrom : true;
+      const matchesEndDateTo = endDateTo ? endDate <= endDateTo : true;
 
-      return matchesBlock && matchesStatus && matchesBeginDate && matchesEndDate;
+      return (
+        matchesBlock
+        && matchesStatus
+        && matchesBeginDateFrom
+        && matchesBeginDateTo
+        && matchesEndDateFrom
+        && matchesEndDateTo
+      );
     });
-  }, [blocks, blockFilter, roomStatusFilter, beginDateFilter, endDateFilter]);
+  }, [
+    blocks,
+    blockFilter,
+    roomStatusFilter,
+    beginDateFrom,
+    beginDateTo,
+    endDateFrom,
+    endDateTo,
+  ]);
+
+  const roomStatusOptions = useMemo(() => {
+    const set = new Set(
+      blocks
+        .map((block) => String(block.latestChange?.roomStatus || "").trim())
+        .filter(Boolean)
+    );
+    return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [blocks]);
 
   const sortedBlocks = useMemo(() => {
     const directionMultiplier = sortConfig.direction === "asc" ? 1 : -1;
@@ -240,15 +269,14 @@ export default function BlocksPage() {
       const aLatest = a.latestChange || {};
       const bLatest = b.latestChange || {};
 
-      const aValue =
-        sortConfig.key === "block"
-          ? String(a.blockName || a.id || "")
-          : String(aLatest[sortConfig.key] || "");
+      const getSortValue = (entry, latest) => {
+        if (sortConfig.key === "block") return String(entry.blockName || entry.id || "");
+        if (sortConfig.key === "lastUpdate") return String(latest.insertDate || "");
+        return String(latest[sortConfig.key] || "");
+      };
 
-      const bValue =
-        sortConfig.key === "block"
-          ? String(b.blockName || b.id || "")
-          : String(bLatest[sortConfig.key] || "");
+      const aValue = getSortValue(a, aLatest);
+      const bValue = getSortValue(b, bLatest);
 
       return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: "base" })
         * directionMultiplier;
@@ -262,6 +290,11 @@ export default function BlocksPage() {
       }
       return { key, direction: "asc" };
     });
+  };
+
+  const handleRoomStatusFilterChange = (event) => {
+    const selectedValues = [...event.target.selectedOptions].map((option) => option.value);
+    setRoomStatusFilter(selectedValues);
   };
 
   const handleFileChange = async (event) => {
@@ -368,7 +401,7 @@ export default function BlocksPage() {
 
           <Card>
             <div className="p-5 sm:p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
                   Search block
                   <input
@@ -380,34 +413,60 @@ export default function BlocksPage() {
                   />
                 </label>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  Begin date
+                  Begin Date From
                   <input
                     type="date"
-                    value={beginDateFilter}
-                    onChange={(event) => setBeginDateFilter(event.target.value)}
+                    value={beginDateFrom}
+                    onChange={(event) => setBeginDateFrom(event.target.value)}
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  End date
+                  Begin Date To
                   <input
                     type="date"
-                    value={endDateFilter}
-                    onChange={(event) => setEndDateFilter(event.target.value)}
+                    value={beginDateTo}
+                    onChange={(event) => setBeginDateTo(event.target.value)}
                     className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="flex flex-col text-sm font-semibold text-gray-700">
-                  Room status
+                  End Date From
                   <input
-                    type="text"
+                    type="date"
+                    value={endDateFrom}
+                    onChange={(event) => setEndDateFrom(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  End Date To
+                  <input
+                    type="date"
+                    value={endDateTo}
+                    onChange={(event) => setEndDateTo(event.target.value)}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col text-sm font-semibold text-gray-700">
+                  Room status (multi-select)
+                  <select
+                    multiple
                     value={roomStatusFilter}
-                    onChange={(event) => setRoomStatusFilter(event.target.value)}
-                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                    placeholder="Bijv. ACT"
-                  />
+                    onChange={handleRoomStatusFilterChange}
+                    className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm min-h-[110px]"
+                  >
+                    {roomStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
+              <p className="text-xs text-gray-500">
+                Tip: gebruik Ctrl/Cmd + klik om meerdere room statussen te kiezen.
+              </p>
 
               {loading ? (
                 <p className="text-sm text-gray-500">Blocks laden...</p>
