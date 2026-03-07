@@ -151,6 +151,7 @@ const getLatestChange = (changes) => {
 
 const columns = [
   { key: "block", label: "Block" },
+  { key: "owner", label: "Owner" },
   { key: "beginDate", label: "Begin date" },
   { key: "endDate", label: "End date" },
   { key: "roomStatus", label: "Room status" },
@@ -173,6 +174,9 @@ export default function BlocksPage() {
   const [roomStatusFilter, setRoomStatusFilter] = useState([]);
   const [isRoomStatusOpen, setIsRoomStatusOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "lastUpdate", direction: "desc" });
+  const [displayMode, setDisplayMode] = useState("list");
+  const [calendarView, setCalendarView] = useState("week");
+  const [calendarCursor, setCalendarCursor] = useState(() => new Date().toISOString().slice(0, 10));
   const roomStatusDropdownRef = useRef(null);
 
   const todayLabel = useMemo(
@@ -287,6 +291,7 @@ export default function BlocksPage() {
 
       const getSortValue = (entry, latest) => {
         if (sortConfig.key === "block") return String(entry.blockName || entry.id || "");
+        if (sortConfig.key === "owner") return String(entry.ownerCode || "");
         if (sortConfig.key === "lastUpdate") return String(latest.insertDate || "");
         return String(latest[sortConfig.key] || "");
       };
@@ -320,6 +325,72 @@ export default function BlocksPage() {
   const roomStatusLabel = roomStatusFilter.length
     ? `${roomStatusFilter.length} geselecteerd`
     : "Alle statussen";
+
+  const calendarCursorDate = useMemo(() => {
+    const [year, month, day] = String(calendarCursor || "").split("-").map(Number);
+    if (!year || !month || !day) return new Date();
+    return new Date(year, month - 1, day);
+  }, [calendarCursor]);
+
+  const addDays = (date, days) => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  };
+
+  const formatDateKey = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const startOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const startOfMonthGrid = (date) => {
+    const first = new Date(date.getFullYear(), date.getMonth(), 1);
+    return startOfWeek(first);
+  };
+
+  const calendarDays = useMemo(() => {
+    if (calendarView === "week") {
+      const start = startOfWeek(calendarCursorDate);
+      return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+    }
+    const start = startOfMonthGrid(calendarCursorDate);
+    return Array.from({ length: 42 }, (_, index) => addDays(start, index));
+  }, [calendarView, calendarCursorDate]);
+
+  const calendarEntriesByDay = useMemo(() => {
+    const entries = {};
+    calendarDays.forEach((date) => {
+      const dayKey = formatDateKey(date);
+      entries[dayKey] = filteredBlocks.filter((block) => {
+        const begin = String(block.latestChange?.beginDate || "");
+        const end = String(block.latestChange?.endDate || "");
+        if (!begin || !end) return false;
+        return begin <= dayKey && dayKey <= end;
+      });
+    });
+    return entries;
+  }, [calendarDays, filteredBlocks]);
+
+  const shiftCalendar = (direction) => {
+    const base = new Date(calendarCursorDate);
+    if (calendarView === "week") {
+      base.setDate(base.getDate() + direction * 7);
+    } else {
+      base.setMonth(base.getMonth() + direction);
+    }
+    setCalendarCursor(formatDateKey(base));
+  };
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -406,6 +477,22 @@ export default function BlocksPage() {
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Blocks</h1>
                 <p className="text-sm text-gray-600 mt-1">Klik op een rij om details te openen.</p>
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    type="button"
+                    onClick={() => setDisplayMode("list")}
+                    className={displayMode === "list" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                  >
+                    Lijst
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setDisplayMode("calendar")}
+                    className={displayMode === "calendar" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                  >
+                    Kalender
+                  </Button>
+                </div>
               </div>
               <div>
                 <input
@@ -514,10 +601,53 @@ export default function BlocksPage() {
                 </label>
               </div>
 
+              {displayMode === "calendar" && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border border-gray-200 p-3 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <Button type="button" onClick={() => setCalendarView("week")} className={calendarView === "week" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}>Week</Button>
+                    <Button type="button" onClick={() => setCalendarView("month")} className={calendarView === "month" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}>Month</Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" onClick={() => shiftCalendar(-1)} className="bg-gray-200 text-gray-700 hover:bg-gray-300">←</Button>
+                    <Button type="button" onClick={() => setCalendarCursor(formatDateKey(new Date()))} className="bg-gray-200 text-gray-700 hover:bg-gray-300">Vandaag</Button>
+                    <Button type="button" onClick={() => shiftCalendar(1)} className="bg-gray-200 text-gray-700 hover:bg-gray-300">→</Button>
+                  </div>
+                </div>
+              )}
+
               {loading ? (
                 <p className="text-sm text-gray-500">Blocks laden...</p>
-              ) : !sortedBlocks.length ? (
+              ) : displayMode === "list" && !sortedBlocks.length ? (
                 <p className="text-sm text-gray-500">Geen blocks gevonden voor deze filters.</p>
+              ) : displayMode === "calendar" ? (
+                <div className={calendarView === "month" ? "grid grid-cols-7 gap-2" : "grid grid-cols-1 md:grid-cols-7 gap-2"}>
+                  {calendarDays.map((day) => {
+                    const dayKey = formatDateKey(day);
+                    const dayEntries = calendarEntriesByDay[dayKey] || [];
+                    const isCurrentMonth = day.getMonth() === calendarCursorDate.getMonth();
+                    return (
+                      <div key={dayKey} className={`border rounded p-2 min-h-[110px] ${isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"}`}>
+                        <div className="text-xs font-semibold mb-1">{dayKey}</div>
+                        <div className="space-y-1">
+                          {dayEntries.slice(0, 3).map((block) => (
+                            <button
+                              key={`${dayKey}-${block.id}`}
+                              type="button"
+                              onClick={() => navigate(`/groups-me/blocks/${block.id}`)}
+                              className="w-full text-left text-xs rounded bg-[#f9e5e5] text-[#8f1717] px-2 py-1 truncate"
+                              title={`${block.blockName || block.id} (${block.ownerCode || "-"})`}
+                            >
+                              {block.blockName || block.id}
+                            </button>
+                          ))}
+                          {dayEntries.length > 3 && (
+                            <p className="text-xs text-gray-500">+{dayEntries.length - 3} meer</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
@@ -553,6 +683,7 @@ export default function BlocksPage() {
                           className="border-b last:border-b-0 text-gray-800 cursor-pointer hover:bg-gray-50"
                         >
                           <td className="py-2 pr-4 font-medium">{block.blockName || block.id}</td>
+                          <td className="py-2 pr-4">{block.ownerCode || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.beginDate || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.endDate || "-"}</td>
                           <td className="py-2 pr-4">{block.latestChange?.roomStatus || "-"}</td>
