@@ -189,7 +189,7 @@ const columns = [
 
 const getStatusColorClass = (status) => {
   const key = String(status || "").trim().toLowerCase();
-  if (key === "prospect") return "bg-blue-100 text-blue-800 border-blue-300";
+  if (key === "prospect" || key === "pro") return "bg-blue-100 text-blue-800 border-blue-300";
   if (key === "te1") return "bg-yellow-100 text-yellow-800 border-yellow-300";
   if (key === "def" || key === "act") return "bg-green-100 text-green-800 border-green-300";
   if (key === "tdn") return "bg-purple-100 text-purple-800 border-purple-300";
@@ -485,28 +485,30 @@ export default function BlocksPage() {
       <PageContainer>
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 space-y-6">
           <Card>
-            <div className="p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
+            <div className="p-4 sm:p-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="sm:w-1/3">
                 <h1 className="text-2xl font-bold text-gray-900">Blocks</h1>
                 <p className="text-sm text-gray-600 mt-1">Klik op een block in de kalender of lijst voor details.</p>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-2">
+              <div className="sm:w-1/3 flex justify-center">
+                <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
                   <button
                     type="button"
                     onClick={() => setDisplayMode("list")}
-                    className={`px-2 py-1 text-xs rounded ${displayMode === "list" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${displayMode === "list" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     Lijst
                   </button>
                   <button
                     type="button"
                     onClick={() => setDisplayMode("calendar")}
-                    className={`px-2 py-1 text-xs rounded ${displayMode === "calendar" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${displayMode === "calendar" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     Kalender
                   </button>
                 </div>
+              </div>
+              <div className="sm:w-1/3 flex sm:justify-end">
                 <div>
                   <input
                     ref={fileInputRef}
@@ -515,7 +517,11 @@ export default function BlocksPage() {
                     className="hidden"
                     onChange={handleFileChange}
                   />
-                  <Button onClick={() => fileInputRef.current?.click()} disabled={importing || !hotelUid}>
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importing || !hotelUid}
+                    className="whitespace-nowrap px-3 py-2 text-sm"
+                  >
                     <FileUp className="h-4 w-4 mr-2" />
                     {importing ? "Importeren..." : "Import blocks"}
                   </Button>
