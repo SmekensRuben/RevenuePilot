@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import Papa from "papaparse";
-import { FileUp } from "lucide-react";
+import { FileUp, X } from "lucide-react";
 import { toast } from "react-toastify";
 import HeaderBar from "../layout/HeaderBar";
 import PageContainer from "../layout/PageContainer";
@@ -149,6 +148,35 @@ const getLatestChange = (changes) => {
   )[changes.length - 1];
 };
 
+const parseIsoToDate = (value) => {
+  if (!value) return null;
+  const [y, m, d] = String(value).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+};
+
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const addDays = (date, days) => {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+};
+
+const startOfWeek = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
 const columns = [
   { key: "block", label: "Block" },
   { key: "owner", label: "Owner" },
@@ -159,10 +187,21 @@ const columns = [
   { key: "roomNights", label: "Room nights" },
 ];
 
+const getStatusColorClass = (status) => {
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "prospect") return "bg-blue-100 text-blue-800 border-blue-300";
+  if (key === "te1") return "bg-yellow-100 text-yellow-800 border-yellow-300";
+  if (key === "def" || key === "act") return "bg-green-100 text-green-800 border-green-300";
+  if (["tdn", "can", "los"].includes(key)) return "bg-purple-100 text-purple-800 border-purple-300";
+  if (key === "roos") return "bg-pink-100 text-pink-800 border-pink-300";
+  if (key === "rood") return "bg-red-100 text-red-800 border-red-300";
+  return "bg-gray-100 text-gray-800 border-gray-300";
+};
+
 export default function BlocksPage() {
-  const navigate = useNavigate();
   const { hotelUid } = useHotelContext();
   const fileInputRef = useRef(null);
+  const roomStatusDropdownRef = useRef(null);
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -177,7 +216,7 @@ export default function BlocksPage() {
   const [displayMode, setDisplayMode] = useState("list");
   const [calendarView, setCalendarView] = useState("week");
   const [calendarCursor, setCalendarCursor] = useState(() => new Date().toISOString().slice(0, 10));
-  const roomStatusDropdownRef = useRef(null);
+  const [selectedBlock, setSelectedBlock] = useState(null);
 
   const todayLabel = useMemo(
     () =>
@@ -223,10 +262,7 @@ export default function BlocksPage() {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        roomStatusDropdownRef.current
-        && !roomStatusDropdownRef.current.contains(event.target)
-      ) {
+      if (roomStatusDropdownRef.current && !roomStatusDropdownRef.current.contains(event.target)) {
         setIsRoomStatusOpen(false);
       }
     };
@@ -246,9 +282,7 @@ export default function BlocksPage() {
       const endDate = String(latest.endDate || "");
 
       const matchesBlock = blockQuery ? blockValue.includes(blockQuery) : true;
-      const matchesStatus = roomStatusFilter.length
-        ? roomStatusFilter.includes(statusValue)
-        : true;
+      const matchesStatus = roomStatusFilter.length ? roomStatusFilter.includes(statusValue) : true;
       const matchesBeginDateFrom = beginDateFrom ? beginDate >= beginDateFrom : true;
       const matchesBeginDateTo = beginDateTo ? beginDate <= beginDateTo : true;
       const matchesEndDateFrom = endDateFrom ? endDate >= endDateFrom : true;
@@ -263,15 +297,7 @@ export default function BlocksPage() {
         && matchesEndDateTo
       );
     });
-  }, [
-    blocks,
-    blockFilter,
-    roomStatusFilter,
-    beginDateFrom,
-    beginDateTo,
-    endDateFrom,
-    endDateTo,
-  ]);
+  }, [blocks, blockFilter, roomStatusFilter, beginDateFrom, beginDateTo, endDateFrom, endDateTo]);
 
   const roomStatusOptions = useMemo(() => {
     const set = new Set(
@@ -304,93 +330,74 @@ export default function BlocksPage() {
     });
   }, [filteredBlocks, sortConfig]);
 
-  const handleSort = (key) => {
-    setSortConfig((current) => {
-      if (current.key === key) {
-        return { key, direction: current.direction === "asc" ? "desc" : "asc" };
-      }
-      return { key, direction: "asc" };
-    });
-  };
-
-  const handleRoomStatusToggle = (status) => {
-    setRoomStatusFilter((current) => {
-      if (current.includes(status)) {
-        return current.filter((item) => item !== status);
-      }
-      return [...current, status];
-    });
-  };
-
-  const roomStatusLabel = roomStatusFilter.length
-    ? `${roomStatusFilter.length} geselecteerd`
-    : "Alle statussen";
-
   const calendarCursorDate = useMemo(() => {
     const [year, month, day] = String(calendarCursor || "").split("-").map(Number);
     if (!year || !month || !day) return new Date();
     return new Date(year, month - 1, day);
   }, [calendarCursor]);
 
-  const addDays = (date, days) => {
-    const result = new Date(date);
-    result.setDate(result.getDate() + days);
-    return result;
-  };
+  const weekStarts = useMemo(() => {
+    if (calendarView === "week") return [startOfWeek(calendarCursorDate)];
+    const firstDay = new Date(calendarCursorDate.getFullYear(), calendarCursorDate.getMonth(), 1);
+    const firstWeekStart = startOfWeek(firstDay);
+    return Array.from({ length: 6 }, (_, i) => addDays(firstWeekStart, i * 7));
+  }, [calendarCursorDate, calendarView]);
 
-  const formatDateKey = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  const buildWeekBars = (weekStart) => {
+    const weekEnd = addDays(weekStart, 6);
 
-  const startOfWeek = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  };
+    const segments = filteredBlocks
+      .map((block) => {
+        const begin = parseIsoToDate(block.latestChange?.beginDate);
+        const end = parseIsoToDate(block.latestChange?.endDate);
+        if (!begin || !end) return null;
+        if (end < weekStart || begin > weekEnd) return null;
 
-  const startOfMonthGrid = (date) => {
-    const first = new Date(date.getFullYear(), date.getMonth(), 1);
-    return startOfWeek(first);
-  };
+        const segmentStart = begin < weekStart ? weekStart : begin;
+        const segmentEnd = end > weekEnd ? weekEnd : end;
+        const startCol = Math.round((segmentStart - weekStart) / (24 * 60 * 60 * 1000)) + 1;
+        const endCol = Math.round((segmentEnd - weekStart) / (24 * 60 * 60 * 1000)) + 2;
 
-  const calendarDays = useMemo(() => {
-    if (calendarView === "week") {
-      const start = startOfWeek(calendarCursorDate);
-      return Array.from({ length: 7 }, (_, index) => addDays(start, index));
-    }
-    const start = startOfMonthGrid(calendarCursorDate);
-    return Array.from({ length: 42 }, (_, index) => addDays(start, index));
-  }, [calendarView, calendarCursorDate]);
+        return { block, startCol, endCol };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.startCol - b.startCol || a.endCol - b.endCol);
 
-  const calendarEntriesByDay = useMemo(() => {
-    const entries = {};
-    calendarDays.forEach((date) => {
-      const dayKey = formatDateKey(date);
-      entries[dayKey] = filteredBlocks.filter((block) => {
-        const begin = String(block.latestChange?.beginDate || "");
-        const end = String(block.latestChange?.endDate || "");
-        if (!begin || !end) return false;
-        return begin <= dayKey && dayKey <= end;
-      });
+    const lanes = [];
+    segments.forEach((segment) => {
+      let laneIndex = lanes.findIndex((lane) => lane.lastEnd < segment.startCol);
+      if (laneIndex === -1) {
+        lanes.push({ lastEnd: segment.endCol - 1, items: [segment] });
+      } else {
+        lanes[laneIndex].items.push(segment);
+        lanes[laneIndex].lastEnd = segment.endCol - 1;
+      }
     });
-    return entries;
-  }, [calendarDays, filteredBlocks]);
+
+    return lanes.map((lane) => lane.items);
+  };
 
   const shiftCalendar = (direction) => {
     const base = new Date(calendarCursorDate);
-    if (calendarView === "week") {
-      base.setDate(base.getDate() + direction * 7);
-    } else {
-      base.setMonth(base.getMonth() + direction);
-    }
+    if (calendarView === "week") base.setDate(base.getDate() + direction * 7);
+    else base.setMonth(base.getMonth() + direction);
     setCalendarCursor(formatDateKey(base));
   };
+
+  const handleSort = (key) => {
+    setSortConfig((current) => {
+      if (current.key === key) return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+      return { key, direction: "asc" };
+    });
+  };
+
+  const handleRoomStatusToggle = (status) => {
+    setRoomStatusFilter((current) => (current.includes(status)
+      ? current.filter((item) => item !== status)
+      : [...current, status]));
+  };
+
+  const roomStatusLabel = roomStatusFilter.length ? `${roomStatusFilter.length} geselecteerd` : "Alle statussen";
 
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
@@ -431,9 +438,7 @@ export default function BlocksPage() {
           insertDate: parseDateValue(insertDateRaw),
           roomStatus: String(getCsvValue(row, "ROOM_STATUS") || "").trim(),
           cateringStatus: String(getCsvValue(row, "CATERING_STATUS") || "").trim(),
-          roomNights: String(
-            getCsvValue(row, "CF_NIGTHS") || getCsvValue(row, "CF_NIGHTS") || ""
-          ).trim(),
+          roomNights: String(getCsvValue(row, "CF_NIGTHS") || getCsvValue(row, "CF_NIGHTS") || "").trim(),
         });
       });
 
@@ -467,45 +472,54 @@ export default function BlocksPage() {
     }
   };
 
+  const selectedChanges = useMemo(() => {
+    const arr = Array.isArray(selectedBlock?.changes) ? [...selectedBlock.changes] : [];
+    return arr.sort((a, b) =>
+      String(b.insertDate || b.beginDate || "").localeCompare(String(a.insertDate || a.beginDate || ""))
+    );
+  }, [selectedBlock]);
+
   return (
     <>
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
       <PageContainer>
         <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 space-y-6">
           <Card>
-            <div className="p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="p-5 sm:p-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Blocks</h1>
-                <p className="text-sm text-gray-600 mt-1">Klik op een rij om details te openen.</p>
-                <div className="flex items-center gap-2 mt-3">
-                  <Button
+                <p className="text-sm text-gray-600 mt-1">Klik op een block in de kalender of lijst voor details.</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2">
+                  <button
                     type="button"
                     onClick={() => setDisplayMode("list")}
-                    className={displayMode === "list" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                    className={`px-2 py-1 text-xs rounded ${displayMode === "list" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     Lijst
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     onClick={() => setDisplayMode("calendar")}
-                    className={displayMode === "calendar" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                    className={`px-2 py-1 text-xs rounded ${displayMode === "calendar" ? "bg-[#b41f1f] text-white" : "text-gray-600 hover:bg-gray-100"}`}
                   >
                     Kalender
+                  </button>
+                </div>
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                  <Button onClick={() => fileInputRef.current?.click()} disabled={importing || !hotelUid}>
+                    <FileUp className="h-4 w-4 mr-2" />
+                    {importing ? "Importeren..." : "Import blocks"}
                   </Button>
                 </div>
-              </div>
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <Button onClick={() => fileInputRef.current?.click()} disabled={importing || !hotelUid}>
-                  <FileUp className="h-4 w-4 mr-2" />
-                  {importing ? "Importeren..." : "Import blocks"}
-                </Button>
               </div>
             </div>
           </Card>
@@ -604,13 +618,25 @@ export default function BlocksPage() {
               {displayMode === "calendar" && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border border-gray-200 p-3 bg-gray-50">
                   <div className="flex items-center gap-2">
-                    <Button type="button" onClick={() => setCalendarView("week")} className={calendarView === "week" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}>Week</Button>
-                    <Button type="button" onClick={() => setCalendarView("month")} className={calendarView === "month" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}>Month</Button>
+                    <Button
+                      type="button"
+                      onClick={() => setCalendarView("week")}
+                      className={calendarView === "week" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                    >
+                      Week
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => setCalendarView("month")}
+                      className={calendarView === "month" ? "" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}
+                    >
+                      Month
+                    </Button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button type="button" onClick={() => shiftCalendar(-1)} className="bg-gray-200 text-gray-700 hover:bg-gray-300">←</Button>
-                    <Button type="button" onClick={() => setCalendarCursor(formatDateKey(new Date()))} className="bg-gray-200 text-gray-700 hover:bg-gray-300">Vandaag</Button>
-                    <Button type="button" onClick={() => shiftCalendar(1)} className="bg-gray-200 text-gray-700 hover:bg-gray-300">→</Button>
+                    <button type="button" onClick={() => shiftCalendar(-1)} className="px-3 py-2 rounded bg-[#b41f1f] text-white font-semibold hover:bg-[#961919]">←</button>
+                    <button type="button" onClick={() => setCalendarCursor(formatDateKey(new Date()))} className="px-3 py-2 rounded bg-[#b41f1f] text-white font-semibold hover:bg-[#961919]">Vandaag</button>
+                    <button type="button" onClick={() => shiftCalendar(1)} className="px-3 py-2 rounded bg-[#b41f1f] text-white font-semibold hover:bg-[#961919]">→</button>
                   </div>
                 </div>
               )}
@@ -620,28 +646,48 @@ export default function BlocksPage() {
               ) : displayMode === "list" && !sortedBlocks.length ? (
                 <p className="text-sm text-gray-500">Geen blocks gevonden voor deze filters.</p>
               ) : displayMode === "calendar" ? (
-                <div className={calendarView === "month" ? "grid grid-cols-7 gap-2" : "grid grid-cols-1 md:grid-cols-7 gap-2"}>
-                  {calendarDays.map((day) => {
-                    const dayKey = formatDateKey(day);
-                    const dayEntries = calendarEntriesByDay[dayKey] || [];
-                    const isCurrentMonth = day.getMonth() === calendarCursorDate.getMonth();
+                <div className="space-y-4">
+                  {weekStarts.map((weekStart) => {
+                    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+                    const lanes = buildWeekBars(weekStart);
                     return (
-                      <div key={dayKey} className={`border rounded p-2 min-h-[110px] ${isCurrentMonth ? "bg-white" : "bg-gray-50 text-gray-400"}`}>
-                        <div className="text-xs font-semibold mb-1">{dayKey}</div>
-                        <div className="space-y-1">
-                          {dayEntries.slice(0, 3).map((block) => (
-                            <button
-                              key={`${dayKey}-${block.id}`}
-                              type="button"
-                              onClick={() => navigate(`/groups-me/blocks/${block.id}`)}
-                              className="w-full text-left text-xs rounded bg-[#f9e5e5] text-[#8f1717] px-2 py-1 truncate"
-                              title={`${block.blockName || block.id} (${block.ownerCode || "-"})`}
-                            >
-                              {block.blockName || block.id}
-                            </button>
-                          ))}
-                          {dayEntries.length > 3 && (
-                            <p className="text-xs text-gray-500">+{dayEntries.length - 3} meer</p>
+                      <div key={formatDateKey(weekStart)} className="border rounded-lg overflow-hidden">
+                        <div className="grid grid-cols-7 bg-gray-50 border-b">
+                          {weekDays.map((day) => {
+                            const dayKey = formatDateKey(day);
+                            const inMonth = day.getMonth() === calendarCursorDate.getMonth();
+                            return (
+                              <div key={dayKey} className={`px-2 py-2 text-xs border-r last:border-r-0 ${inMonth ? "text-gray-700" : "text-gray-400"}`}>
+                                {dayKey}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="p-2 space-y-1 bg-white">
+                          {lanes.length === 0 ? (
+                            <p className="text-xs text-gray-400 px-1 py-1">Geen blocks in deze periode.</p>
+                          ) : (
+                            lanes.map((lane, laneIndex) => (
+                              <div key={laneIndex} className="grid grid-cols-7 gap-1">
+                                {lane.map((segment) => {
+                                  const latest = segment.block.latestChange || {};
+                                  const statusClass = getStatusColorClass(latest.roomStatus);
+                                  return (
+                                    <button
+                                      key={`${segment.block.id}-${laneIndex}-${segment.startCol}`}
+                                      type="button"
+                                      onClick={() => setSelectedBlock(segment.block)}
+                                      className={`text-left text-xs border rounded px-2 py-1 truncate ${statusClass}`}
+                                      style={{ gridColumn: `${segment.startCol} / ${segment.endCol}` }}
+                                      title={`${segment.block.blockName || segment.block.id} | ${latest.roomStatus || "-"} | RN: ${latest.roomNights || "-"}`}
+                                    >
+                                      <span className="font-semibold">{segment.block.blockName || segment.block.id}</span>
+                                      <span className="ml-1">(RN {latest.roomNights || "-"})</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ))
                           )}
                         </div>
                       </div>
@@ -679,7 +725,7 @@ export default function BlocksPage() {
                       {sortedBlocks.map((block) => (
                         <tr
                           key={block.id}
-                          onClick={() => navigate(`/groups-me/blocks/${block.id}`)}
+                          onClick={() => setSelectedBlock(block)}
                           className="border-b last:border-b-0 text-gray-800 cursor-pointer hover:bg-gray-50"
                         >
                           <td className="py-2 pr-4 font-medium">{block.blockName || block.id}</td>
@@ -699,6 +745,57 @@ export default function BlocksPage() {
           </Card>
         </div>
       </PageContainer>
+
+      {selectedBlock && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between p-4 border-b">
+              <div>
+                <h2 className="text-xl font-bold">{selectedBlock.blockName || selectedBlock.id}</h2>
+                <p className="text-sm text-gray-600">Block ID: {selectedBlock.id} · Owner: {selectedBlock.ownerCode || "-"}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedBlock(null)} className="p-2 rounded hover:bg-gray-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              <h3 className="text-lg font-semibold mb-2">Changes</h3>
+              {!selectedChanges.length ? (
+                <p className="text-sm text-gray-500">Geen changes gevonden.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-gray-600">
+                        <th className="py-2 pr-4">Insert date</th>
+                        <th className="py-2 pr-4">Begin date</th>
+                        <th className="py-2 pr-4">End date</th>
+                        <th className="py-2 pr-4">Room status</th>
+                        <th className="py-2 pr-4">Room nights</th>
+                        <th className="py-2 pr-4">Room revenue</th>
+                        <th className="py-2 pr-4">Catering status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedChanges.map((change, index) => (
+                        <tr key={`${change.insertDate || "no-date"}-${index}`} className="border-b last:border-b-0">
+                          <td className="py-2 pr-4">{change.insertDate || "-"}</td>
+                          <td className="py-2 pr-4">{change.beginDate || "-"}</td>
+                          <td className="py-2 pr-4">{change.endDate || "-"}</td>
+                          <td className="py-2 pr-4">{change.roomStatus || "-"}</td>
+                          <td className="py-2 pr-4">{change.roomNights || "-"}</td>
+                          <td className="py-2 pr-4">{change.roomRevenue || "-"}</td>
+                          <td className="py-2 pr-4">{change.cateringStatus || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
