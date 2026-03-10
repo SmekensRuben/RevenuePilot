@@ -433,6 +433,8 @@ export default function VatChangeCorrectionPage() {
         const unitPrice = Number(pkg.price) || 0;
 
         const totalIncludedVat = rows.reduce((sum, row) => {
+          if (row.toChange !== true) return sum;
+
           const rowPackages = Array.isArray(row.addedPackages)
             ? row.addedPackages
             : [];
