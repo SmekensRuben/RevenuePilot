@@ -236,35 +236,52 @@ export default function BreakfastTrackerPage() {
   const todayOverview = useMemo(() => ({ totalReservations: rows.length }), [rows]);
 
   const trackedPackageTotals = useMemo(() => {
-    return trackedPackages
+    const packageSummaries = trackedPackages
       .map((pkg) => {
         const normalizedName = normalizePackageName(pkg.name);
         if (!normalizedName) return null;
         const unitPrice = Number(pkg.price) || 0;
 
-        const totalIncludedVat = rows.reduce((sum, row) => {
-          const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
-          const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
+        const summary = rows.reduce(
+          (accumulator, row) => {
+            const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
+            const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
 
-          const matchingEntries = rowPackages
-            .map((item) => parseAddedPackageEntry(item))
-            .filter((entry) => entry.normalizedName === normalizedName);
+            const matchingEntries = rowPackages
+              .map((item) => parseAddedPackageEntry(item))
+              .filter((entry) => entry.normalizedName === normalizedName);
 
-          if (!matchingEntries.length) return sum;
+            if (!matchingEntries.length) return accumulator;
 
-          if (pkg.type === "perReservation") return sum + unitPrice;
+            const effectiveAdultOffset = Math.max(
+              ...matchingEntries.map((entry) => entry.adultOffset),
+            );
+            const packageAdults = Math.max(adults - effectiveAdultOffset, 0);
+            const packageAmount = pkg.type === "perReservation" ? unitPrice : unitPrice * packageAdults;
 
-          const effectiveAdultOffset = Math.max(
-            ...matchingEntries.map((entry) => entry.adultOffset),
-          );
-          const packageUnits = Math.max(adults - effectiveAdultOffset, 0);
+            return {
+              reservationCount: accumulator.reservationCount + 1,
+              totalAdults: accumulator.totalAdults + packageAdults,
+              totalIncludedVat: accumulator.totalIncludedVat + packageAmount,
+            };
+          },
+          { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+        );
 
-          return sum + unitPrice * packageUnits;
-        }, 0);
-
-        return { ...pkg, totalIncludedVat };
+        return { ...pkg, ...summary };
       })
       .filter(Boolean);
+
+    const totals = packageSummaries.reduce(
+      (accumulator, pkg) => ({
+        reservationCount: accumulator.reservationCount + pkg.reservationCount,
+        totalAdults: accumulator.totalAdults + pkg.totalAdults,
+        totalIncludedVat: accumulator.totalIncludedVat + pkg.totalIncludedVat,
+      }),
+      { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+    );
+
+    return { packageSummaries, totals };
   }, [trackedPackages, rows]);
 
   const sortedRows = useMemo(() => {
@@ -336,12 +353,23 @@ export default function BreakfastTrackerPage() {
             </div>
 
             <div className="mt-3 space-y-1 text-sm text-gray-700">
-              {trackedPackageTotals.length ? (
-                trackedPackageTotals.map((pkg) => (
-                  <p key={pkg.id || pkg.name}>
-                    {pkg.name} Total Included Vat: <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
-                  </p>
-                ))
+              {trackedPackageTotals.packageSummaries.length ? (
+                <>
+                  {trackedPackageTotals.packageSummaries.map((pkg) => (
+                    <p key={pkg.id || pkg.name}>
+                      {pkg.name}: <span className="font-semibold">{pkg.reservationCount}</span> reservaties /{" "}
+                      <span className="font-semibold">{pkg.totalAdults}</span> adults — Total Included Vat:{" "}
+                      <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
+                    </p>
+                  ))}
+                  <div className="mt-2 border-t border-gray-200 pt-2 text-gray-800">
+                    <p>
+                      Totaal: <span className="font-semibold">{trackedPackageTotals.totals.reservationCount}</span>{" "}
+                      reservaties / <span className="font-semibold">{trackedPackageTotals.totals.totalAdults}</span>{" "}
+                      adults — <span className="font-semibold">€ {trackedPackageTotals.totals.totalIncludedVat.toFixed(2)}</span>
+                    </p>
+                  </div>
+                </>
               ) : (
                 <p className="text-gray-500">Geen package tracking ingesteld.</p>
               )}
