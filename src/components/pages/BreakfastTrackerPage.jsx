@@ -156,8 +156,8 @@ export default function BreakfastTrackerPage() {
     const settingsRef = doc(db, `hotels/${hotelUid}/settings`, hotelUid);
     const settingsSnap = await getDoc(settingsRef);
     const settings = settingsSnap.exists() ? settingsSnap.data() : {};
-    const storedPackages = Array.isArray(settings?.vatChangeTrackedPackages)
-      ? settings.vatChangeTrackedPackages
+    const storedPackages = Array.isArray(settings?.breakfastTrackerTrackedPackages)
+      ? settings.breakfastTrackerTrackedPackages
       : [];
 
     setTrackedPackages(
@@ -194,7 +194,7 @@ export default function BreakfastTrackerPage() {
 
     await setDoc(
       settingsRef,
-      { vatChangeTrackedPackages: payload },
+      { breakfastTrackerTrackedPackages: payload },
       { merge: true },
     );
   };
