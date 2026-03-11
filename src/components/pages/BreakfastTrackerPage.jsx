@@ -246,14 +246,18 @@ export default function BreakfastTrackerPage() {
           const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
           const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
 
-          const packageUnits = rowPackages.reduce((units, item) => {
-            const parsedEntry = parseAddedPackageEntry(item);
-            if (parsedEntry.normalizedName !== normalizedName) return units;
+          const matchingEntries = rowPackages
+            .map((item) => parseAddedPackageEntry(item))
+            .filter((entry) => entry.normalizedName === normalizedName);
 
-            if (pkg.type === "perReservation") return units + 1;
+          if (!matchingEntries.length) return sum;
 
-            return units + Math.max(adults - parsedEntry.adultOffset, 0);
-          }, 0);
+          if (pkg.type === "perReservation") return sum + unitPrice;
+
+          const effectiveAdultOffset = Math.max(
+            ...matchingEntries.map((entry) => entry.adultOffset),
+          );
+          const packageUnits = Math.max(adults - effectiveAdultOffset, 0);
 
           return sum + unitPrice * packageUnits;
         }, 0);
