@@ -55,6 +55,11 @@ export default function HeaderBar({ today, onLogout }) {
       action: () => navigate("/reservations/vat-change-correction"),
       icon: FileText,
     },
+    {
+      label: "Breakfast Tracker",
+      action: () => navigate("/reservations/breakfast-tracker"),
+      icon: FileText,
+    },
   ];
 
   const quotesMenuItems = [

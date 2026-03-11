@@ -8,6 +8,7 @@ import InventoryBalancerPage from "./components/pages/InventoryBalancerPage.jsx"
 import SegmentComparisonPage from "./components/pages/SegmentComparisonPage.jsx";
 import VatChangeCorrectionPage from "./components/pages/VatChangeCorrectionPage.jsx";
 import VatChangeCorrectionHowToPage from "./components/pages/VatChangeCorrectionHowToPage.jsx";
+import BreakfastTrackerPage from "./components/pages/BreakfastTrackerPage.jsx";
 import SegmentationMappingPage from "./components/pages/SegmentationMappingPage.jsx";
 import MarketSegmentDetailPage from "./components/pages/MarketSegmentDetailPage.jsx";
 import GroupMarketSegmentDetailPage from "./components/pages/GroupMarketSegmentDetailPage.jsx";
@@ -85,6 +86,14 @@ export default function AppRouter() {
         element={
           <ProtectedRoute>
             <VatChangeCorrectionHowToPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reservations/breakfast-tracker"
+        element={
+          <ProtectedRoute>
+            <BreakfastTrackerPage />
           </ProtectedRoute>
         }
       />
