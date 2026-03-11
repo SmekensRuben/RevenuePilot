@@ -71,6 +71,19 @@ const normalizePackageName = (value) =>
     .trim()
     .toLowerCase();
 
+const parseAddedPackageEntry = (value) => {
+  const rawValue = String(value || "").trim();
+  const offsetMatch = rawValue.match(/^-(\d+)\*(.+)$/);
+  if (!offsetMatch) {
+    return { normalizedName: normalizePackageName(rawValue), adultOffset: 0 };
+  }
+
+  return {
+    normalizedName: normalizePackageName(offsetMatch[2]),
+    adultOffset: Number(offsetMatch[1]) || 0,
+  };
+};
+
 export default function BreakfastTrackerPage() {
   const { hotelUid } = useHotelContext();
   const [rows, setRows] = useState([]);
@@ -223,28 +236,52 @@ export default function BreakfastTrackerPage() {
   const todayOverview = useMemo(() => ({ totalReservations: rows.length }), [rows]);
 
   const trackedPackageTotals = useMemo(() => {
-    return trackedPackages
+    const packageSummaries = trackedPackages
       .map((pkg) => {
         const normalizedName = normalizePackageName(pkg.name);
         if (!normalizedName) return null;
         const unitPrice = Number(pkg.price) || 0;
 
-        const totalIncludedVat = rows.reduce((sum, row) => {
-          const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
-          const hasPackage = rowPackages.some(
-            (item) => normalizePackageName(item) === normalizedName,
-          );
-          if (!hasPackage) return sum;
+        const summary = rows.reduce(
+          (accumulator, row) => {
+            const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
+            const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
 
-          if (pkg.type === "perReservation") return sum + unitPrice;
+            const matchingEntries = rowPackages
+              .map((item) => parseAddedPackageEntry(item))
+              .filter((entry) => entry.normalizedName === normalizedName);
 
-          const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
-          return sum + unitPrice * adults;
-        }, 0);
+            if (!matchingEntries.length) return accumulator;
 
-        return { ...pkg, totalIncludedVat };
+            const effectiveAdultOffset = Math.max(
+              ...matchingEntries.map((entry) => entry.adultOffset),
+            );
+            const packageAdults = Math.max(adults - effectiveAdultOffset, 0);
+            const packageAmount = pkg.type === "perReservation" ? unitPrice : unitPrice * packageAdults;
+
+            return {
+              reservationCount: accumulator.reservationCount + 1,
+              totalAdults: accumulator.totalAdults + packageAdults,
+              totalIncludedVat: accumulator.totalIncludedVat + packageAmount,
+            };
+          },
+          { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+        );
+
+        return { ...pkg, ...summary };
       })
       .filter(Boolean);
+
+    const totals = packageSummaries.reduce(
+      (accumulator, pkg) => ({
+        reservationCount: accumulator.reservationCount + pkg.reservationCount,
+        totalAdults: accumulator.totalAdults + pkg.totalAdults,
+        totalIncludedVat: accumulator.totalIncludedVat + pkg.totalIncludedVat,
+      }),
+      { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+    );
+
+    return { packageSummaries, totals };
   }, [trackedPackages, rows]);
 
   const sortedRows = useMemo(() => {
@@ -316,12 +353,23 @@ export default function BreakfastTrackerPage() {
             </div>
 
             <div className="mt-3 space-y-1 text-sm text-gray-700">
-              {trackedPackageTotals.length ? (
-                trackedPackageTotals.map((pkg) => (
-                  <p key={pkg.id || pkg.name}>
-                    {pkg.name} Total Included Vat: <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
-                  </p>
-                ))
+              {trackedPackageTotals.packageSummaries.length ? (
+                <>
+                  {trackedPackageTotals.packageSummaries.map((pkg) => (
+                    <p key={pkg.id || pkg.name}>
+                      {pkg.name}: <span className="font-semibold">{pkg.reservationCount}</span> reservaties /{" "}
+                      <span className="font-semibold">{pkg.totalAdults}</span> adults — Total Included Vat:{" "}
+                      <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
+                    </p>
+                  ))}
+                  <div className="mt-2 border-t border-gray-200 pt-2 text-gray-800">
+                    <p>
+                      Totaal: <span className="font-semibold">{trackedPackageTotals.totals.reservationCount}</span>{" "}
+                      reservaties / <span className="font-semibold">{trackedPackageTotals.totals.totalAdults}</span>{" "}
+                      adults — <span className="font-semibold">€ {trackedPackageTotals.totals.totalIncludedVat.toFixed(2)}</span>
+                    </p>
+                  </div>
+                </>
               ) : (
                 <p className="text-gray-500">Geen package tracking ingesteld.</p>
               )}
