@@ -71,6 +71,19 @@ const normalizePackageName = (value) =>
     .trim()
     .toLowerCase();
 
+const parseAddedPackageEntry = (value) => {
+  const rawValue = String(value || "").trim();
+  const offsetMatch = rawValue.match(/^-(\d+)\*(.+)$/);
+  if (!offsetMatch) {
+    return { normalizedName: normalizePackageName(rawValue), adultOffset: 0 };
+  }
+
+  return {
+    normalizedName: normalizePackageName(offsetMatch[2]),
+    adultOffset: Number(offsetMatch[1]) || 0,
+  };
+};
+
 export default function BreakfastTrackerPage() {
   const { hotelUid } = useHotelContext();
   const [rows, setRows] = useState([]);
@@ -231,15 +244,18 @@ export default function BreakfastTrackerPage() {
 
         const totalIncludedVat = rows.reduce((sum, row) => {
           const rowPackages = Array.isArray(row.addedPackages) ? row.addedPackages : [];
-          const hasPackage = rowPackages.some(
-            (item) => normalizePackageName(item) === normalizedName,
-          );
-          if (!hasPackage) return sum;
-
-          if (pkg.type === "perReservation") return sum + unitPrice;
-
           const adults = Number.isFinite(Number(row.adults)) ? Number(row.adults) : 0;
-          return sum + unitPrice * adults;
+
+          const packageUnits = rowPackages.reduce((units, item) => {
+            const parsedEntry = parseAddedPackageEntry(item);
+            if (parsedEntry.normalizedName !== normalizedName) return units;
+
+            if (pkg.type === "perReservation") return units + 1;
+
+            return units + Math.max(adults - parsedEntry.adultOffset, 0);
+          }, 0);
+
+          return sum + unitPrice * packageUnits;
         }, 0);
 
         return { ...pkg, totalIncludedVat };
