@@ -425,6 +425,11 @@ export default function VatChangeCorrectionPage() {
     };
   }, [rows]);
 
+  const toChangeRows = useMemo(
+    () => rows.filter((row) => row.toChange === true),
+    [rows],
+  );
+
   const trackedPackageTotals = useMemo(() => {
     return trackedPackages
       .map((pkg) => {
@@ -432,9 +437,7 @@ export default function VatChangeCorrectionPage() {
         if (!normalizedName) return null;
         const unitPrice = Number(pkg.price) || 0;
 
-        const totalIncludedVat = rows.reduce((sum, row) => {
-          if (row.toChange !== true) return sum;
-
+        const totalIncludedVat = toChangeRows.reduce((sum, row) => {
           const rowPackages = Array.isArray(row.addedPackages)
             ? row.addedPackages
             : [];
@@ -459,7 +462,7 @@ export default function VatChangeCorrectionPage() {
         };
       })
       .filter(Boolean);
-  }, [trackedPackages, rows]);
+  }, [trackedPackages, toChangeRows]);
 
   const filteredRows = useMemo(() => {
     if (activeList === "is-changed") {
