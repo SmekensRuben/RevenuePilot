@@ -123,7 +123,8 @@ function normalizeDateRange(range) {
   return { start, end: endCandidate };
 }
 
-function doesDateOverlapRange(dateRange, filterRange) {
+function doesDateOverlapRange(dateRange, filterRange, options = {}) {
+  const { excludeEnd = false } = options;
   const normalizedFilterRange = normalizeDateRange(filterRange);
   if (!normalizedFilterRange.start && !normalizedFilterRange.end) {
     return true;
@@ -135,11 +136,16 @@ function doesDateOverlapRange(dateRange, filterRange) {
   }
 
   const dateStart = normalizedDateRange.start ?? normalizedDateRange.end;
-  const dateEnd = normalizedDateRange.end ?? normalizedDateRange.start;
+  let dateEnd = normalizedDateRange.end ?? normalizedDateRange.start;
   const filterStart = normalizedFilterRange.start ?? normalizedFilterRange.end;
   const filterEnd = normalizedFilterRange.end ?? normalizedFilterRange.start;
 
-  if (!dateStart || !dateEnd || !filterStart || !filterEnd) {
+  if (excludeEnd && dateEnd) {
+    dateEnd = new Date(dateEnd);
+    dateEnd.setDate(dateEnd.getDate() - 1);
+  }
+
+  if (!dateStart || !dateEnd || !filterStart || !filterEnd || dateEnd < dateStart) {
     return false;
   }
 
@@ -459,7 +465,8 @@ export default function MadeReservationsPage() {
               start: arrivalDate ? formatDateInput(arrivalDate) : "",
               end: departureDate ? formatDateInput(departureDate) : "",
             },
-            stayDateRange
+            stayDateRange,
+            { excludeEnd: true }
           )
         ) {
           return false;
