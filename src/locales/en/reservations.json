@@ -23,6 +23,10 @@
     "arrivalEnd": "Arrival end",
     "departureStart": "Departure start",
     "departureEnd": "Departure end",
+    "arrival": "Arrival",
+    "departure": "Departure",
+    "stayDateRange": "Stay Date Range",
+    "selectRange": "Select range",
     "weekday": "Weekday",
     "weekdayAny": "All weekdays",
     "weekdays": {
