@@ -103,6 +103,64 @@ function isDateWithinRange(date, range) {
   return true;
 }
 
+
+function normalizeDateRange(range) {
+  const start = parseDateFromInput(range.start);
+  const endCandidate = parseDateFromInput(range.end);
+
+  if (!start && !endCandidate) {
+    return { start: null, end: null };
+  }
+
+  if (!start) {
+    return { start: null, end: endCandidate };
+  }
+
+  if (!endCandidate || endCandidate < start) {
+    return { start, end: start };
+  }
+
+  return { start, end: endCandidate };
+}
+
+function doesDateOverlapRange(dateRange, filterRange) {
+  const normalizedFilterRange = normalizeDateRange(filterRange);
+  if (!normalizedFilterRange.start && !normalizedFilterRange.end) {
+    return true;
+  }
+
+  const normalizedDateRange = normalizeDateRange(dateRange);
+  if (!normalizedDateRange.start && !normalizedDateRange.end) {
+    return false;
+  }
+
+  const dateStart = normalizedDateRange.start ?? normalizedDateRange.end;
+  const dateEnd = normalizedDateRange.end ?? normalizedDateRange.start;
+  const filterStart = normalizedFilterRange.start ?? normalizedFilterRange.end;
+  const filterEnd = normalizedFilterRange.end ?? normalizedFilterRange.start;
+
+  if (!dateStart || !dateEnd || !filterStart || !filterEnd) {
+    return false;
+  }
+
+  return dateStart <= filterEnd && dateEnd >= filterStart;
+}
+
+function formatRangeLabel(range, fallbackLabel) {
+  if (!range.start && !range.end) {
+    return fallbackLabel;
+  }
+
+  const start = range.start || range.end;
+  const end = range.end || range.start;
+
+  if (start === end) {
+    return start;
+  }
+
+  return `${start} – ${end}`;
+}
+
 function getDateRangeForPreset(preset) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -147,6 +205,8 @@ export default function MadeReservationsPage() {
   const [selectedWeekday, setSelectedWeekday] = useState("");
   const [arrivalDateRange, setArrivalDateRange] = useState({ start: "", end: "" });
   const [departureDateRange, setDepartureDateRange] = useState({ start: "", end: "" });
+  const [stayDateRange, setStayDateRange] = useState({ start: "", end: "" });
+  const [openDateFilter, setOpenDateFilter] = useState("");
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -155,6 +215,7 @@ export default function MadeReservationsPage() {
   const [roomTypeFilter, setRoomTypeFilter] = useState([]);
   const [isRoomTypeDropdownOpen, setIsRoomTypeDropdownOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const dateFilterDropdownRef = useRef(null);
 
   const visibleColumns = useMemo(
     () => [
@@ -206,6 +267,17 @@ export default function MadeReservationsPage() {
       setSelectedWeekday("");
     }
   }, [datePreset]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dateFilterDropdownRef.current && !dateFilterDropdownRef.current.contains(event.target)) {
+        setOpenDateFilter("");
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     async function fetchReservations() {
@@ -300,6 +372,13 @@ export default function MadeReservationsPage() {
     }));
   };
 
+  const handleStayRangeChange = (key, value) => {
+    setStayDateRange((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
   const dateRangeLabel = useMemo(() => {
     if (!dateRange.start) {
       return t("filters.dateRangeMissing");
@@ -311,6 +390,21 @@ export default function MadeReservationsPage() {
 
     return `${dateRange.start} – ${dateRange.end}`;
   }, [dateRange, t]);
+
+  const arrivalDateRangeLabel = useMemo(
+    () => formatRangeLabel(arrivalDateRange, t("filters.selectRange")),
+    [arrivalDateRange, t]
+  );
+
+  const departureDateRangeLabel = useMemo(
+    () => formatRangeLabel(departureDateRange, t("filters.selectRange")),
+    [departureDateRange, t]
+  );
+
+  const stayDateRangeLabel = useMemo(
+    () => formatRangeLabel(stayDateRange, t("filters.selectRange")),
+    [stayDateRange, t]
+  );
 
   const roomTypeOptions = useMemo(() => {
     const types = new Set();
@@ -327,6 +421,7 @@ export default function MadeReservationsPage() {
     const selected = roomTypeFilter.map((type) => String(type).toLowerCase());
     const hasArrivalRange = Boolean(arrivalDateRange.start || arrivalDateRange.end);
     const hasDepartureRange = Boolean(departureDateRange.start || departureDateRange.end);
+    const hasStayDateRange = Boolean(stayDateRange.start || stayDateRange.end);
 
     return reservations.filter((reservation) => {
       if (
@@ -352,9 +447,28 @@ export default function MadeReservationsPage() {
         }
       }
 
+      if (hasStayDateRange) {
+        const arrivalDate =
+          reservation.__arrivalDateParsed ?? parseReservationDate(reservation.arrivalDate);
+        const departureDate =
+          reservation.__departureDateParsed ?? parseReservationDate(reservation.departureDate);
+
+        if (
+          !doesDateOverlapRange(
+            {
+              start: arrivalDate ? formatDateInput(arrivalDate) : "",
+              end: departureDate ? formatDateInput(departureDate) : "",
+            },
+            stayDateRange
+          )
+        ) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [arrivalDateRange, departureDateRange, reservations, roomTypeFilter]);
+  }, [arrivalDateRange, departureDateRange, reservations, roomTypeFilter, stayDateRange]);
 
   const sortedReservations = useMemo(() => {
     if (!sortConfig.key) {
@@ -755,45 +869,70 @@ export default function MadeReservationsPage() {
                 </label>
               </div>
             )}
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
-                {t("filters.arrivalStart")}
-                <input
-                  type="date"
-                  value={arrivalDateRange.start}
-                  onChange={(e) => handleArrivalRangeChange("start", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
-                {t("filters.arrivalEnd")}
-                <input
-                  type="date"
-                  value={arrivalDateRange.end}
-                  onChange={(e) => handleArrivalRangeChange("end", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
-                {t("filters.departureStart")}
-                <input
-                  type="date"
-                  value={departureDateRange.start}
-                  onChange={(e) => handleDepartureRangeChange("start", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="flex flex-col text-sm font-semibold text-gray-700 w-40">
-                {t("filters.departureEnd")}
-                <input
-                  type="date"
-                  value={departureDateRange.end}
-                  onChange={(e) => handleDepartureRangeChange("end", e.target.value)}
-                  className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </label>
+            <div ref={dateFilterDropdownRef} className="flex flex-wrap items-end gap-2">
+              {[
+                {
+                  key: "arrival",
+                  label: t("filters.arrival"),
+                  rangeLabel: arrivalDateRangeLabel,
+                  range: arrivalDateRange,
+                  onChange: handleArrivalRangeChange,
+                },
+                {
+                  key: "departure",
+                  label: t("filters.departure"),
+                  rangeLabel: departureDateRangeLabel,
+                  range: departureDateRange,
+                  onChange: handleDepartureRangeChange,
+                },
+                {
+                  key: "stay",
+                  label: t("filters.stayDateRange"),
+                  rangeLabel: stayDateRangeLabel,
+                  range: stayDateRange,
+                  onChange: handleStayRangeChange,
+                },
+              ].map((filter) => (
+                <div key={filter.key} className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenDateFilter((current) => (current === filter.key ? "" : filter.key))
+                    }
+                    className="flex min-w-[12rem] items-center justify-between gap-3 rounded border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm"
+                  >
+                    <div className="text-left">
+                      <div>{filter.label}</div>
+                      <div className="text-xs font-normal text-gray-500">{filter.rangeLabel}</div>
+                    </div>
+                    <span className="text-gray-500">▾</span>
+                  </button>
+                  {openDateFilter === filter.key && (
+                    <div className="absolute left-0 z-30 mt-2 w-72 rounded-lg bg-white p-4 shadow-xl ring-1 ring-black/5">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col text-sm font-semibold text-gray-700">
+                          {t("filters.startDate")}
+                          <input
+                            type="date"
+                            value={filter.range.start}
+                            onChange={(e) => filter.onChange("start", e.target.value)}
+                            className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-col text-sm font-semibold text-gray-700">
+                          {t("filters.endDate")}
+                          <input
+                            type="date"
+                            value={filter.range.end}
+                            onChange={(e) => filter.onChange("end", e.target.value)}
+                            className="mt-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
             <div className="relative">
               <button
