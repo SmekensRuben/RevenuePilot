@@ -12,7 +12,19 @@ import {
   doc,
   getDoc,
   setDoc,
+  writeBatch,
 } from "../../firebaseConfig";
+
+
+const REQUIRED_HEADERS = [
+  "EXTERNAL_REFERENCE",
+  "ARRIVAL",
+  "PRODUCTS",
+  "MARKET_CODE",
+  "RATE_CODE",
+  "DEPARTURE",
+  "ADULTS",
+];
 
 const formatDateKey = (date) => {
   const year = date.getFullYear();
@@ -37,6 +49,147 @@ const subtractDays = (date, days) => {
   const nextDate = new Date(date);
   nextDate.setDate(nextDate.getDate() - days);
   return nextDate;
+};
+
+const parseDdMmYy = (value) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+
+  const digitsOnly = normalized.replace(/[^\d]/g, "");
+  let day = 0;
+  let month = 0;
+  let year = 0;
+
+  if (digitsOnly.length === 6) {
+    day = Number(digitsOnly.slice(0, 2));
+    month = Number(digitsOnly.slice(2, 4));
+    year = 2000 + Number(digitsOnly.slice(4, 6));
+  } else if (digitsOnly.length === 8) {
+    day = Number(digitsOnly.slice(0, 2));
+    month = Number(digitsOnly.slice(2, 4));
+    year = Number(digitsOnly.slice(4, 8));
+  } else {
+    return "";
+  }
+
+  const parsed = new Date(year, month - 1, day);
+  const isValidDate =
+    parsed.getFullYear() === year &&
+    parsed.getMonth() === month - 1 &&
+    parsed.getDate() === day;
+
+  if (!isValidDate) return "";
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
+
+const normalizeTsvRows = (rawText) => {
+  const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalized.split("\n");
+  const headerLine = lines.shift();
+
+  if (!headerLine) return null;
+
+  const headers = headerLine.split("\t").map((header) => header.trim());
+  const expectedColumnCount = headers.length;
+  const billToIndex = headers.indexOf("BILL_TO_ADDRESS");
+  const rows = [];
+  let currentColumns = null;
+
+  const normalizeColumns = (columns) => {
+    if (columns.length > expectedColumnCount) {
+      return [
+        ...columns.slice(0, expectedColumnCount - 1),
+        columns.slice(expectedColumnCount - 1).join("\t"),
+      ];
+    }
+    if (columns.length < expectedColumnCount) {
+      return [...columns, ...Array(expectedColumnCount - columns.length).fill("")];
+    }
+    return columns;
+  };
+
+  const appendContinuation = (line) => {
+    if (!currentColumns) return;
+    const targetIndex =
+      billToIndex >= 0 ? billToIndex : Math.max(currentColumns.length - 1, 0);
+
+    while (currentColumns.length <= targetIndex) currentColumns.push("");
+
+    if (line.includes("\t")) {
+      const [addressPart, ...rest] = line.split("\t");
+      currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${addressPart}`.trim();
+      if (rest.length) currentColumns.push(...rest);
+      return;
+    }
+
+    currentColumns[targetIndex] = `${currentColumns[targetIndex]} ${line}`.trim();
+  };
+
+  lines.forEach((line) => {
+    if (!line) return;
+
+    if (!currentColumns) {
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    if (line.startsWith("\t")) {
+      rows.push(normalizeColumns(currentColumns));
+      currentColumns = line.split("\t");
+      return;
+    }
+
+    appendContinuation(line);
+  });
+
+  if (currentColumns) rows.push(normalizeColumns(currentColumns));
+  return { headers, rows };
+};
+
+const parseTsv = (rawText) => {
+  const normalizedRows = normalizeTsvRows(rawText);
+  if (!normalizedRows) return null;
+
+  const { headers, rows } = normalizedRows;
+  const missing = REQUIRED_HEADERS.filter((header) => !headers.includes(header));
+  if (missing.length) throw new Error(`Ontbrekende kolommen: ${missing.join(", ")}`);
+
+  const indexMap = headers.reduce((acc, header, index) => {
+    acc[header] = index;
+    return acc;
+  }, {});
+
+  const getValue = (row, header) => {
+    const index = indexMap[header];
+    if (index === undefined) return "";
+    return String(row[index] ?? "").trim();
+  };
+
+  const mappedRows = rows.map((row) => {
+    const addedPackages = getValue(row, "PRODUCTS")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    return {
+      reservationNumber: getValue(row, "EXTERNAL_REFERENCE"),
+      fullName: getValue(row, "FULL_NAME"),
+      dateOfArrival: parseDdMmYy(getValue(row, "ARRIVAL")),
+      addedPackages,
+      marketCode: getValue(row, "MARKET_CODE"),
+      rateCode: getValue(row, "RATE_CODE"),
+      dateOfDeparture: parseDdMmYy(getValue(row, "DEPARTURE")),
+      adults: Number(getValue(row, "ADULTS") || 0),
+    };
+  });
+
+  const validRows = mappedRows.filter((row) => row.marketCode);
+  return {
+    rows: validRows,
+    skippedMarketCode: mappedRows.length - validRows.length,
+    totalRows: mappedRows.length,
+  };
 };
 
 const enumerateDateKeys = (startKey, endKey) => {
@@ -118,7 +271,7 @@ export default function BreakfastTrackerPage() {
     if (!hotelUid || !dateKey) return [];
     const stayDateCollectionRef = collection(
       db,
-      `hotels/${hotelUid}/arrivalsDetailed/arrivalsDetailedPerStayDate/${dateKey}`,
+      `hotels/${hotelUid}/arrivalsPackages/arrivalsPackagesPerStayDate/${dateKey}`,
     );
     const snapshot = await getDocs(stayDateCollectionRef);
     return snapshot.docs.map((docSnap) => ({
@@ -327,6 +480,63 @@ export default function BreakfastTrackerPage() {
     await loadRowsForRange(nextRange.start, nextRange.end);
   };
 
+  const handleImport = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !hotelUid) return;
+
+    const importDateKey = dateRange.start || todayKey;
+
+    try {
+      const rawText = await file.text();
+      const parsed = parseTsv(rawText);
+      if (!parsed?.rows?.length) {
+        setStatus({
+          type: "error",
+          message: "Geen geldige rijen gevonden in het bestand.",
+        });
+        return;
+      }
+
+      const batch = writeBatch(db);
+      let importedRows = 0;
+
+      parsed.rows.forEach((row) => {
+        if (!row.reservationNumber) return;
+
+        const docRef = doc(
+          db,
+          `hotels/${hotelUid}/arrivalsPackages/arrivalsPackagesPerStayDate/${importDateKey}/${row.reservationNumber}`,
+        );
+        batch.set(
+          docRef,
+          {
+            ...row,
+            fullName: String(row.fullName || ""),
+          },
+          { merge: true },
+        );
+        importedRows += 1;
+      });
+
+      await batch.commit();
+
+      const skippedInfo = parsed.skippedMarketCode
+        ? ` (${parsed.skippedMarketCode} rij(en) met lege MARKET_CODE overgeslagen)`
+        : "";
+      setStatus({
+        type: "success",
+        message: `Import gelukt naar arrivalsPackagesPerStayDate/${importDateKey} (${importedRows} van ${parsed.totalRows} rijen).${skippedInfo}`,
+      });
+
+      await loadRowsForRange(dateRange.start || importDateKey, dateRange.end || importDateKey);
+    } catch (error) {
+      console.error(error);
+      setStatus({ type: "error", message: error.message || "Import mislukt." });
+    }
+  };
+
   return (
     <>
       <HeaderBar today={todayLabel} onLogout={handleLogout} />
@@ -342,14 +552,25 @@ export default function BreakfastTrackerPage() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
-                onClick={() => setIsSettingsOpen(true)}
-                aria-label="Open package settings"
-              >
-                <Settings className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center rounded bg-[#b41f1f] px-4 py-2 text-sm font-semibold text-white hover:bg-[#991919]">
+                  Import stayovers
+                  <input
+                    type="file"
+                    accept=".csv,.txt"
+                    className="hidden"
+                    onChange={handleImport}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"
+                  onClick={() => setIsSettingsOpen(true)}
+                  aria-label="Open package settings"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="mt-3 space-y-1 text-sm text-gray-700">
