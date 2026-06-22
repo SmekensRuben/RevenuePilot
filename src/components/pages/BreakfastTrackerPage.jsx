@@ -237,6 +237,17 @@ const parseAddedPackageEntry = (value) => {
   };
 };
 
+const calculateRoomNights = (row) => {
+  const arrivalDate = parseIsoDate(row?.dateOfArrival);
+  const departureDate = parseIsoDate(row?.dateOfDeparture);
+
+  if (!arrivalDate || !departureDate) return 1;
+
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  const nights = Math.round((departureDate.getTime() - arrivalDate.getTime()) / millisecondsPerDay);
+  return Math.max(nights, 1);
+};
+
 export default function BreakfastTrackerPage() {
   const { hotelUid } = useHotelContext();
   const [rows, setRows] = useState([]);
@@ -386,7 +397,20 @@ export default function BreakfastTrackerPage() {
     });
   }, [hotelUid, todayKey]);
 
-  const todayOverview = useMemo(() => ({ totalReservations: rows.length }), [rows]);
+  const todayOverview = useMemo(
+    () =>
+      rows.reduce(
+        (accumulator, row) => {
+          const roomNights = calculateRoomNights(row);
+          return {
+            totalReservations: accumulator.totalReservations + 1,
+            totalRoomNights: accumulator.totalRoomNights + roomNights,
+          };
+        },
+        { totalReservations: 0, totalRoomNights: 0 },
+      ),
+    [rows],
+  );
 
   const trackedPackageTotals = useMemo(() => {
     const packageSummaries = trackedPackages
@@ -410,15 +434,21 @@ export default function BreakfastTrackerPage() {
               ...matchingEntries.map((entry) => entry.adultOffset),
             );
             const packageAdults = Math.max(adults - effectiveAdultOffset, 0);
-            const packageAmount = pkg.type === "perReservation" ? unitPrice : unitPrice * packageAdults;
+            const roomNights = calculateRoomNights(row);
+            const packageAdultRoomNights = packageAdults * roomNights;
+            const packageAmount =
+              pkg.type === "perReservation"
+                ? unitPrice * roomNights
+                : unitPrice * packageAdultRoomNights;
 
             return {
               reservationCount: accumulator.reservationCount + 1,
-              totalAdults: accumulator.totalAdults + packageAdults,
+              totalRoomNights: accumulator.totalRoomNights + roomNights,
+              totalAdults: accumulator.totalAdults + packageAdultRoomNights,
               totalIncludedVat: accumulator.totalIncludedVat + packageAmount,
             };
           },
-          { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+          { reservationCount: 0, totalRoomNights: 0, totalAdults: 0, totalIncludedVat: 0 },
         );
 
         return { ...pkg, ...summary };
@@ -428,10 +458,11 @@ export default function BreakfastTrackerPage() {
     const totals = packageSummaries.reduce(
       (accumulator, pkg) => ({
         reservationCount: accumulator.reservationCount + pkg.reservationCount,
+        totalRoomNights: accumulator.totalRoomNights + pkg.totalRoomNights,
         totalAdults: accumulator.totalAdults + pkg.totalAdults,
         totalIncludedVat: accumulator.totalIncludedVat + pkg.totalIncludedVat,
       }),
-      { reservationCount: 0, totalAdults: 0, totalIncludedVat: 0 },
+      { reservationCount: 0, totalRoomNights: 0, totalAdults: 0, totalIncludedVat: 0 },
     );
 
     return { packageSummaries, totals };
@@ -550,6 +581,9 @@ export default function BreakfastTrackerPage() {
                   <p>
                     Reservations: <span className="font-semibold">{todayOverview.totalReservations}</span>
                   </p>
+                  <p>
+                    Roomnights: <span className="font-semibold">{todayOverview.totalRoomNights}</span>
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -579,15 +613,17 @@ export default function BreakfastTrackerPage() {
                   {trackedPackageTotals.packageSummaries.map((pkg) => (
                     <p key={pkg.id || pkg.name}>
                       {pkg.name}: <span className="font-semibold">{pkg.reservationCount}</span> reservaties /{" "}
-                      <span className="font-semibold">{pkg.totalAdults}</span> adults — Total Included Vat:{" "}
+                      <span className="font-semibold">{pkg.totalRoomNights}</span> roomnights /{" "}
+                      <span className="font-semibold">{pkg.totalAdults}</span> adult roomnights — Total Included Vat:{" "}
                       <span className="font-semibold">€ {pkg.totalIncludedVat.toFixed(2)}</span>
                     </p>
                   ))}
                   <div className="mt-2 border-t border-gray-200 pt-2 text-gray-800">
                     <p>
                       Totaal: <span className="font-semibold">{trackedPackageTotals.totals.reservationCount}</span>{" "}
-                      reservaties / <span className="font-semibold">{trackedPackageTotals.totals.totalAdults}</span>{" "}
-                      adults — <span className="font-semibold">€ {trackedPackageTotals.totals.totalIncludedVat.toFixed(2)}</span>
+                      reservaties / <span className="font-semibold">{trackedPackageTotals.totals.totalRoomNights}</span>{" "}
+                      roomnights / <span className="font-semibold">{trackedPackageTotals.totals.totalAdults}</span>{" "}
+                      adult roomnights — <span className="font-semibold">€ {trackedPackageTotals.totals.totalIncludedVat.toFixed(2)}</span>
                     </p>
                   </div>
                 </>
