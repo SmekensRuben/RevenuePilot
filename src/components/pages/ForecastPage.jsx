@@ -91,17 +91,35 @@ const normalizeDateString = (value) => {
   return formatDateInput(parsed);
 };
 
-const detectDelimiter = (file) =>
-  new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      preview: 1,
-      delimiter: "",
-      complete: ({ meta }) => {
-        resolve(meta?.delimiter || ",");
-      },
-      error: (err) => reject(err),
-    });
+const guessDelimiter = (sampleLine = "") => {
+  const trimmed = sampleLine.trim();
+  if (!trimmed) return ",";
+
+  const candidates = [",", ";", "\t", "|"];
+  const counts = candidates.map((delim) => ({
+    delimiter: delim,
+    count: (trimmed.match(new RegExp(`\\${delim}`, "g")) || []).length,
+  }));
+
+  const best = counts.sort((a, b) => b.count - a.count)[0];
+  return best?.count ? best.delimiter : ",";
+};
+
+const sanitizeCsvContent = async (file) => {
+  const text = await file.text();
+  const lines = text.split(/\r?\n/);
+  const firstDataLine = lines.find((line) => line.trim() && !/^sep=.*/i.test(line.trim()));
+  const delimiter = guessDelimiter(firstDataLine);
+
+  const filteredLines = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    if (/^sep=.*/i.test(trimmed)) return false;
+    return trimmed.includes(delimiter);
   });
+
+  return { content: filteredLines.join("\n"), delimiter };
+};
 
 export default function ForecastPage() {
   const { hotelUid } = useHotelContext();
@@ -162,9 +180,9 @@ export default function ForecastPage() {
     setUploading(true);
 
     try {
-      const delimiter = await detectDelimiter(file);
+      const { content, delimiter } = await sanitizeCsvContent(file);
 
-      Papa.parse(file, {
+      Papa.parse(content, {
         delimiter,
         header: true,
         skipEmptyLines: "greedy",
