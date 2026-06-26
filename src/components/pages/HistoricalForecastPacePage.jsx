@@ -19,9 +19,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   serverTimestamp,
   setDoc,
   signOut,
+  where,
   writeBatch,
 } from "../../firebaseConfig";
 import { useHotelContext } from "../../contexts/HotelContext";
@@ -70,6 +72,9 @@ const SEGMENT_OPTIONS = [
 const SEGMENT_FIELD_OVERRIDES = {
   Groups: "totalGroupOtb",
 };
+
+const TARGET_LEAD_TIMES = [1, 3, 7, 14, 21];
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function formatDateInput(date = new Date()) {
   const year = date.getFullYear();
@@ -123,9 +128,13 @@ export default function HistoricalForecastPacePage() {
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFilterDate, setSelectedFilterDate] = useState(formatDateInput());
+  const [pickupRangeStart, setPickupRangeStart] = useState(formatDateInput());
+  const [pickupRangeEnd, setPickupRangeEnd] = useState(formatDateInput());
   const [selectedSegments, setSelectedSegments] = useState(SEGMENT_OPTIONS);
   const [historicalData, setHistoricalData] = useState([]);
+  const [pickupAverages, setPickupAverages] = useState([]);
   const [loadingHistorical, setLoadingHistorical] = useState(false);
+  const [loadingPickupAverages, setLoadingPickupAverages] = useState(false);
   const fileInputRef = useRef(null);
 
   const today = useMemo(
@@ -223,6 +232,151 @@ export default function HistoricalForecastPacePage() {
       toast.error("Kon historische forecast pace niet laden.");
     } finally {
       setLoadingHistorical(false);
+    }
+  };
+
+  const parseDateOnly = (value) => {
+    const parsed = value ? new Date(value) : null;
+    if (!parsed || Number.isNaN(parsed.getTime())) return null;
+    parsed.setHours(0, 0, 0, 0);
+    return parsed;
+  };
+
+  const calculateLeadTime = (stayDate, reportDate) => {
+    const stay = parseDateOnly(stayDate);
+    const report = parseDateOnly(reportDate);
+    if (!stay || !report) return null;
+    const diff = Math.round((stay.getTime() - report.getTime()) / MS_PER_DAY);
+    return diff >= 0 ? diff : null;
+  };
+
+  const fetchPickupAverages = async () => {
+    if (!hotelUid) {
+      toast.error("Selecteer een hotel om data te laden.");
+      return;
+    }
+
+    if (!pickupRangeStart || !pickupRangeEnd) {
+      toast.error("Vul zowel een start- als einddatum in.");
+      return;
+    }
+
+    if (pickupRangeStart > pickupRangeEnd) {
+      toast.error("De startdatum moet vóór de einddatum liggen.");
+      return;
+    }
+
+    if (!selectedSegments.length) {
+      toast.error("Selecteer minstens één segment.");
+      return;
+    }
+
+    setLoadingPickupAverages(true);
+
+    try {
+      const reportCollection = collection(
+        db,
+        `hotels/${hotelUid}/historicalBobPerSegment`
+      );
+
+      const reportSnapshot = await getDocs(reportCollection);
+      const stayDateMap = new Map();
+
+      for (const reportDoc of reportSnapshot.docs) {
+        const reportData = reportDoc.data();
+        const reportDate = reportData?.reportDate || reportDoc.id;
+        if (!reportDate) continue;
+
+        const datesCollection = collection(reportDoc.ref, "dates");
+        const dateRangeQuery = query(
+          datesCollection,
+          where("date", ">=", pickupRangeStart),
+          where("date", "<=", pickupRangeEnd)
+        );
+
+        const dateSnapshot = await getDocs(dateRangeQuery);
+
+        dateSnapshot.forEach((dateDoc) => {
+          const dateData = dateDoc.data();
+          const stayDate = dateData?.date;
+          if (!stayDate) return;
+
+          const leadTime = calculateLeadTime(stayDate, reportDate);
+          if (leadTime === null) return;
+
+          const dateEntry = stayDateMap.get(stayDate) || {};
+
+          selectedSegments.forEach((segment) => {
+            const fieldName =
+              SEGMENT_FIELD_OVERRIDES[segment] || `${toCamelCase(segment)}Otb`;
+            const value = dateData[fieldName];
+            if (value === undefined || value === null) return;
+
+            const segmentEntry = dateEntry[segment] || {};
+            segmentEntry[leadTime] = Number(value);
+            dateEntry[segment] = segmentEntry;
+          });
+
+          stayDateMap.set(stayDate, dateEntry);
+        });
+      }
+
+      const pickupTotals = selectedSegments.reduce((acc, segment) => {
+        acc[segment] = {};
+        return acc;
+      }, {});
+
+      stayDateMap.forEach((segmentMap) => {
+        selectedSegments.forEach((segment) => {
+          const leadValues = segmentMap[segment];
+          if (!leadValues) return;
+
+          const leadTimes = Object.keys(leadValues).map(Number);
+          const baseLeadTime = Math.min(...leadTimes);
+
+          if (!Number.isFinite(baseLeadTime)) return;
+
+          const baseValue = leadValues[baseLeadTime];
+
+          TARGET_LEAD_TIMES.forEach((targetLeadTime) => {
+            const targetValue = leadValues[targetLeadTime];
+            if (targetValue === undefined) return;
+
+            const pickup = baseValue - targetValue;
+            const current = pickupTotals[segment][targetLeadTime] || {
+              sum: 0,
+              count: 0,
+            };
+
+            current.sum += pickup;
+            current.count += 1;
+            pickupTotals[segment][targetLeadTime] = current;
+          });
+        });
+      });
+
+      const pickupResults = selectedSegments.map((segment) => ({
+        segment,
+        averages: TARGET_LEAD_TIMES.map((leadTime) => {
+          const totals = pickupTotals[segment][leadTime];
+          return totals?.count ? totals.sum / totals.count : null;
+        }),
+      }));
+
+      setPickupAverages(pickupResults);
+
+      const hasData = pickupResults.some((result) =>
+        result.averages.some((value) => value !== null)
+      );
+
+      if (!hasData) {
+        toast.info("Geen pickup-data gevonden voor deze periode.");
+      }
+    } catch (err) {
+      console.error("Error calculating pickup averages", err);
+      toast.error("Kon pickup gemiddelden niet berekenen.");
+    } finally {
+      setLoadingPickupAverages(false);
     }
   };
 
@@ -396,6 +550,12 @@ export default function HistoricalForecastPacePage() {
     []
   );
 
+  const formatPickupValue = (value) => {
+    if (value === null || value === undefined) return "—";
+    const rounded = Math.round((value + Number.EPSILON) * 10) / 10;
+    return `${rounded.toFixed(1)}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
       <HeaderBar today={today} onLogout={handleLogout} />
@@ -530,6 +690,97 @@ export default function HistoricalForecastPacePage() {
           ) : (
             <p className="text-gray-600">
               Geen data beschikbaar voor de gekozen combinatie van datum en segmenten.
+            </p>
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Gemiddelde pickup per segment</h2>
+              <p className="text-sm text-gray-500">
+                Bereken de gemiddelde pickup voor een datumbereik ten opzichte van 1, 3, 7, 14 en 21 dagen lead time.
+              </p>
+            </div>
+            <div className="text-sm text-gray-600">
+              {selectedSegments.length} segment(en) geselecteerd
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[repeat(3, minmax(0, 1fr))_auto] items-end">
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Startdatum</label>
+              <input
+                type="date"
+                value={pickupRangeStart}
+                onChange={(e) => setPickupRangeStart(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Einddatum</label>
+              <input
+                type="date"
+                value={pickupRangeEnd}
+                onChange={(e) => setPickupRangeEnd(e.target.value)}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold text-gray-700">Lead time</label>
+              <div className="text-sm text-gray-600">
+                1, 3, 7, 14 &amp; 21 dagen
+              </div>
+            </div>
+
+            <div className="flex w-full lg:w-auto lg:justify-end">
+              <Button
+                type="button"
+                onClick={fetchPickupAverages}
+                disabled={loadingPickupAverages || !hotelUid}
+                className="w-full lg:w-auto"
+              >
+                {loadingPickupAverages ? "Berekenen..." : "Bereken pickup"}
+              </Button>
+            </div>
+          </div>
+
+          {loadingPickupAverages ? (
+            <p className="text-gray-600">Pickup gemiddelden berekenen...</p>
+          ) : pickupAverages.length ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Segment</th>
+                    {TARGET_LEAD_TIMES.map((lead) => (
+                      <th
+                        key={lead}
+                        className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap"
+                      >
+                        {lead} dagen
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {pickupAverages.map(({ segment, averages }) => (
+                    <tr key={segment}>
+                      <td className="px-4 py-3 font-medium text-gray-900">{segment}</td>
+                      {averages.map((value, index) => (
+                        <td key={`${segment}-${TARGET_LEAD_TIMES[index]}`} className="px-4 py-3 text-gray-700">
+                          {formatPickupValue(value)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-gray-600">
+              Geen pickup-data geladen. Kies een datumbereik en klik op "Bereken pickup".
             </p>
           )}
         </Card>
